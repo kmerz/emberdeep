@@ -1,0 +1,177 @@
+package room
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"strconv"
+
+	"emberdeep/internal/game"
+	"emberdeep/internal/proto"
+)
+
+func mustJSON(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func ceilSec(ticks int) int {
+	if ticks <= 0 {
+		return 0
+	}
+	return (ticks + game.TickHz - 1) / game.TickHz
+}
+
+func SeedString(seed uint32) string { return fmt.Sprintf("%04X-%02X", seed>>8&0xFFFF, seed&0xFF) }
+
+func heroStatuses(g *game.Game, h *game.Hero) []proto.Status {
+	var st []proto.Status
+	if g.Now < h.WallUntil {
+		st = append(st, proto.Status{K: "wall", T: ceilSec(h.WallUntil - g.Now)})
+	}
+	if g.Now < h.BellUntil {
+		st = append(st, proto.Status{K: "bell", T: ceilSec(h.BellUntil - g.Now)})
+	}
+	if g.Now < h.SlowUntil {
+		st = append(st, proto.Status{K: "slow", T: ceilSec(h.SlowUntil - g.Now)})
+	}
+	return st
+}
+
+func LevelMsg(g *game.Game) []byte {
+	l := g.Level
+	tor := make([][2]int, len(l.Torches))
+	for i, t := range l.Torches {
+		tor[i] = [2]int{t.X, t.Y}
+	}
+	return mustJSON(proto.Level{T: "level", W: l.W, H: l.H, Seed: SeedString(g.Seed), Torches: tor,
+		Stairs: [2]int{l.Stairs.X, l.Stairs.Y}, Start: [2]int{l.Start.X, l.Start.Y}})
+}
+
+func ExploreMsg(tiles []game.TileUpdate) []byte {
+	out := make([][3]int, len(tiles))
+	for i, t := range tiles {
+		out[i] = [3]int{t.X, t.Y, int(t.T)}
+	}
+	return mustJSON(proto.Explore{T: "explore", Tiles: out})
+}
+
+func visBox(g *game.Game) proto.Vis {
+	x0, y0, x1, y1 := game.LW, game.LH, -1, -1
+	for y := 0; y < game.LH; y++ {
+		row := g.Visible[y*game.LW : (y+1)*game.LW]
+		for x, v := range row {
+			if v {
+				x0, x1 = min(x0, x), max(x1, x)
+				y0, y1 = min(y0, y), max(y1, y)
+			}
+		}
+	}
+	if x1 < 0 {
+		return proto.Vis{}
+	}
+	w, h := x1-x0+1, y1-y0+1
+	bits := make([]byte, (w*h+7)/8)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if g.Visible[(y0+y)*game.LW+x0+x] {
+				i := y*w + x
+				bits[i>>3] |= 1 << (i & 7)
+			}
+		}
+	}
+	return proto.Vis{X0: x0, Y0: y0, W: w, H: h, B: base64.StdEncoding.EncodeToString(bits)}
+}
+
+func heroEnt(g *game.Game, h *game.Hero) proto.Ent {
+	e := proto.Ent{ID: h.ID, K: "h", G: "@", X: h.X, Y: h.Y, HP: h.HP, HPMax: h.HPMax, Cls: string(h.Cls), Name: h.Name,
+		Downed: h.Downed, Dead: h.Dead, Face: h.Facing, St: heroStatuses(g, h)}
+	if h.Downed {
+		e.DownT = ceilSec(h.DownedUntil - g.Now)
+		for _, r := range g.Heroes {
+			if r.ReviveTarget == h.ID && r.ReviveProg > 0 {
+				p := float64(r.ReviveProg) / float64(game.ReviveTicks)
+				if p > e.Rev {
+					e.Rev = p
+				}
+			}
+		}
+	}
+	return e
+}
+
+// BuildShared marshals the room-wide part of a snapshot. Entities are filtered to party vision.
+func BuildShared(g *game.Game) []byte {
+	s := proto.SnapShared{T: "snap", Tick: g.Now, Vis: visBox(g), Ents: []proto.Ent{}, Party: []proto.PartyEntry{}}
+	for _, h := range g.Heroes {
+		s.Ents = append(s.Ents, heroEnt(g, h))
+		s.Party = append(s.Party, proto.PartyEntry{ID: h.ID, Name: h.Name, Cls: string(h.Cls), Lvl: h.Lvl, HP: h.HP, HPMax: h.HPMax,
+			Res: h.Res, ResMax: h.ResMax, St: heroStatuses(g, h), Downed: h.Downed, Dead: h.Dead, Connected: h.Connected,
+			DownT: ceilSec(h.DownedUntil - g.Now)})
+		if !h.Downed {
+			s.Party[len(s.Party)-1].DownT = 0
+		}
+	}
+	for _, m := range g.Mons {
+		if !g.IsVisible(m.X, m.Y) {
+			continue
+		}
+		e := proto.Ent{ID: m.ID, K: "m", G: string(rune(m.Kind)), X: m.X, Y: m.Y, HP: m.HP, HPMax: m.HPMax, Elite: m.Elite, Face: m.Facing,
+			Name: m.Def().Name}
+		if g.Now < m.SlowUntil {
+			e.St = append(e.St, proto.Status{K: "slow", T: ceilSec(m.SlowUntil - g.Now)})
+		}
+		if g.Now < m.BleedUntil {
+			e.St = append(e.St, proto.Status{K: "bleed", T: ceilSec(m.BleedUntil - g.Now)})
+		}
+		s.Ents = append(s.Ents, e)
+	}
+	for _, it := range g.Items {
+		if it.Owner == 0 && g.IsVisible(it.X, it.Y) {
+			s.Ents = append(s.Ents, proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount})
+		}
+	}
+	for _, p := range g.Patches {
+		if g.IsVisible(p.X, p.Y) {
+			s.Patches = append(s.Patches, [2]int{p.X, p.Y})
+		}
+	}
+	st := g.Level.Stairs
+	s.Obj = proto.Objectives{KingAlive: !g.KingKilled, StairsAt: g.StairsAt, StairsNeed: g.StairsNeed, StairsLeft: g.StairsLeft,
+		StairsFound: g.Explored[st.Y*game.LW+st.X], Gold: g.PartyGold(), Kills: g.Kills}
+	return mustJSON(s)
+}
+
+// BuildPrivate appends the client's own data (resource, cooldowns, potions, personal drops, ack) to the shared part.
+func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
+	h := g.Hero(pid)
+	out := make([]byte, 0, len(shared)+400)
+	out = append(out, shared[:len(shared)-1]...)
+	if h == nil {
+		return append(out, '}')
+	}
+	def := h.Def()
+	me := proto.Me{Res: h.Res, ResMax: h.ResMax, Potions: h.Potions, Gold: h.Gold, XP: h.XP, XPNeed: game.XPNeed(h.Lvl), Lvl: h.Lvl,
+		CD: make([]int, 3), CDMax: make([]int, 3), Cost: make([]int, 3), PotCD: max(0, h.PotionReady-g.Now)}
+	for i := 0; i < 3; i++ {
+		me.CD[i] = max(0, h.CDReady[i]-g.Now)
+		me.CDMax[i] = def.Skills[i].CD
+		me.Cost[i] = def.Skills[i].Cost
+	}
+	out = append(out, `,"ackSeq":`...)
+	out = strconv.AppendInt(out, int64(h.LastSeq), 10)
+	out = append(out, `,"me":`...)
+	out = append(out, mustJSON(me)...)
+	drops := []proto.Ent{}
+	for _, it := range g.Items {
+		if it.Owner == pid && g.IsVisible(it.X, it.Y) {
+			drops = append(drops, proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount})
+		}
+	}
+	out = append(out, `,"drops":`...)
+	out = append(out, mustJSON(drops)...)
+	return append(out, '}')
+}

@@ -1,0 +1,40 @@
+package game
+
+// Tick advances the simulation by one 20 Hz step and returns the events produced since the last call
+// (including events produced by Apply).
+func (g *Game) Tick() []Event {
+	g.Now++
+	if g.Phase == PhasePlaying {
+		g.runPending()
+		for _, h := range g.Heroes {
+			g.tickHero(h)
+		}
+		for _, m := range append([]*Monster(nil), g.Mons...) {
+			if m.HP > 0 {
+				g.monsterAI(m)
+			}
+		}
+	}
+	g.updateVision()
+	out := g.events
+	g.events = nil
+	return out
+}
+
+func (g *Game) tickHero(h *Hero) {
+	if h.Dead {
+		return
+	}
+	def := h.Def()
+	if def.Regen != 0 && !h.Downed {
+		h.resAcc += def.Regen / TickHz
+		for h.resAcc >= 1 {
+			h.resAcc--
+			h.gainRes(1)
+		}
+		for h.resAcc <= -1 {
+			h.resAcc++
+			h.gainRes(-1)
+		}
+	}
+}

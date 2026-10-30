@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Emberdeep — FX sheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#08080d;font-family:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;color:#e9e4ff}
+a{color:#ff2e88}a:hover{color:#ff6fb0}
+</style>
+</helmet>
+<div style="width: 1600px; height: 1340px; box-sizing: border-box; padding: 56px; background: #08080d; color: #e9e4ff; display: flex; flex-direction: column; gap: 40px; font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 13px; letter-spacing: 0.18em; color: #ff2e88; font-weight: 700">EMBERDEEP · FX SHEET</div>
+<h1 style="margin: 0; font-size: 44px; font-weight: 800; letter-spacing: -0.01em; color: #f4f0ff">Spell impacts, frame by frame</h1>
+<p style="margin: 0; font-size: 15px; line-height: 1.55; color: #a39cc4; max-width: 980px; text-wrap: pretty">Every effect is plain terminal cells: one glyph, one 24-bit foreground and one background per cell. The blast lights the floor around it, the camera shakes up to two columns for 400 ms, and the scorch keeps glowing for a few seconds.</p>
+</div>
+<div style="display: flex; flex-direction: column; gap: 44px">
+<sc-for list="{{fx}}" as="row" hint-placeholder-count="3">
+<div style="display: flex; gap: 24px">
+<div style="width: 200px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 18px; font-weight: 800; color: {{row.accent}}">{{row.name}}</div>
+<div style="font-size: 13px; line-height: 1.5; color: #a39cc4; white-space: pre-line">{{row.desc}}</div>
+<div style="display: flex; gap: 4px">
+<sc-for list="{{row.sw}}" as="s" hint-placeholder-count="6">
+<div style="width: 26px; height: 26px; border-radius: 4px; background-color: {{s.c}}"></div>
+</sc-for>
+</div>
+<div style="display: flex; gap: 8px; align-items: center; font-size: 12px; color: #a39cc4">
+<div style="width: 26px; height: 26px; border-radius: 13px; box-sizing: border-box; border: 3px solid {{row.shock}}"></div>
+<div>shock ring</div>
+</div>
+</div>
+<div style="display: flex; gap: 20px">
+<sc-for list="{{row.frames}}" as="f" hint-placeholder-count="5">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="width: 234px; height: 234px; background: #09090e; border-radius: 6px; overflow: hidden; font-size: 15px; line-height: 18px; white-space: pre; font-variant-ligatures: none">
+<sc-for list="{{f.rows}}" as="rw" hint-placeholder-count="13">
+<div style="height: 18px; display: flex">
+<sc-for list="{{rw.runs}}" as="r" hint-placeholder-count="3">
+<span style="display: block; height: 18px; color: {{r.fg}}; background-color: {{r.bg}}; font-weight: {{r.w}}">{{r.t}}</span>
+</sc-for>
+</div>
+</sc-for>
+</div>
+<div style="font-size: 13px; color: #a39cc4">{{f.cap}}</div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; padding-top: 28px; border-top: 1px solid #25223a">
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 12px; letter-spacing: 0.14em; color: #a39cc4; font-weight: 700">BLOOM · DENSITY RAMP</div>
+<div style="font-size: 32px; letter-spacing: 0.3em; color: #ff8a1f; white-space: pre">█▓▒░·</div>
+<div style="font-size: 13px; color: #a39cc4">hot core to ragged edge; the center hollows out after 300 ms</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 12px; letter-spacing: 0.14em; color: #a39cc4; font-weight: 700">SHOCKWAVE · TANGENT GLYPHS</div>
+<div style="font-size: 32px; letter-spacing: 0.3em; color: #5ff5ff; white-space: pre">─╲│╱</div>
+<div style="font-size: 13px; color: #a39cc4">each ring cell picks the line glyph that follows the circle</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 12px; letter-spacing: 0.14em; color: #a39cc4; font-weight: 700">EMBERS · PARTICLE LIFE</div>
+<div style="font-size: 32px; letter-spacing: 0.3em; color: #ff2e88; white-space: pre">*+•·</div>
+<div style="font-size: 13px; color: #a39cc4">46 sparks with drag; glyph and color age with them</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 12px; letter-spacing: 0.14em; color: #a39cc4; font-weight: 700">WALLS · HALF-BLOCK BEVEL</div>
+<div style="display: flex; gap: 0px; font-size: 32px; line-height: 38px; white-space: pre">
+<span style="color: #9a8cd0; background-color: #4a4070">▀▀▀</span>
+<span style="color: #d8b27a; background-color: #6a4a2c">▀▀▀</span>
+</div>
+<div style="font-size: 13px; color: #a39cc4">▀ with a lit top and a darker face; torchlight tints both</div>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":1340}}'>
+function hx(h){var n=parseInt(h.slice(1),16);return [(n>>16)&255,(n>>8)&255,n&255];}
+function cl(v){return v<0?0:v>255?255:v;}
+function hex(c){var r=cl(Math.round(c[0])),g=cl(Math.round(c[1])),b=cl(Math.round(c[2]));return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);}
+function mix(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+function mul(a,k){return [a[0]*k,a[1]*k,a[2]*k];}
+function add(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2]];}
+function c01(t){return t<0?0:t>1?1:t;}
+function ramp(p,t){t=c01(t)*(p.length-1);var i=Math.min(p.length-2,Math.floor(t));return mix(p[i],p[i+1],t-i);}
+function hash(x,y,s){var h=(Math.imul(x|0,374761393)+Math.imul(y|0,668265263)+Math.imul(s|0,982451653))|0;h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return (h>>>0)/4294967296;}
+function dist(ax,ay,bx,by){var dx=ax-bx,dy=(ay-by)*2;return Math.sqrt(dx*dx+dy*dy);}
+function fbNew(w,h,bg){var c=new Array(w*h);for(var i=0;i<w*h;i++)c[i]={ch:' ',fg:[200,200,210],bg:bg,w:0};return {w:w,h:h,c:c};}
+function put(fb,x,y,ch,fg,bg,b){x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=fb.w||y>=fb.h)return;var k=fb.c[y*fb.w+x];if(ch!=null)k.ch=ch;if(fg)k.fg=fg;if(bg)k.bg=bg;if(b!=null)k.w=b;}
+function txt(fb,x,y,s,fg,bg,b){for(var i=0;i<s.length;i++)put(fb,x+i,y,s[i],fg,bg,b);}
+function rows(fb){var out=[];for(var y=0;y<fb.h;y++){var runs=[],cur=null;for(var x=0;x<fb.w;x++){var k=fb.c[y*fb.w+x];var bg=hex(k.bg);if(k.ch===' '&&cur&&cur.bg===bg){cur.t+=' ';continue;}var fg=hex(k.fg),w=k.w?'700':'400';if(cur&&cur.fg===fg&&cur.bg===bg&&cur.w===w){cur.t+=k.ch;}else{cur={t:k.ch,fg:fg,bg:bg,w:w};runs.push(cur);}}out.push({runs:runs});}return out;}
+
+var PALS=[
+  {key:'ember',title:'EMBER NOVA',desc:'Sorcerer · fire\ncore cools white → gold → pink → violet',ramp:['#fffbe6','#ffe14d','#ff8a1f','#ff2e88','#7b2cff','#1d0b3f'],shock:'#5ff5ff',accent:'#ff8a1f'},
+  {key:'void',title:'VOID RIFT',desc:'Rogue · shadow bomb\nteal core, magenta shock ring',ramp:['#ffffff','#b9fff4','#2de2c4','#8a3dff','#3a0f7a','#12062c'],shock:'#ff4fd8',accent:'#2de2c4'},
+  {key:'frost',title:'GLACIAL BURST',desc:'Sorcerer · cold\nwhite shatter, warm counter-ring',ramp:['#ffffff','#d6f5ff','#6fd0ff','#3b6bff','#2a2290','#0b0b2e'],shock:'#ffe9a8',accent:'#6fd0ff'}
+];
+
+function drawBlast(mb,cx,cy,e,P,isOpen,seed,scale){
+  if(e<0)return;
+  var fr=Math.floor(e*24);
+  var R=(3+15*(1-Math.pow(1-c01(e/0.5),3)))*scale;
+  var fade=e<0.45?1:c01(1-(e-0.45)/0.75);
+  var rs=(2+50*e)*scale,shockA=c01(1-e/0.75),flash=e<0.1?1-e/0.1:0;
+  var hole=e>0.3?c01((e-0.3)*1.6):0;
+  var shockCol=mix(P.shock,[255,255,255],0.25);
+  for(var y=0;y<mb.h;y++)for(var x=0;x<mb.w;x++){
+    var k=mb.c[y*mb.w+x];
+    if(flash>0){k.bg=add(k.bg,mul([120,90,130],flash));k.fg=add(k.fg,mul([90,80,90],flash));}
+    if(!isOpen(x,y))continue;
+    var d0=dist(x,y,cx,cy),d=d0+(hash(x,y,fr+seed)-0.5)*2.2*scale,drawn=false;
+    if(fade>0&&d<R){
+      var q=d/R,dens=(1-q)*1.5*fade+0.15,ci=q*0.75+(1-fade)*0.7;
+      if(q<hole){dens*=0.35;ci+=0.35;}
+      k.ch=dens>0.95?'█':dens>0.7?'▓':dens>0.48?'▒':dens>0.28?'░':'·';
+      k.fg=ramp(P.ramp,ci);k.bg=mul(ramp(P.ramp,Math.min(1,ci+0.3)),0.5*fade+0.1);k.w=0;
+      drawn=dens>0.48;
+    }
+    if(shockA>0&&!drawn&&Math.abs(d0-rs)<1.15*Math.max(scale,0.8)){
+      var deg=(Math.atan2((y-cy)*2,x-cx)*180/Math.PI+90+360)%180;
+      k.ch=deg<22.5||deg>=157.5?'─':deg<67.5?'╲':deg<112.5?'│':'╱';
+      k.fg=mix(k.bg,shockCol,shockA);k.w=1;
+    }
+  }
+  for(var i=0;i<46;i++){
+    var ang=hash(i,1,seed+7)*Math.PI*2,spd=(12+hash(i,2,seed+7)*36)*scale,life=0.55+hash(i,3,seed+7)*1.3;
+    if(e>life)continue;
+    var dd=spd*(1-Math.exp(-e*3))/3;
+    var px=Math.round(cx+Math.cos(ang)*dd),py=Math.round(cy+Math.sin(ang)*dd/2);
+    if(px<0||py<0||px>=mb.w||py>=mb.h||!isOpen(px,py))continue;
+    var a=e/life,kk=mb.c[py*mb.w+px];
+    kk.ch=a<0.25?'*':a<0.5?'+':a<0.78?'•':'·';kk.fg=ramp(P.ramp,0.12+a*0.75);kk.w=1;
+  }
+}
+
+var PW=26,PH=13,PCX=14,PCY=6;
+var PM=[{x:10,y:4,g:'z',c:[150,196,106]},{x:18,y:8,g:'f',c:[255,106,77]},{x:16,y:3,g:'s',c:[232,226,208]},{x:11,y:9,g:'z',c:[150,196,106]}];
+function solid(x,y){return y===0||y===PH-1||(x===5&&(y===3||y===9))||(x===22&&(y===3||y===9));}
+function patch(e,P,seed){
+  var mb=fbNew(PW,PH,[9,9,14]),x,y;
+  var I=e>=0?2.8*Math.exp(-e*2.2):0,lc=e>=0?ramp(P.ramp,Math.min(0.85,e*0.7)).map(function(v){return v/255;}):[0,0,0];
+  var heatK=e<0?0:e<0.35?e/0.35:Math.exp(-(e-0.35)*0.55);
+  var projX=e<0?1+(PCX-1)*0.7:null;
+  for(y=0;y<PH;y++)for(x=0;x<PW;x++){
+    var k=mb.c[y*PW+x],d=dist(x,y,PCX,PCY),f=d<34?(1-d/34):0;f=f*f*I;
+    var c0=dist(x,y,1,6),cf=c0<14?(1-c0/14):0;cf=cf*cf*0.5;
+    var Lr=0.1+lc[0]*f+cf,Lg=0.1+lc[1]*f+cf*0.9,Lb=0.13+lc[2]*f+cf*0.8;
+    if(projX!==null){var pd=dist(x,y,projX,PCY),pf=pd<10?(1-pd/10):0;pf=pf*pf*1.2;Lr+=P.ramp[1][0]/255*pf;Lg+=P.ramp[1][1]/255*pf;Lb+=P.ramp[1][2]/255*pf;}
+    Lr=Math.round(Lr*14)/14;Lg=Math.round(Lg*14)/14;Lb=Math.round(Lb*14)/14;
+    if(solid(x,y)){k.ch='▀';k.fg=[100*(0.2+Lr*1.1),90*(0.2+Lg*1.1),134*(0.2+Lb*1.1)];k.bg=[48*(0.2+Lr*1.1),42*(0.2+Lg*1.1),70*(0.2+Lb*1.1)];continue;}
+    var bg=[13+Lr*50,12+Lg*38,20+Lb*34],fg=[118*(0.25+Lr),112*(0.25+Lg),142*(0.25+Lb)];
+    var h=c01(1-d/9)*heatK;if(h>0){bg=add(bg,[92*h,24*h,10*h]);fg=mix(fg,[60,30,26],h*0.6);}
+    k.ch='·';k.fg=fg;k.bg=bg;
+  }
+  drawBlast(mb,PCX,PCY,e,P,function(x,y){return !solid(x,y);},seed,0.62);
+  PM.forEach(function(m){
+    var d=dist(m.x,m.y,PCX,PCY),mx=m.x,my=m.y;
+    if(e>0.15){var dx=m.x-PCX,dy=m.y-PCY,n=Math.hypot(dx,dy)||1;mx=Math.round(m.x+dx/n*2);my=Math.round(m.y+dy/n*1.2);}
+    if(e>0.2){put(mb,mx,my,'%',[130,52,60],null,0);return;}
+    if(e>=0)put(mb,mx,my,m.g,[255,255,255],P.ramp[2],1);else put(mb,mx,my,m.g,m.c,null,1);
+  });
+  put(mb,1,6,'@',[95,215,255],[28,64,76],1);
+  if(projX!==null){for(var t=6;t>=1;t--){var tx=Math.round(projX-t*1.3);if(tx<=1)continue;put(mb,tx,PCY,t<3?'•':'·',ramp(P.ramp,t/7),null,1);}put(mb,Math.round(projX),PCY,'●',[255,255,255],mul(P.ramp[1],0.55),1);}
+  if(e>=0.15&&e<2){var age=e-0.15,yy=PM[2].y-1-Math.floor(age*2.6);txt(mb,11,Math.max(1,yy),' CRIT 1,284 ',[255,255,255],[255,46,136],1);}
+  return rows(mb);
+}
+
+var FR=[[-0.12,'00  cast'],[0.04,'01  flash · +40 ms'],[0.16,'02  bloom · +160 ms'],[0.34,'03  shock · +340 ms'],[1.0,'04  embers · +1 s']];
+var CACHE=null;
+function build(){
+  if(CACHE)return CACHE;
+  CACHE=PALS.map(function(p,pi){
+    var P={ramp:p.ramp.map(hx),shock:hx(p.shock)};
+    return {name:p.title,desc:p.desc,accent:p.accent,shock:p.shock,sw:p.ramp.map(function(c){return {c:c};}),
+      frames:FR.map(function(f){return {cap:f[1],rows:patch(f[0],P,pi*13)};})};
+  });
+  return CACHE;
+}
+class Component extends DCLogic {
+  renderVals(){return {fx:build()};}
+}
+</script>
+</body>
+</html>

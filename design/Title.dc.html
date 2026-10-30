@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Emberdeep — title and lobby</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#050508;font-family:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;color:#e9e4ff}
+a{color:#ff2e88}a:hover{color:#ff6fb0}
+</style>
+</helmet>
+<div style="width: 1488px; height: 940px; box-sizing: border-box; padding: 24px; background: #050508; display: flex; flex-direction: column; font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace">
+<div style="height: 28px; display: flex; align-items: center; justify-content: center; background: #12111b; border-radius: 10px 10px 0 0; color: #8a84a8; font-size: 12px; letter-spacing: 0.04em">emberdeep — ssh — 160×48</div>
+<div style="width: 1440px; height: 864px; background: #09090e; overflow: hidden; border-radius: 0 0 10px 10px; font-size: 15px; line-height: 18px; white-space: pre; font-variant-ligatures: none">
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="48">
+<div style="height: 18px; display: flex">
+<sc-for list="{{row.runs}}" as="r" hint-placeholder-count="4">
+<span style="display: block; height: 18px; color: {{r.fg}}; background-color: {{r.bg}}; font-weight: {{r.w}}">{{r.t}}</span>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"animate":{"editor":"boolean","default":true},"$preview":{"width":1488,"height":940}}'>
+var W=160,H=48;
+function cl(v){return v<0?0:v>255?255:v;}
+function hex(c){var r=cl(Math.round(c[0])),g=cl(Math.round(c[1])),b=cl(Math.round(c[2]));return '#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);}
+function mix(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];}
+function mul(a,k){return [a[0]*k,a[1]*k,a[2]*k];}
+function c01(t){return t<0?0:t>1?1:t;}
+function ramp(p,t){t=c01(t)*(p.length-1);var i=Math.min(p.length-2,Math.floor(t));return mix(p[i],p[i+1],t-i);}
+function hash(x,y,s){var h=(Math.imul(x|0,374761393)+Math.imul(y|0,668265263)+Math.imul(s|0,982451653))|0;h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return (h>>>0)/4294967296;}
+function fbNew(w,h,bg){var c=new Array(w*h);for(var i=0;i<w*h;i++)c[i]={ch:' ',fg:[200,200,210],bg:bg,w:0};return {w:w,h:h,c:c};}
+function put(fb,x,y,ch,fg,bg,b){x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=fb.w||y>=fb.h)return;var k=fb.c[y*fb.w+x];if(ch!=null)k.ch=ch;if(fg)k.fg=fg;if(bg)k.bg=bg;if(b!=null)k.w=b;}
+function txt(fb,x,y,s,fg,bg,b){for(var i=0;i<s.length;i++)put(fb,x+i,y,s[i],fg,bg,b);}
+function ctxt(fb,y,s,fg,bg,b){txt(fb,Math.floor((W-s.length)/2),y,s,fg,bg,b);}
+function segs(fb,x,y,arr){arr.forEach(function(s){txt(fb,x,y,s[0],s[1],s[2]||null,s[3]||0);x+=s[0].length;});return x;}
+function fill(fb,x,y,w,h,bg){for(var j=0;j<h;j++)for(var i=0;i<w;i++)put(fb,x+i,y+j,' ',null,bg);}
+var PAN=[13,12,20],BRD=[58,54,86];
+function box(fb,x,y,w,h,title,accent){
+  fill(fb,x,y,w,h,PAN);
+  for(var i=1;i<w-1;i++){put(fb,x+i,y,'─',BRD);put(fb,x+i,y+h-1,'─',BRD);}
+  for(var j=1;j<h-1;j++){put(fb,x,y+j,'│',BRD);put(fb,x+w-1,y+j,'│',BRD);}
+  put(fb,x,y,'╭',BRD);put(fb,x+w-1,y,'╮',BRD);put(fb,x,y+h-1,'╰',BRD);put(fb,x+w-1,y+h-1,'╯',BRD);
+  if(title){put(fb,x+2,y,' ',BRD);txt(fb,x+3,y,title,accent||[236,228,255],null,1);put(fb,x+3+title.length,y,' ',BRD);}
+}
+function rows(fb){var out=[];for(var y=0;y<fb.h;y++){var runs=[],cur=null;for(var x=0;x<fb.w;x++){var k=fb.c[y*fb.w+x];var bg=hex(k.bg);if(k.ch===' '&&cur&&cur.bg===bg){cur.t+=' ';continue;}var fg=hex(k.fg),w=k.w?'700':'400';if(cur&&cur.fg===fg&&cur.bg===bg&&cur.w===w){cur.t+=k.ch;}else{cur={t:k.ch,fg:fg,bg:bg,w:w};runs.push(cur);}}out.push({runs:runs});}return out;}
+
+var FONT={
+  E:['#####','#....','####.','#....','#....','#####'],
+  M:['#...#','##.##','#.#.#','#...#','#...#','#...#'],
+  B:['####.','#...#','####.','#...#','#...#','####.'],
+  R:['####.','#...#','####.','#.#..','#..#.','#...#'],
+  D:['####.','#...#','#...#','#...#','#...#','####.'],
+  P:['####.','#...#','####.','#....','#....','#....']
+};
+var WORD='EMBERDEEP',LOGO_W=9*12-2;
+function on(px,py){if(px<0||py<0||py>=12)return false;var li=Math.floor(px/12);if(li>=9)return false;var lx=px%12;if(lx>=10)return false;return FONT[WORD[li]][py>>1][lx>>1]==='#';}
+var GRAD=[[255,225,77],[255,138,31],[255,46,136],[177,61,255]];
+
+function frame(tc){
+  var fb=fbNew(W,H,[9,8,14]),x,y;
+  /* warm glow from below */
+  for(y=0;y<H;y++){var t=c01((y-18)/29);var bg=mix([9,8,14],[52,14,26],t*t);for(x=0;x<W;x++)fb.c[y*W+x].bg=bg;}
+  /* rising embers */
+  for(var i=0;i<110;i++){
+    var sp=2.2+hash(i,1,3)*6,ph=hash(i,2,3);
+    var ex=Math.round(hash(i,3,3)*159+Math.sin(tc*1.2+i)*1.6);
+    var ey=Math.floor(47.99-((tc*sp+ph*56)%56));
+    if(ey<0||ey>47)continue;
+    var h=1-ey/47;
+    put(fb,ex,ey,h<0.18?'*':h<0.5?'•':'·',ramp([[255,210,120],[255,120,50],[255,46,136],[60,26,70]],h*1.15),null,1);
+  }
+  /* logo, half-block pixels with drop shadow + sheen */
+  var x0=Math.floor((W-LOGO_W-2)/2),y0=4,sheen=((tc*55)%320)-60;
+  var col=function(px,py){
+    if(on(px,py)){var c=ramp(GRAD,px/LOGO_W);if(!on(px,py-1))c=mix(c,[255,255,255],0.3);if(Math.abs(px-(sheen+py*1.5))<3)c=mix(c,[255,255,255],0.65);return c;}
+    if(on(px-2,py-2))return [70,18,64];
+    return null;
+  };
+  for(var r=0;r<7;r++)for(var px=0;px<LOGO_W+2;px++){
+    var top=col(px,r*2),bot=col(px,r*2+1);if(!top&&!bot)continue;
+    var cell=fb.c[(y0+r)*W+x0+px];
+    put(fb,x0+px,y0+r,'▀',top||cell.bg,bot||cell.bg);
+  }
+  ctxt(fb,12,'A  C O - O P  D E S C E N T  F O R  1 – 4  P L A Y E R S',[196,186,230],null,1);
+  ctxt(fb,13,'in your terminal · over ssh · no install',[120,114,150]);
+
+  /* lobby */
+  var DIM=[120,114,150],TX=[214,208,234],WH=[240,236,255],PINK=[255,46,136],MINT=[126,240,178],AMB=[255,176,70];
+  box(fb,38,16,84,18,'LOBBY · ASH-7Q2 · 4/4',PINK);
+  txt(fb,41,18,'SLOT',DIM,null,1);txt(fb,47,18,'PLAYER',DIM,null,1);txt(fb,61,18,'CLASS',DIM,null,1);txt(fb,74,18,'LVL',DIM,null,1);txt(fb,81,18,'STATUS',DIM,null,1);txt(fb,99,18,'PING',DIM,null,1);
+  for(x=41;x<=118;x++)put(fb,x,19,'─',[40,37,58]);
+  var P=[['kmerz','WARRIOR',[255,138,61],23,1,'23 ms'],['nyx','ROGUE',[199,146,255],22,1,'41 ms'],['vela','SORCERER',[95,215,255],23,1,'18 ms'],['oddjob','MONK',[255,212,92],21,0,'67 ms']];
+  P.forEach(function(p,i){
+    var y=20+i;
+    if(i===0)fill(fb,39,y,82,1,[28,24,42]);
+    txt(fb,42,y,String(i+1),DIM);
+    put(fb,47,y,'@',p[2],mul(p[2],0.3),1);txt(fb,49,y,p[0],WH,null,1);
+    if(i===0)txt(fb,56,y,'you',DIM);
+    txt(fb,61,y,p[1],p[2],null,1);txt(fb,74,y,String(p[3]),TX);
+    if(p[4])txt(fb,81,y,'● READY',MINT,null,1);
+    else{var blink=Math.floor(tc*2)%2===0;txt(fb,81,y,'○ choosing class…',blink?AMB:mul(AMB,0.55),null,1);}
+    txt(fb,99,y,p[5],DIM);
+  });
+  txt(fb,41,25,'DIFFICULTY',DIM);segs(fb,57,25,[['◂ ',DIM],['NIGHTMARE',PINK,null,1],[' ▸',DIM]]);
+  txt(fb,41,26,'SEED',DIM);segs(fb,57,26,[['4F2A-9C',TX,null,1],[' · daily run',DIM]]);
+  txt(fb,41,27,'LOOT',DIM);txt(fb,57,27,'personal drops · shared gold',TX);
+  txt(fb,41,28,'FRIENDLY FIRE',DIM);txt(fb,57,28,'off',TX);
+  txt(fb,41,31,'waiting for ',DIM);txt(fb,53,31,'oddjob',[255,212,92],null,1);txt(fb,59,31,' — the descent starts when all four are ready',DIM);
+
+  /* key chips */
+  var keys=[['ENTER','ready up'],['C','change class'],['I','invite'],['S','settings'],['Q','quit']];
+  var total=keys.reduce(function(a,k){return a+k[0].length+2+k[1].length+4;},0)-3,kx=Math.floor((W-total)/2);
+  keys.forEach(function(k,i){
+    var hot=i===0;
+    txt(fb,kx,36,' '+k[0]+' ',hot?[24,6,20]:[24,22,36],hot?PINK:[150,144,190],1);kx+=k[0].length+2;
+    txt(fb,kx,36,' '+k[1]+'   ',hot?WH:DIM,null,hot?1:0);kx+=k[1].length+4;
+  });
+
+  txt(fb,2,46,'ssh play@[YOUR-HOST]',DIM);
+  var rt='v0.1 · 24-bit color · 160×48 min';txt(fb,W-2-rt.length,46,rt,[88,84,118]);
+  return fb;
+}
+
+class Component extends DCLogic {
+  componentDidMount(){this._t0=performance.now();var self=this;this._iv=setInterval(function(){if((self.props.animate??true)===false)return;self.forceUpdate();},70);}
+  componentWillUnmount(){clearInterval(this._iv);}
+  renderVals(){
+    var anim=this.props.animate??true;
+    var tc=anim?(performance.now()-(this._t0||performance.now()))/1000+2:2.4;
+    return {rows:rows(frame(tc))};
+  }
+}
+</script>
+</body>
+</html>
