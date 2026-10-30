@@ -384,3 +384,20 @@ func (g *Game) nearestHero(x, y int, maxD float64) *Hero {
 func (g *Game) findFree(p Pt) (Pt, bool) {
 	return g.Level.nearestFree(p, func(x, y int) bool { return g.occ[y*LW+x] == 0 })
 }
+
+// Teleport moves a hero to a free walkable cell (tests, tools).
+func (g *Game) Teleport(id, x, y int) bool {
+	h := g.heroByID[id]
+	if h == nil || !g.cellFree(x, y) {
+		return false
+	}
+	g.moveEntity(int32(h.ID), &h.X, &h.Y, x, y)
+	return true
+}
+
+// Hurt applies raw damage to a hero as if a monster had hit it (tests, tools).
+func (g *Game) Hurt(id, dmg int) {
+	if h := g.heroByID[id]; h != nil {
+		g.damageHero(h, dmg, monIDBase)
+	}
+}

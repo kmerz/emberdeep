@@ -207,9 +207,9 @@ func Generate(seed uint32, n int) *Level {
 	}
 	// monsters and gold
 	taken := map[Pt]bool{l.Stairs: true}
-	free := func(r Rect) Pt {
+	free := func(rg *RNG, r Rect) Pt {
 		for k := 0; k < 40; k++ {
-			p := Pt{r.X0 + rng.Intn(r.W()), r.Y0 + rng.Intn(r.H())}
+			p := Pt{r.X0 + rg.Intn(r.W()), r.Y0 + rg.Intn(r.H())}
 			if l.Walkable(p.X, p.Y) && !taken[p] {
 				taken[p] = true
 				return p
@@ -222,7 +222,9 @@ func Generate(seed uint32, n int) *Level {
 		if i == l.StartRm {
 			continue
 		}
-		base := 2 + rng.Intn(3)
+		// per-room generators keep the base layout identical whatever the party size
+		rg := NewRNG(uint64(seed)*131 + uint64(i) + 9000)
+		base := 2 + rg.Intn(3)
 		if i == l.BossRoom {
 			c := r.Center()
 			taken[c] = true
@@ -230,15 +232,16 @@ func Generate(seed uint32, n int) *Level {
 			base = 3
 		}
 		for k := 0; k < PackSize(base, n); k++ {
-			p := free(r)
-			l.Mons = append(l.Mons, MonSpawn{Kind: kinds[rng.Intn(len(kinds))], X: p.X, Y: p.Y})
+			p := free(rg, r)
+			l.Mons = append(l.Mons, MonSpawn{Kind: kinds[rg.Intn(len(kinds))], X: p.X, Y: p.Y})
 		}
 	}
-	for _, r := range l.Rooms {
-		if rng.Chance(0.6) {
-			for k := 0; k < 1+rng.Intn(2); k++ {
-				p := free(r)
-				l.Golds = append(l.Golds, GoldSpawn{p.X, p.Y, GoldBase + rng.Intn(20)})
+	for i, r := range l.Rooms {
+		rg := NewRNG(uint64(seed)*131 + uint64(i) + 5000)
+		if rg.Chance(0.6) {
+			for k := 0; k < 1+rg.Intn(2); k++ {
+				p := free(rg, r)
+				l.Golds = append(l.Golds, GoldSpawn{p.X, p.Y, GoldBase + rg.Intn(20)})
 			}
 		}
 	}

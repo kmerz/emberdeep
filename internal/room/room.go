@@ -78,6 +78,7 @@ type Room struct {
 	intents chan inMsg
 	joins   chan joinReq
 	leaves  chan *Conn
+	ctl     chan func()
 	done    chan struct{}
 	Metrics Metrics
 
@@ -96,7 +97,7 @@ type Room struct {
 
 func newRoom(h *Hub, code string, seed uint32) *Room {
 	r := &Room{hub: h, code: code, cfg: &h.cfg, seed: seed,
-		intents: make(chan inMsg, 1024), joins: make(chan joinReq), leaves: make(chan *Conn, 16), done: make(chan struct{})}
+		intents: make(chan inMsg, 1024), joins: make(chan joinReq), leaves: make(chan *Conn, 16), ctl: make(chan func(), 16), done: make(chan struct{})}
 	r.emptySince = r.cfg.Clock()
 	return r
 }
@@ -117,6 +118,20 @@ func (r *Room) Join(c *Conn, hello proto.ClientMsg) (JoinResult, error) {
 		return resp.res, resp.err
 	case <-r.done:
 		return JoinResult{}, ErrRoomClosed
+	}
+}
+
+// Inspect runs f inside the room goroutine (which owns the Game) and waits for it. Used by tests and tools.
+func (r *Room) Inspect(f func(g *game.Game, players int)) {
+	done := make(chan struct{})
+	select {
+	case r.ctl <- func() { f(r.g, len(r.players)); close(done) }:
+	case <-r.done:
+		return
+	}
+	select {
+	case <-done:
+	case <-r.done:
 	}
 }
 
@@ -148,6 +163,8 @@ func (r *Room) run(ctx context.Context) {
 			r.handleJoin(j)
 		case c := <-r.leaves:
 			r.handleLeave(c)
+		case f := <-r.ctl:
+			f()
 		case m := <-r.intents:
 			r.handleMsg(m)
 		case <-tick.C:
@@ -557,6 +574,9 @@ func (r *Room) onTick(now time.Time) {
 		r.sendAll(mustJSON(proto.Events{T: "events", Tick: r.g.Now, List: evs}))
 	}
 	r.afterTick()
+	if r.g == nil { // the run just ended
+		return
+	}
 	shared := BuildShared(r.g)
 	for _, p := range r.players {
 		if p.Conn != nil {
@@ -567,8 +587,36 @@ func (r *Room) onTick(now time.Time) {
 	r.cfg.Stats.Record(time.Since(t0))
 }
 
-// afterTick handles run-level state changes (wipe, cleared). Filled in by later milestones.
-func (r *Room) afterTick() {}
+// afterTick handles run-level state changes: the wipe and cleared overlays, and the return to the lobby.
+func (r *Room) afterTick() {
+	switch r.g.Phase {
+	case game.PhaseWiped:
+		if r.overlay != "wipe" {
+			r.overlay = "wipe"
+			r.sendAll(mustJSON(proto.Overlay{T: "overlay", Kind: "wipe"}))
+		}
+	case game.PhaseCleared:
+		if r.overlay != "cleared" {
+			r.overlay = "cleared"
+			r.sendAll(mustJSON(proto.Overlay{T: "overlay", Kind: "cleared"}))
+		}
+		if r.g.Now-r.g.ClearedTick >= game.ClearedReturn {
+			r.endRun()
+		}
+	}
+}
+
+// endRun returns the room to the lobby (a new seed for the next descent).
+func (r *Room) endRun() {
+	r.g = nil
+	r.overlay = ""
+	r.seed = r.hub.nextSeed()
+	for _, p := range r.players {
+		p.Ready = false
+	}
+	r.sendAll(mustJSON(proto.Phase{T: "phase", Phase: "lobby"}))
+	r.broadcastLobby()
+}
 
 func (r *Room) botThink() {}
 

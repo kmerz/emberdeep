@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"emberdeep/internal/game"
 	"emberdeep/internal/proto"
 )
 
@@ -326,4 +327,91 @@ func TestPingRateLimitAndValidation(t *testing.T) {
 	clk.Advance(600 * time.Millisecond)
 	r.Submit(a, proto.ClientMsg{T: "ping", Cell: cell})
 	waitFor(t, "second ping after the cooldown", func() bool { return countType(b, "ping") == 1 })
+}
+
+func levelSeed(c *Conn) (string, bool) {
+	_, raws := drain(c)
+	for _, raw := range raws {
+		var l proto.Level
+		if json.Unmarshal(raw, &l) == nil && l.T == "level" {
+			return l.Seed, true
+		}
+	}
+	return "", false
+}
+
+func TestWipeOverlayAndRestartKeepsSeed(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	b, _ := join(t, r, "nyx", "rogue")
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	var seed string
+	waitFor(t, "level", func() bool { s, ok := levelSeed(a); seed = s; return ok })
+	drain(b)
+	r.Inspect(func(g *game.Game, _ int) { g.Hurt(1, 9999); g.Hurt(2, 9999) })
+	waitFor(t, "wipe overlay", func() bool {
+		_, raws := drain(b)
+		for _, raw := range raws {
+			var o proto.Overlay
+			if json.Unmarshal(raw, &o) == nil && o.T == "overlay" && o.Kind == "wipe" {
+				return true
+			}
+		}
+		return false
+	})
+	// a non-host cannot restart; the host can
+	r.Submit(b, proto.ClientMsg{T: "start"})
+	time.Sleep(30 * time.Millisecond)
+	if s, ok := levelSeed(a); ok {
+		t.Fatalf("non-host restarted the run (seed %s)", s)
+	}
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	var seed2 string
+	waitFor(t, "restart", func() bool { s, ok := levelSeed(a); seed2 = s; return ok })
+	if seed2 != seed {
+		t.Fatalf("restart must keep the seed: %s vs %s", seed, seed2)
+	}
+	r.Inspect(func(g *game.Game, _ int) {
+		if g.Phase != game.PhasePlaying || g.Hero(1).Downed {
+			t.Error("fresh run expected")
+		}
+	})
+}
+
+func TestClearedOverlayThenLobby(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	waitFor(t, "level", func() bool { return hasType(a, "level") })
+	r.Inspect(func(g *game.Game, _ int) {
+		st := g.Level.Stairs
+		if !g.Teleport(1, st.X-1, st.Y) {
+			t.Error("teleport failed")
+		}
+	})
+	var sawCleared, sawLobby bool
+	waitFor(t, "cleared then lobby", func() bool {
+		_, raws := drain(a)
+		for _, raw := range raws {
+			var o proto.Overlay
+			if json.Unmarshal(raw, &o) == nil && o.T == "overlay" && o.Kind == "cleared" {
+				sawCleared = true
+			}
+			var p proto.Phase
+			if json.Unmarshal(raw, &p) == nil && p.T == "phase" && p.Phase == "lobby" && sawCleared {
+				sawLobby = true
+			}
+		}
+		return sawLobby
+	})
+	// readiness was reset
+	l := lastLobby(a)
+	r.Inspect(func(g *game.Game, _ int) {
+		if g != nil {
+			t.Error("game should be gone")
+		}
+	})
+	_ = l
 }

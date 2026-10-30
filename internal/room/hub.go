@@ -100,6 +100,12 @@ func (h *Hub) Create() (*Room, error) {
 	return r, nil
 }
 
+func (h *Hub) nextSeed() uint32 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.rng.Uint32() & 0xFFFFFF
+}
+
 func (h *Hub) Get(code string) *Room {
 	code = NormalizeCode(code)
 	h.mu.Lock()

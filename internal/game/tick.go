@@ -9,6 +9,8 @@ func (g *Game) Tick() []Event {
 		g.tickPatches()
 		for _, h := range g.Heroes {
 			g.tickHero(h)
+			g.tickReviver(h)
+			g.tickDowned(h)
 		}
 		for _, m := range append([]*Monster(nil), g.Mons...) {
 			if m.HP > 0 {
@@ -17,6 +19,10 @@ func (g *Game) Tick() []Event {
 		}
 	}
 	g.updateVision()
+	if g.Phase == PhasePlaying {
+		g.checkStairs()
+		g.checkWipe()
+	}
 	out := g.events
 	g.events = nil
 	return out
