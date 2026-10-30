@@ -48,6 +48,24 @@ func (g *Game) castSkill(h *Hero, sk SkillDef, tx, ty int) error {
 		return g.castDelayed(h, sk, tx, ty)
 	case "blink":
 		return g.castBlink(h, sk, tx, ty)
+	case "cleave":
+		return g.castCleave(h, sk, tx, ty)
+	case "ironwall":
+		return g.castIronWall(h, sk)
+	case "leap":
+		return g.castLeap(h, sk, tx, ty)
+	case "stab":
+		return g.castStab(h, sk, tx, ty)
+	case "caltrops":
+		return g.castCaltrops(h, sk, tx, ty)
+	case "shadowbomb":
+		return g.castDelayed(h, sk, tx, ty)
+	case "palm":
+		return g.castPalm(h, sk, tx, ty)
+	case "dash":
+		return g.castDash(h, sk, tx, ty)
+	case "bell":
+		return g.castBell(h, sk)
 	}
 	return ErrBadIntent
 }

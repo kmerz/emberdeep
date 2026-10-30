@@ -6,6 +6,7 @@ func (g *Game) Tick() []Event {
 	g.Now++
 	if g.Phase == PhasePlaying {
 		g.runPending()
+		g.tickPatches()
 		for _, h := range g.Heroes {
 			g.tickHero(h)
 		}

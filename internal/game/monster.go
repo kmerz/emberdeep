@@ -91,14 +91,14 @@ func (g *Game) killMonster(m *Monster, killer int) {
 }
 
 func (g *Game) monsterAI(m *Monster) {
-	if g.Now < m.StunUntil {
-		return
-	}
 	if g.Now < m.BleedUntil && g.Now%TickHz == 0 {
 		g.damageMonster(m, m.BleedDmg, m.BleedOwner, false)
 		if m.HP <= 0 {
 			return
 		}
+	}
+	if g.Now < m.StunUntil {
+		return
 	}
 	tgt := g.pickTarget(m)
 	if tgt == nil {

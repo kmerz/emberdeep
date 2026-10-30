@@ -114,7 +114,7 @@ var Classes = map[ClassID]*ClassDef{
 	Monk: {ID: Monk, Name: "MONK", HP: 130, ResName: "Ki", ResShort: "KI", ResMax: 100, ResStart: 40, Regen: -1, GainDeal: 10, GainTaken: 0,
 		Skills: [3]SkillDef{
 			{ID: "palm", Name: "PALM STRIKE", Cost: 10, CD: Sec(1.5), Range: 1.5, Dmg: 16, Aux: 2, Melee: true},
-			{ID: "dash", Name: "DASH", Cost: 15, CD: Sec(5), Range: 5, Dmg: 6, Aux: 4},
+			{ID: "dash", Name: "DASH", Cost: 15, CD: Sec(5), Range: 5, Dmg: 6, Aux: 4, Melee: true},
 			{ID: "bell", Name: "BELL OF WARDING", Cost: 40, CD: Sec(20), Radius: 6, Dur: Sec(12), Aux: 30},
 		}},
 }
