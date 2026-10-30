@@ -6,3 +6,5 @@ internal/web/dist/*
 /loadtest
 *.test
 .smoke.mjs
+.vibepit
+so.sh
