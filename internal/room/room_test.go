@@ -3,6 +3,7 @@ package room
 import (
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -251,4 +252,78 @@ func TestJoinInProgressGetsFullState(t *testing.T) {
 	if s == nil {
 		t.Fatal("snapshot with both heroes never arrived")
 	}
+}
+
+// fakeClock is an injectable clock for deadline tests.
+type fakeClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func newFakeClock() *fakeClock { return &fakeClock{t: time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)} }
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+func (c *fakeClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	c.t = c.t.Add(d)
+	c.mu.Unlock()
+}
+
+func countType(c *Conn, want string) int {
+	n := 0
+	types, _ := drain(c)
+	for _, ty := range types {
+		if ty == want {
+			n++
+		}
+	}
+	return n
+}
+
+func TestPingRateLimitAndValidation(t *testing.T) {
+	clk := newFakeClock()
+	h := fastHub(t, func(c *Config) { c.Clock = clk.Now })
+	r, _ := h.Create()
+	a, _ := join(t, r, "nyx", "rogue")
+	b, _ := join(t, r, "vela", "sorcerer")
+	// pings are ignored in the lobby
+	r.Submit(a, proto.ClientMsg{T: "ping", Cell: [2]int{3, 3}})
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	var cell [2]int
+	waitFor(t, "start and explore", func() bool {
+		_, raws := drain(b)
+		for _, raw := range raws {
+			var e proto.Explore
+			if json.Unmarshal(raw, &e) == nil && e.T == "explore" && len(e.Tiles) > 0 {
+				cell = [2]int{e.Tiles[0][0], e.Tiles[0][1]}
+				return true
+			}
+		}
+		return false
+	})
+	drain(a)
+	// out-of-range and unexplored cells are rejected; a valid one is broadcast with sender colour info
+	r.Submit(a, proto.ClientMsg{T: "ping", Cell: [2]int{-5, 9999}})
+	r.Submit(a, proto.ClientMsg{T: "ping", Cell: cell})
+	r.Submit(a, proto.ClientMsg{T: "ping", Cell: cell}) // within 0.5 s: dropped
+	waitFor(t, "ping delivered", func() bool {
+		_, raws := drain(b)
+		for _, raw := range raws {
+			var p proto.Ping
+			if json.Unmarshal(raw, &p) == nil && p.T == "ping" {
+				return p.Name == "nyx" && p.Cls == "rogue" && p.Cell == cell
+			}
+		}
+		return false
+	})
+	time.Sleep(30 * time.Millisecond)
+	if n := countType(b, "ping"); n != 0 {
+		t.Fatalf("expected the rapid second ping to be dropped, got %d extra", n)
+	}
+	clk.Advance(600 * time.Millisecond)
+	r.Submit(a, proto.ClientMsg{T: "ping", Cell: cell})
+	waitFor(t, "second ping after the cooldown", func() bool { return countType(b, "ping") == 1 })
 }
