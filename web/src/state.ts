@@ -141,7 +141,7 @@ export class GameState {
       case 'lobby':
         this.lobby = m;
         this.isHost = m.players.some((p) => p.id === this.youId && p.host);
-        { const me = m.players.find((p) => p.id === this.youId); if (me) this.pingMs = me.pingMs; }
+        { const me = m.players.find((p) => p.id === this.youId); if (me && me.pingMs >= 0) this.pingMs = me.pingMs; }
         break;
       case 'phase':
         this.phase = m.phase;

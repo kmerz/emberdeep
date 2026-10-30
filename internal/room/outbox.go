@@ -1,15 +1,23 @@
 package room
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 const maxFifo = 512
 
 // Outbox is the per-connection send queue. Control messages and events go into a FIFO that is never
 // silently dropped; snapshots go into a single slot so a slow client only ever sees the latest one.
+type timed struct {
+	b  []byte
+	at time.Time
+}
+
 type Outbox struct {
 	mu      sync.Mutex
-	fifo    [][]byte
-	snap    []byte
+	fifo    []timed
+	snap    timed
 	closed  bool
 	notify  chan struct{}
 	Dropped int // snapshots overwritten before being sent
@@ -32,7 +40,7 @@ func (o *Outbox) PushEvent(b []byte) bool {
 		o.mu.Unlock()
 		return false
 	}
-	o.fifo = append(o.fifo, b)
+	o.fifo = append(o.fifo, timed{b, time.Now()})
 	o.mu.Unlock()
 	o.wake()
 	return true
@@ -45,30 +53,36 @@ func (o *Outbox) PushSnap(b []byte) {
 		o.mu.Unlock()
 		return
 	}
-	if o.snap != nil {
+	if o.snap.b != nil {
 		o.Dropped++
 	}
-	o.snap = b
+	o.snap = timed{b, time.Now()}
 	o.mu.Unlock()
 	o.wake()
 }
 
 // Pop returns the next message: queued events first, then the latest snapshot.
 func (o *Outbox) Pop() ([]byte, bool) {
+	b, _, ok := o.PopTimed()
+	return b, ok
+}
+
+// PopTimed also returns the time the message was queued (used by the lag tool).
+func (o *Outbox) PopTimed() ([]byte, time.Time, bool) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if len(o.fifo) > 0 {
-		b := o.fifo[0]
-		o.fifo[0] = nil
+		t := o.fifo[0]
+		o.fifo[0] = timed{}
 		o.fifo = o.fifo[1:]
-		return b, true
+		return t.b, t.at, true
 	}
-	if o.snap != nil {
-		b := o.snap
-		o.snap = nil
-		return b, true
+	if o.snap.b != nil {
+		t := o.snap
+		o.snap = timed{}
+		return t.b, t.at, true
 	}
-	return nil, false
+	return nil, time.Time{}, false
 }
 
 func (o *Outbox) Notify() <-chan struct{} { return o.notify }

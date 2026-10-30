@@ -61,12 +61,12 @@ func acceptWS(w http.ResponseWriter, r *http.Request, p OriginPolicy) (*websocke
 func writePump(ctx context.Context, ws *websocket.Conn, ob *Outbox, lag *Lagger) error {
 	for {
 		for {
-			b, ok := ob.Pop()
+			b, at, ok := ob.PopTimed()
 			if !ok {
 				break
 			}
 			if lag != nil {
-				lag.Wait(ctx)
+				SleepUntil(ctx, lag.DeliverAt(at))
 			}
 			wctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			err := ws.Write(wctx, websocket.MessageText, b)
