@@ -91,6 +91,7 @@ func (h *Hub) Create() (*Room, error) {
 		}
 	}
 	r := newRoom(h, code, h.rng.Uint32()&0xFFFFFF)
+	r.addBots(h.cfg.Bots)
 	h.rooms[code] = r
 	h.wg.Add(1)
 	go func() {

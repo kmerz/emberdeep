@@ -1,0 +1,5 @@
+# Caddy terminates TLS and proxies the websocket upgrade automatically, so the page is served over
+# https and the client connects with wss://.
+play.example.com {
+	reverse_proxy emberdeep:8080
+}

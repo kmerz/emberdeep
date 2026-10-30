@@ -5,11 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"emberdeep/internal/bot"
 	"emberdeep/internal/game"
 	"emberdeep/internal/proto"
 )
@@ -34,7 +34,7 @@ type Player struct {
 	lastPing time.Time // last map ping, for the 0.5 s limit
 	// DisconnectedAt is set while the hero is held for reconnection.
 	DisconnectedAt time.Time
-	brain          *botBrain
+	brain          *bot.Brain
 }
 
 func (p *Player) connected() bool { return p.Bot || p.Conn != nil }
@@ -618,8 +618,67 @@ func (r *Room) endRun() {
 	r.broadcastLobby()
 }
 
-func (r *Room) botThink() {}
+var botNames = []string{"bot-ash", "bot-vex", "bot-orm"}
+var botClasses = []game.ClassID{game.Rogue, game.Monk, game.Sorcerer}
 
-type botBrain struct{}
+// addBots fills n slots with AI teammates (always ready).
+func (r *Room) addBots(n int) {
+	for i := 0; i < n && i < len(botNames) && len(r.players) < game.MaxHeroes; i++ {
+		r.nextPID++
+		r.players = append(r.players, &Player{ID: r.nextPID, Name: botNames[i], Cls: botClasses[i], Bot: true, Ready: true,
+			PingMs: -1, brain: bot.NewBrain(false)})
+	}
+}
 
-var _ = fmt.Sprintf
+// botThink runs every third tick (the hero step interval); intents go through the normal validation path.
+func (r *Room) botThink() {
+	if r.g.Now%game.MoveTicks != 0 {
+		return
+	}
+	humans := map[int]bool{}
+	for _, p := range r.players {
+		if !p.Bot && p.Conn != nil {
+			humans[p.ID] = true
+		}
+	}
+	for _, p := range r.players {
+		if !p.Bot || p.brain == nil {
+			continue
+		}
+		h := r.g.Hero(p.ID)
+		if h == nil {
+			continue
+		}
+		v := r.botView(h, humans)
+		for _, m := range p.brain.Think(v) {
+			if it, ok := ToIntent(m); ok {
+				r.applyIntent(p.ID, it)
+			}
+		}
+	}
+}
+
+func (r *Room) botView(h *game.Hero, humans map[int]bool) *bot.View {
+	g := r.g
+	v := &bot.View{Me: h.ID, Cls: string(h.Cls), Res: h.Res, Potions: h.Potions, HP: h.HP, HPMax: h.HPMax, Humans: humans,
+		PotCD: max(0, h.PotionReady-g.Now), CD: make([]int, 3), Cost: make([]int, 3)}
+	for i := 0; i < 3; i++ {
+		v.CD[i] = max(0, h.CDReady[i]-g.Now)
+		v.Cost[i] = h.Def().Skills[i].Cost
+	}
+	for _, o := range g.Heroes {
+		v.Ents = append(v.Ents, bot.Ent{ID: o.ID, K: "h", X: o.X, Y: o.Y, Downed: o.Downed, Dead: o.Dead})
+	}
+	for _, m := range g.Mons {
+		if g.IsVisible(m.X, m.Y) {
+			v.Ents = append(v.Ents, bot.Ent{ID: m.ID, K: "m", X: m.X, Y: m.Y, Elite: m.Elite, HP: m.HP, HPMax: m.HPMax})
+		}
+	}
+	v.Walkable = func(x, y int) bool {
+		return x >= 0 && y >= 0 && x < game.LW && y < game.LH && g.Explored[y*game.LW+x] && g.Level.Walkable(x, y)
+	}
+	v.Unknown = func(x, y int) bool {
+		return x >= 0 && y >= 0 && x < game.LW && y < game.LH && !g.Explored[y*game.LW+x]
+	}
+	return v
+}

@@ -415,3 +415,253 @@ func TestClearedOverlayThenLobby(t *testing.T) {
 	})
 	_ = l
 }
+
+func TestReconnectInsideAndOutsideWindow(t *testing.T) {
+	clk := newFakeClock()
+	h := fastHub(t, func(c *Config) { c.Clock = clk.Now })
+	r, _ := h.Create()
+	a, ra := join(t, r, "kmerz", "warrior")
+	b, _ := join(t, r, "nyx", "rogue")
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	waitFor(t, "start", func() bool { return hasType(b, "level") })
+
+	// inside the window: the hero stays, idle and invulnerable, and the token resumes control
+	r.Leave(a)
+	r.Inspect(func(g *game.Game, players int) {
+		hh := g.Hero(ra.PlayerID)
+		if hh == nil || hh.Connected || players != 2 {
+			t.Errorf("hero must stay in the world, disconnected (hero=%v players=%d)", hh, players)
+		}
+	})
+	clk.Advance(59 * time.Second)
+	a2 := NewTestConn()
+	res, err := r.Join(a2, proto.ClientMsg{T: "hello", Name: "ignored", Cls: "monk", Token: ra.Token})
+	if err != nil || res.PlayerID != ra.PlayerID {
+		t.Fatalf("resume failed: %+v %v", res, err)
+	}
+	r.Inspect(func(g *game.Game, players int) {
+		hh := g.Hero(ra.PlayerID)
+		if hh == nil || !hh.Connected || hh.Name != "kmerz" || players != 2 {
+			t.Errorf("hero should be back under control: %+v", hh)
+		}
+	})
+	waitFor(t, "full resync", func() bool {
+		got := map[string]bool{}
+		types, _ := drain(a2)
+		for _, ty := range types {
+			got[ty] = true
+		}
+		return got["level"] && got["explore"]
+	})
+
+	// outside the window: removed
+	r.Leave(a2)
+	waitFor(t, "disconnect processed", func() bool {
+		gone := false
+		r.Inspect(func(g *game.Game, _ int) { gone = !g.Hero(ra.PlayerID).Connected })
+		return gone
+	})
+	clk.Advance(61 * time.Second)
+	waitFor(t, "hero removal", func() bool {
+		removed := false
+		r.Inspect(func(g *game.Game, players int) { removed = g.Hero(ra.PlayerID) == nil && players == 1 })
+		return removed
+	})
+	if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: "x", Token: ra.Token}); err != ErrBadName {
+		// the token is gone: the 1-character name is validated as a fresh join
+		t.Fatalf("expired token must not resume (err=%v)", err)
+	}
+}
+
+func TestLeaveInLobbyFreesSlotAndHostTransfers(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	b, _ := join(t, r, "nyx", "rogue")
+	drain(b)
+	r.Leave(a)
+	waitFor(t, "host transfer", func() bool {
+		l := lastLobby(b)
+		return l != nil && len(l.Players) == 1 && l.Players[0].Host
+	})
+	for i := 0; i < 3; i++ {
+		join(t, r, "p"+string(rune('a'+i)), "monk")
+	}
+	if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: "late", Cls: "monk"}); err != ErrRoomFull {
+		t.Fatalf("room should be full at 4, got %v", err)
+	}
+}
+
+func TestEmptyRoomIsClosedAfterTimeout(t *testing.T) {
+	clk := newFakeClock()
+	h := fastHub(t, func(c *Config) { c.Clock = clk.Now; c.EmptyTimeout = 5 * time.Minute })
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	r.Leave(a)
+	waitFor(t, "leave processed", func() bool {
+		n := -1
+		r.Inspect(func(_ *game.Game, players int) { n = players })
+		return n == 0
+	})
+	clk.Advance(4 * time.Minute)
+	time.Sleep(40 * time.Millisecond)
+	if h.Get(r.Code()) == nil {
+		t.Fatal("room closed too early")
+	}
+	clk.Advance(2 * time.Minute)
+	waitFor(t, "room cleanup", func() bool { return h.Get(r.Code()) == nil })
+	select {
+	case <-r.Done():
+	case <-time.After(time.Second):
+		t.Fatal("room goroutine did not exit")
+	}
+	if h.Count() != 0 {
+		t.Fatal("hub should be empty")
+	}
+	// someone rejoining resets the timer
+	r2, _ := h.Create()
+	c, _ := join(t, r2, "nyx", "rogue")
+	clk.Advance(10 * time.Minute)
+	time.Sleep(40 * time.Millisecond)
+	if h.Get(r2.Code()) == nil {
+		t.Fatal("an occupied room must stay open")
+	}
+	_ = c
+}
+
+func TestSlowClientNeverStallsRoom(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	slow, _ := join(t, r, "nyx", "rogue") // never drains its outbox
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	waitFor(t, "ticks", func() bool { return r.Metrics.Ticks.Load() > 60 })
+	if slow.Out.DroppedSnaps() == 0 {
+		t.Fatal("the slow client should have had snapshots dropped")
+	}
+	// events were kept (never dropped silently): the level message is still first in line
+	b, ok := slow.Out.Pop()
+	if !ok || len(b) == 0 {
+		t.Fatal("slow client lost its queue")
+	}
+	// and the fast client is unaffected
+	if !hasType(a, "snap") {
+		t.Fatal("fast client starved")
+	}
+}
+
+func TestOutboxDropsOldestSnapshotsKeepsEvents(t *testing.T) {
+	o := NewOutbox()
+	o.PushEvent([]byte(`{"t":"events","n":1}`))
+	o.PushSnap([]byte(`{"t":"snap","n":1}`))
+	o.PushSnap([]byte(`{"t":"snap","n":2}`))
+	o.PushEvent([]byte(`{"t":"events","n":2}`))
+	o.PushSnap([]byte(`{"t":"snap","n":3}`))
+	var got []string
+	for {
+		b, ok := o.Pop()
+		if !ok {
+			break
+		}
+		got = append(got, string(b))
+	}
+	want := []string{`{"t":"events","n":1}`, `{"t":"events","n":2}`, `{"t":"snap","n":3}`}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("got %v", got)
+	}
+	// a client that never reads gets disconnected once the event queue overflows
+	o2 := NewOutbox()
+	for i := 0; i < maxFifo; i++ {
+		if !o2.PushEvent([]byte("x")) {
+			t.Fatal("queue should accept up to the cap")
+		}
+	}
+	if o2.PushEvent([]byte("x")) {
+		t.Fatal("overflow must be reported")
+	}
+}
+
+func TestRateLimitAndFloodKick(t *testing.T) {
+	c := NewTestConn()
+	now := time.Now()
+	allowed := 0
+	for i := 0; i < 100; i++ {
+		if ok, _ := c.allow(now); ok {
+			allowed++
+		}
+	}
+	if allowed != 30 {
+		t.Fatalf("burst should allow 30, got %d", allowed)
+	}
+	// a steady 30/s is fine
+	c2 := NewTestConn()
+	t0 := time.Now()
+	for i := 0; i < 90; i++ {
+		if ok, _ := c2.allow(t0.Add(time.Duration(i) * 33 * time.Millisecond)); !ok {
+			t.Fatalf("30 intents/s must pass (i=%d)", i)
+		}
+	}
+	// sustained flooding for 5 s is kicked
+	c3 := NewTestConn()
+	kicked := false
+	for i := 0; i < 700 && !kicked; i++ {
+		_, kicked = c3.allow(t0.Add(time.Duration(i) * 10 * time.Millisecond)) // 100/s
+	}
+	if !kicked {
+		t.Fatal("expected a kick for sustained flooding")
+	}
+}
+
+func TestLaggerNeverReorders(t *testing.T) {
+	l := NewLagger(20*time.Millisecond, 50*time.Millisecond)
+	now := time.Now()
+	prev := time.Time{}
+	for i := 0; i < 500; i++ {
+		at := l.DeliverAt(now.Add(time.Duration(i) * time.Millisecond))
+		if at.Before(prev) {
+			t.Fatal("delivery order must be preserved")
+		}
+		if at.Sub(now.Add(time.Duration(i)*time.Millisecond)) < 20*time.Millisecond {
+			t.Fatal("minimum lag not applied")
+		}
+		prev = at
+	}
+	if NewLagger(0, 0) != nil {
+		t.Fatal("no lag configured should disable the wrapper")
+	}
+}
+
+func TestServerBotsFillSlotsAndAct(t *testing.T) {
+	h := fastHub(t, func(c *Config) { c.Bots = 3 })
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: "extra", Cls: "monk"}); err != ErrRoomFull {
+		t.Fatalf("3 bots + 1 human fill the room, got %v", err)
+	}
+	l := lastLobby(a)
+	bots := 0
+	for _, p := range l.Players {
+		if p.Bot && p.Ready {
+			bots++
+		}
+	}
+	if bots != 3 {
+		t.Fatalf("expected 3 ready bots in the lobby, got %d", bots)
+	}
+	r.Submit(a, proto.ClientMsg{T: "ready"}) // humans ready => bots are always ready => start
+	waitFor(t, "start", func() bool { return r.Metrics.Ticks.Load() > 0 })
+	r.Inspect(func(g *game.Game, players int) {
+		n := 0
+		for _, hh := range g.Heroes {
+			if hh.Connected && len(hh.Name) > 4 && hh.Name[:4] == "bot-" {
+				n++
+			}
+		}
+		if n != 3 || players != 4 {
+			t.Errorf("expected 3 bot heroes in the world, got %d (players %d)", n, players)
+		}
+		if g.N != 4 {
+			t.Errorf("bots count toward party scaling, N=%d", g.N)
+		}
+	})
+}

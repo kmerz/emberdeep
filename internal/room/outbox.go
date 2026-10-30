@@ -85,6 +85,13 @@ func (o *Outbox) PopTimed() ([]byte, time.Time, bool) {
 	return nil, time.Time{}, false
 }
 
+// DroppedSnaps is the number of snapshots overwritten before they could be sent.
+func (o *Outbox) DroppedSnaps() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.Dropped
+}
+
 func (o *Outbox) Notify() <-chan struct{} { return o.notify }
 
 func (o *Outbox) Close() {
