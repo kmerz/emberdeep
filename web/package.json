@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build && node scripts/copy-dist.mjs",
+    "test": "esbuild scripts/test.ts --bundle --platform=node --format=esm --outfile=.smoke.mjs --log-level=error && node .smoke.mjs",
     "smoke": "esbuild scripts/smoke.ts --bundle --platform=node --format=esm --outfile=.smoke.mjs --log-level=error && node .smoke.mjs",
     "smoke:lobby": "esbuild scripts/smoke-lobby.ts --bundle --platform=node --format=esm --outfile=.smoke.mjs --log-level=error && node .smoke.mjs"
   },

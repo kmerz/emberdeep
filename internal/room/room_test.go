@@ -2,6 +2,7 @@ package room
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -174,5 +175,80 @@ func TestMaxRooms(t *testing.T) {
 	h.Create()
 	if _, err := h.Create(); err != ErrTooManyRooms {
 		t.Fatalf("expected ErrTooManyRooms, got %v", err)
+	}
+}
+
+func hasType(c *Conn, want string) bool {
+	types, _ := drain(c)
+	for _, ty := range types {
+		if ty == want {
+			return true
+		}
+	}
+	return false
+}
+
+func TestChatBroadcastAndSanitize(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	b, _ := join(t, r, "nyx", "rogue")
+	drain(a)
+	drain(b)
+	r.Submit(a, proto.ClientMsg{T: "chat", Text: "hello\x00 \x1b[31mteam" + strings.Repeat("x", 400)})
+	r.Submit(a, proto.ClientMsg{T: "chat", Text: "   "})
+	waitFor(t, "chat on b", func() bool {
+		_, raws := drain(b)
+		for _, raw := range raws {
+			var c proto.Chat
+			if json.Unmarshal(raw, &c) == nil && c.T == "chat" {
+				if c.Name != "kmerz" || c.Cls != "warrior" || len(c.Text) > 160 || strings.ContainsAny(c.Text, "\x00\x1b") || !strings.HasPrefix(c.Text, "hello [31mteam") {
+					t.Errorf("bad chat %+v", c)
+				}
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func TestJoinInProgressGetsFullState(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	r.Submit(a, proto.ClientMsg{T: "ready"})
+	waitFor(t, "start", func() bool { return hasType(a, "level") })
+	// a latecomer joins the running game
+	b, rb := join(t, r, "nyx", "rogue")
+	got := map[string]bool{}
+	waitFor(t, "sync", func() bool {
+		types, _ := drain(b)
+		for _, ty := range types {
+			got[ty] = true
+		}
+		return got["snap"]
+	})
+	for _, want := range []string{"welcome", "lobby", "phase", "level", "explore", "snap"} {
+		if !got[want] {
+			t.Errorf("late joiner did not receive %q (got %v)", want, got)
+		}
+	}
+	if rb.IsHost {
+		t.Error("late joiner must not be host")
+	}
+	// the new hero exists next to the party
+	var s *proto.SnapShared
+	for i := 0; i < 50 && s == nil; i++ {
+		_, raws := drain(b)
+		for _, raw := range raws {
+			var x proto.SnapShared
+			if json.Unmarshal(raw, &x) == nil && x.T == "snap" && len(x.Party) == 2 {
+				s = &x
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if s == nil {
+		t.Fatal("snapshot with both heroes never arrived")
 	}
 }

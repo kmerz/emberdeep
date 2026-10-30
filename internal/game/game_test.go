@@ -116,3 +116,59 @@ func TestMoveSpeedAndTolerance(t *testing.T) {
 		t.Fatal("no free neighbour")
 	}
 }
+
+func TestSharedVisionUnion(t *testing.T) {
+	g := New(42, Settings{}, 2)
+	a := g.AddHero(1, "aa", Sorcerer)
+	// place the second hero in the farthest room
+	far := g.Level.Rooms[g.Level.BossRoom].Center()
+	b := g.AddHero(2, "bb", Sorcerer)
+	g.moveEntity(2, &b.X, &b.Y, far.X, far.Y)
+	g.Tick()
+	if !g.IsVisible(a.X, a.Y) || !g.IsVisible(b.X, b.Y) {
+		t.Fatal("both heroes' cells must be visible")
+	}
+	if !g.Explored[far.Y*LW+far.X] || !g.Explored[a.Y*LW+a.X] {
+		t.Fatal("exploration must be shared")
+	}
+	// deltas are reported once
+	first := g.TakeExplored()
+	if len(first) == 0 {
+		t.Fatal("expected explore deltas")
+	}
+	g.Tick()
+	if again := g.TakeExplored(); len(again) != 0 {
+		t.Fatalf("no new tiles expected, got %d", len(again))
+	}
+	if len(g.ExploredTiles()) != len(first) {
+		t.Fatal("full sync must equal the sum of deltas")
+	}
+	// removing a hero removes its vision but not exploration
+	g.RemoveHero(2)
+	g.Tick()
+	if g.IsVisible(far.X, far.Y) && dist(a.X, a.Y, far.X, far.Y) > VisionRadius {
+		t.Fatal("vision of a removed hero must go away")
+	}
+	if !g.Explored[far.Y*LW+far.X] {
+		t.Fatal("explored tiles persist")
+	}
+}
+
+func TestJoinInProgressSpawnsNextToParty(t *testing.T) {
+	g := New(42, Settings{}, 1)
+	a := g.AddHero(1, "aa", Warrior)
+	g.moveEntity(1, &a.X, &a.Y, g.Level.Rooms[g.Level.BossRoom].Center().X-2, g.Level.Rooms[g.Level.BossRoom].Center().Y+1)
+	b := g.AddHero(2, "bb", Rogue)
+	if cheb(a.X, a.Y, b.X, b.Y) > 3 {
+		t.Fatalf("new hero spawned %d cells away", cheb(a.X, a.Y, b.X, b.Y))
+	}
+	if g.occ[b.Y*LW+b.X] != 2 {
+		t.Fatal("occupancy not set")
+	}
+	// nobody alive: spawn in the start room
+	a.Dead, b.Dead = true, true
+	c := g.AddHero(3, "cc", Monk)
+	if cheb(c.X, c.Y, g.Level.Start.X, g.Level.Start.Y) > 3 {
+		t.Fatal("expected spawn at the start room when nobody is alive")
+	}
+}
