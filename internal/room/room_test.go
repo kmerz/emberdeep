@@ -635,9 +635,6 @@ func TestServerBotsFillSlotsAndAct(t *testing.T) {
 	h := fastHub(t, func(c *Config) { c.Bots = 3 })
 	r, _ := h.Create()
 	a, _ := join(t, r, "kmerz", "warrior")
-	if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: "extra", Cls: "monk"}); err != ErrRoomFull {
-		t.Fatalf("3 bots + 1 human fill the room, got %v", err)
-	}
 	l := lastLobby(a)
 	bots := 0
 	for _, p := range l.Players {
@@ -662,6 +659,52 @@ func TestServerBotsFillSlotsAndAct(t *testing.T) {
 		}
 		if g.N != 4 {
 			t.Errorf("bots count toward party scaling, N=%d", g.N)
+		}
+	})
+}
+
+func TestHumansReplaceServerBots(t *testing.T) {
+	h := fastHub(t, func(c *Config) { c.Bots = 3 })
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	for _, n := range []string{"nyx", "vela", "oddjob"} {
+		if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: n, Cls: "monk"}); err != nil {
+			t.Fatalf("%s should replace a bot, got %v", n, err)
+		}
+	}
+	if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: "late", Cls: "monk"}); err != ErrRoomFull {
+		t.Fatalf("4 humans fill the room, got %v", err)
+	}
+	l := lastLobby(a) // Join replies after the lobby broadcast
+	if l == nil || len(l.Players) != 4 {
+		t.Fatalf("expected 4 players in the lobby, got %+v", l)
+	}
+	for _, p := range l.Players {
+		if p.Bot {
+			t.Errorf("bot %s should have been replaced", p.Name)
+		}
+	}
+}
+
+func TestHumanReplacesBotMidRun(t *testing.T) {
+	h := fastHub(t, func(c *Config) { c.Bots = 3 })
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	r.Submit(a, proto.ClientMsg{T: "ready"})
+	waitFor(t, "start", func() bool { return r.Metrics.Ticks.Load() > 0 })
+	if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: "nyx", Cls: "rogue"}); err != nil {
+		t.Fatalf("join in progress should replace a bot, got %v", err)
+	}
+	r.Inspect(func(g *game.Game, players int) {
+		bots, nyx := 0, false
+		for _, hh := range g.Heroes {
+			if strings.HasPrefix(hh.Name, "bot-") {
+				bots++
+			}
+			nyx = nyx || hh.Name == "nyx"
+		}
+		if players != 4 || bots != 2 || !nyx {
+			t.Errorf("expected nyx plus 2 bots in the world, got bots=%d nyx=%v players=%d", bots, nyx, players)
 		}
 	})
 }

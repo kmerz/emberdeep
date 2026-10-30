@@ -22,7 +22,7 @@ func envOr(k, d string) string {
 func main() {
 	addr := flag.String("addr", envOr("ADDR", ":8080"), "listen address (env ADDR)")
 	dev := flag.Bool("dev", false, "allow the Vite dev server origin (http://localhost:5173)")
-	bots := flag.Int("bots", 0, "fill N slots of every new room with AI teammates")
+	bots := flag.Int("bots", 0, "fill N slots of every new room with AI teammates (joining players replace them)")
 	lag := flag.Int("lag", 0, "artificial one-way latency in ms")
 	jitter := flag.Int("jitter", 0, "artificial jitter in ms")
 	flag.Parse()

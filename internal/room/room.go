@@ -316,8 +316,13 @@ func (r *Room) handleJoin(j joinReq) {
 		return
 	}
 	if len(r.players) >= game.MaxHeroes {
-		j.reply <- joinResp{err: ErrRoomFull}
-		return
+		// a human takes the slot of the most recently added bot
+		bot := r.lastBot()
+		if bot == nil {
+			j.reply <- joinResp{err: ErrRoomFull}
+			return
+		}
+		r.removePlayer(bot)
 	}
 	cls := game.ClassID(h.Cls)
 	if !game.ValidClass(h.Cls) {
@@ -621,7 +626,17 @@ func (r *Room) endRun() {
 var botNames = []string{"bot-ash", "bot-vex", "bot-orm"}
 var botClasses = []game.ClassID{game.Rogue, game.Monk, game.Sorcerer}
 
-// addBots fills n slots with AI teammates (always ready).
+// lastBot returns the most recently added bot, or nil if the room has none.
+func (r *Room) lastBot() *Player {
+	for i := len(r.players) - 1; i >= 0; i-- {
+		if r.players[i].Bot {
+			return r.players[i]
+		}
+	}
+	return nil
+}
+
+// addBots fills n slots with AI teammates (always ready); joining humans replace them.
 func (r *Room) addBots(n int) {
 	for i := 0; i < n && i < len(botNames) && len(r.players) < game.MaxHeroes; i++ {
 		r.nextPID++

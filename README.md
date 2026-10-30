@@ -56,7 +56,7 @@ All numbers live in `internal/game/balance.go`.
 | `-addr` / `ADDR` | listen address (default `:8080`) |
 | `MAX_ROOMS` | maximum concurrent rooms (default 200) |
 | `PUBLIC_URL` | public origin, used for invite links and the websocket Origin check |
-| `-bots N` | fill N slots of each new room with AI teammates (1-3) |
+| `-bots N` | fill N slots of each new room with AI teammates (1-3); joining players replace them |
 | `-lag ms`, `-jitter ms` | artificial one-way latency in both directions (never reorders messages) |
 | `-dev` | also accept the Vite dev origin `http://localhost:5173` |
 
