@@ -96,6 +96,7 @@ type pending struct {
 type Game struct {
 	Seed     uint32
 	Level    *Level
+	Depth    int // current floor, 1..MaxDepth
 	Settings Settings
 	N        int // party size at run start (drives scaling)
 	Now      int
@@ -129,21 +130,42 @@ type Game struct {
 	bfsStamp []int32
 	bfsPar   []int32
 	stamp    int32
+
+	arrival      map[int]heroSave // each hero as they arrived on this floor (a wipe retries from here)
+	levelChanged bool
+}
+
+// heroSave is the part of a hero that carries over between floors.
+type heroSave struct {
+	Lvl, XP, HP, HPMax, Res, ResMax, Gold, Potions int
 }
 
 const monIDBase = 10000
 
 func New(seed uint32, st Settings, n int) *Game {
 	g := &Game{Seed: seed, Settings: st, N: n, stairsSince: -1}
-	g.Level = Generate(seed, n)
-	g.rng = NewRNG(uint64(seed)*31 + 5)
 	g.nextID = monIDBase
+	g.heroByID = map[int]*Hero{}
+	g.loadFloor(1)
+	return g
+}
+
+// loadFloor builds floor depth and resets everything that belongs to a floor. Heroes are kept and placed
+// around the start; their state is saved so a wipe can retry the floor.
+func (g *Game) loadFloor(depth int) {
+	n := g.N
+	g.Depth = depth
+	g.Level = Generate(g.Seed, depth, n)
+	g.rng = NewRNG(uint64(FloorSeed(g.Seed, depth))*31 + 5)
+	g.Mons, g.Items, g.Patches, g.pend = nil, nil, nil, nil
+	g.KingKilled = false
+	g.stairsSince, g.StairsLeft, g.StairsAt, g.StairsNeed = -1, 0, 0, 0
+	g.explNew = nil
 	g.Explored = make([]bool, LW*LH)
 	g.Visible = make([]bool, LW*LH)
 	g.occ = make([]int32, LW*LH)
 	g.bfsStamp = make([]int32, LW*LH)
 	g.bfsPar = make([]int32, LW*LH)
-	g.heroByID = map[int]*Hero{}
 	g.monByID = map[int]*Monster{}
 	for _, s := range g.Level.Mons {
 		def := MonDefs[s.Kind]
@@ -151,6 +173,7 @@ func New(seed uint32, st Settings, n int) *Game {
 		if s.Elite {
 			hp = float64(def.HP) * EliteHPMult(n)
 		}
+		hp *= DepthHPMult(depth)
 		m := &Monster{ID: g.newID(), Kind: s.Kind, X: s.X, Y: s.Y, HP: int(math.Round(hp)), Elite: s.Elite, Facing: 6}
 		m.HPMax = m.HP
 		g.Mons = append(g.Mons, m)
@@ -160,7 +183,50 @@ func New(seed uint32, st Settings, n int) *Game {
 	for _, gs := range g.Level.Golds {
 		g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '$', X: gs.X, Y: gs.Y, Amount: gs.Amount})
 	}
-	return g
+	g.arrival = map[int]heroSave{}
+	for _, h := range g.Heroes {
+		h.freshOnFloor()
+		p, _ := g.Level.nearestFree(g.Level.Start, func(x, y int) bool { return g.occ[y*LW+x] == 0 })
+		h.X, h.Y = p.X, p.Y
+		g.occ[h.Y*LW+h.X] = int32(h.ID)
+		g.arrival[h.ID] = h.save()
+	}
+	g.levelChanged = true
+}
+
+// descend takes the party to the next floor. The fallen stand up with FallenHPFrac of their HP.
+func (g *Game) descend() {
+	for _, h := range g.Heroes {
+		if h.Dead || h.Downed {
+			h.Dead, h.Downed = false, false
+			h.HP = max(1, int(math.Round(float64(h.HPMax)*FallenHPFrac)))
+		}
+	}
+	g.loadFloor(g.Depth + 1)
+	g.emit(Event{K: "descend", Amount: g.Depth})
+}
+
+// RetryFloor restarts the current floor after a wipe, with every hero as they arrived on it.
+// Heroes who joined during the floor start over at level 1.
+func (g *Game) RetryFloor() {
+	saved := g.arrival
+	for _, h := range g.Heroes {
+		if s, ok := saved[h.ID]; ok {
+			h.restore(s)
+		} else {
+			*h = *newHero(h.ID, h.Name, h.Cls, h.Connected)
+		}
+	}
+	g.Phase = PhasePlaying
+	g.WipedTick = 0
+	g.loadFloor(g.Depth)
+}
+
+// TakeLevelChanged reports whether a new floor was loaded since the last call.
+func (g *Game) TakeLevelChanged() bool {
+	c := g.levelChanged
+	g.levelChanged = false
+	return c
 }
 
 func (g *Game) newID() int { g.nextID++; return g.nextID }
@@ -205,9 +271,7 @@ func (g *Game) anyAlive() bool {
 
 // AddHero creates a hero next to the party (or in the start room if nobody is alive).
 func (g *Game) AddHero(id int, name string, cls ClassID) *Hero {
-	def := Classes[cls]
-	h := &Hero{ID: id, Name: name, Cls: cls, Lvl: 1, HPMax: def.HP, HP: def.HP, ResMax: def.ResMax, Res: def.ResStart,
-		Potions: StartPotions, Connected: true, Facing: 2}
+	h := newHero(id, name, cls, true)
 	at := g.Level.Start
 	for _, o := range g.Heroes {
 		if !o.Dead && !o.Downed {
@@ -223,7 +287,16 @@ func (g *Game) AddHero(id int, name string, cls ClassID) *Hero {
 	g.Heroes = append(g.Heroes, h)
 	g.heroByID[id] = h
 	g.occ[h.Y*LW+h.X] = int32(id)
+	if _, ok := g.arrival[id]; !ok {
+		g.arrival[id] = h.save()
+	}
 	return h
+}
+
+func newHero(id int, name string, cls ClassID, connected bool) *Hero {
+	def := Classes[cls]
+	return &Hero{ID: id, Name: name, Cls: cls, Lvl: 1, HPMax: def.HP, HP: def.HP, ResMax: def.ResMax, Res: def.ResStart,
+		Potions: StartPotions, Connected: connected, Facing: 2}
 }
 
 func (g *Game) RemoveHero(id int) {

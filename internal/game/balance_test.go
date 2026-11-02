@@ -40,7 +40,7 @@ func TestScalingAppliedToLevelAndMonsters(t *testing.T) {
 		}
 	}
 	// pack size grows by n-1 per room (same seed => same rooms)
-	l1, l4 := Generate(5, 1), Generate(5, 4)
+	l1, l4 := Generate(5, 1, 1), Generate(5, 1, 4)
 	if want := len(l1.Mons) + 3*(len(l1.Rooms)-1); len(l4.Mons) != want {
 		t.Fatalf("expected %d monsters with 4 players, got %d", want, len(l4.Mons))
 	}

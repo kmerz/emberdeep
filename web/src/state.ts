@@ -38,6 +38,7 @@ export class GameState {
   log: LogLine[] = [];
   pings: PingMark[] = [];
   overlay: 'wipe' | 'cleared' | null = null;
+  levelAt = 0; // when the current level arrived (for the depth banner)
   lobby: LobbyMsg | null = null;
   phase: 'lobby' | 'game' = 'lobby';
   pingMs = 0;
@@ -115,6 +116,7 @@ export class GameState {
         case 'levelup': this.pushLog([[an, ac], [' reaches level ', DIM], [String(e.amount), GOLD, 1]], now); break;
         case 'absorb': break;
         case 'msg': this.pushLog([[e.text || '', TX]], now); break;
+        case 'descend': this.pushLog([['The party descends to ', DIM], ['depth ' + (e.amount || 0), GOLD, 1]], now); break;
       }
       if (e.k === 'hit' && e.actor === this.youId && e.target && e.target >= 10000) this.lastTarget = e.target;
     }
@@ -147,7 +149,12 @@ export class GameState {
         this.phase = m.phase;
         if (m.phase === 'game') this.reset();
         break;
-      case 'level': this.level = m; this.tiles.fill(0); break;
+      case 'level':
+        // a new floor (or a retry): forget everything about the old map
+        this.level = m; this.tiles.fill(0); this.vis.fill(0);
+        this.recs = []; this.latest = null; this.pings = []; this.overlay = null; this.lastTarget = 0;
+        this.levelAt = now;
+        break;
       case 'explore':
         for (const [x, y, t] of m.tiles) this.tiles[y * LW + x] = t;
         break;

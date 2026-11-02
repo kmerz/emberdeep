@@ -386,6 +386,7 @@ func TestClearedOverlayThenLobby(t *testing.T) {
 	r.Submit(a, proto.ClientMsg{T: "start"})
 	waitFor(t, "level", func() bool { return hasType(a, "level") })
 	r.Inspect(func(g *game.Game, _ int) {
+		g.Depth = game.MaxDepth // the stairs end the run only on the last floor
 		st := g.Level.Stairs
 		if !g.Teleport(1, st.X-1, st.Y) {
 			t.Error("teleport failed")
@@ -811,4 +812,73 @@ func TestLeaveMidRunRemovesHeroAtOnce(t *testing.T) {
 	if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: "vela", Cls: "monk"}); err != nil {
 		t.Fatalf("join after leave: %v", err)
 	}
+}
+
+// levelDepth returns the depth of the last level message queued on c.
+func levelDepth(c *Conn) (int, bool) {
+	_, raws := drain(c)
+	d, ok := 0, false
+	for _, b := range raws {
+		var l proto.Level
+		if json.Unmarshal(b, &l) == nil && l.T == "level" {
+			d, ok = l.Depth, true
+		}
+		var p proto.Phase
+		if json.Unmarshal(b, &p) == nil && p.T == "phase" && p.Phase == "lobby" {
+			return -1, true
+		}
+	}
+	return d, ok
+}
+
+func descendOnce(t *testing.T, r *Room, c *Conn, want int) {
+	t.Helper()
+	r.Inspect(func(g *game.Game, _ int) {
+		st := g.Level.Stairs
+		if !g.Teleport(1, st.X-1, st.Y) {
+			t.Error("teleport failed")
+		}
+	})
+	waitFor(t, "descend", func() bool {
+		d, ok := levelDepth(c)
+		if ok && d != want {
+			t.Fatalf("expected a level with depth %d, got %d (-1 = back to the lobby)", want, d)
+		}
+		return ok
+	})
+}
+
+func TestStairsTakeThePartyDownThenRetryAfterWipe(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	waitFor(t, "level", func() bool { return hasType(a, "level") })
+	descendOnce(t, r, a, 2)
+	r.Inspect(func(g *game.Game, players int) {
+		if g == nil || g.Depth != 2 || g.Phase != game.PhasePlaying || players != 1 {
+			t.Fatalf("expected to be playing on depth 2")
+		}
+	})
+
+	r.Inspect(func(g *game.Game, _ int) { g.Hurt(1, 9999) })
+	waitFor(t, "wipe", func() bool {
+		ok := false
+		r.Inspect(func(g *game.Game, _ int) { ok = g.Phase == game.PhaseWiped })
+		return ok
+	})
+	drain(a)
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	waitFor(t, "retry", func() bool {
+		d, ok := levelDepth(a)
+		if ok && d != 2 {
+			t.Fatalf("retry should reload depth 2, got %d", d)
+		}
+		return ok
+	})
+	r.Inspect(func(g *game.Game, _ int) {
+		if g.Phase != game.PhasePlaying || g.Depth != 2 || g.Hero(1).Downed {
+			t.Error("expected a fresh attempt at depth 2")
+		}
+	})
 }

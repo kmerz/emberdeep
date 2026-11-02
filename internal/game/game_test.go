@@ -5,7 +5,7 @@ import "testing"
 func TestDungeonConnectivity(t *testing.T) {
 	for seed := uint32(1); seed <= 60; seed++ {
 		for _, n := range []int{1, 4} {
-			l := Generate(seed*7919, n)
+			l := Generate(seed*7919, 1, n)
 			if len(l.Rooms) < 6 {
 				t.Fatalf("seed %d: only %d rooms", seed, len(l.Rooms))
 			}
@@ -22,7 +22,7 @@ func TestDungeonConnectivity(t *testing.T) {
 }
 
 func TestDeterministicGeneration(t *testing.T) {
-	a, b := Generate(1234, 2), Generate(1234, 2)
+	a, b := Generate(1234, 1, 2), Generate(1234, 1, 2)
 	if string(a.Tiles) != string(b.Tiles) || len(a.Mons) != len(b.Mons) {
 		t.Fatal("generation is not deterministic")
 	}
@@ -35,7 +35,7 @@ func fovSet(l *Level, x, y int, r float64) map[Pt]bool {
 }
 
 func TestFOVSymmetry(t *testing.T) {
-	l := Generate(99, 1)
+	l := Generate(99, 1, 1)
 	rng := NewRNG(5)
 	checked := 0
 	for i := 0; i < 40; i++ {

@@ -48,7 +48,7 @@ func LevelMsg(g *game.Game) []byte {
 		tor[i] = [2]int{t.X, t.Y}
 	}
 	return mustJSON(proto.Level{T: "level", W: l.W, H: l.H, Seed: SeedString(g.Seed), Torches: tor,
-		Stairs: [2]int{l.Stairs.X, l.Stairs.Y}, Start: [2]int{l.Start.X, l.Start.Y}})
+		Stairs: [2]int{l.Stairs.X, l.Stairs.Y}, Start: [2]int{l.Start.X, l.Start.Y}, Depth: g.Depth, MaxDepth: game.MaxDepth})
 }
 
 func ExploreMsg(tiles []game.TileUpdate) []byte {
@@ -140,7 +140,7 @@ func BuildShared(g *game.Game) []byte {
 		}
 	}
 	st := g.Level.Stairs
-	s.Obj = proto.Objectives{KingAlive: !g.KingKilled, StairsAt: g.StairsAt, StairsNeed: g.StairsNeed, StairsLeft: g.StairsLeft,
+	s.Obj = proto.Objectives{Boss: game.Floor(g.Depth).Boss != 0, KingAlive: !g.KingKilled, StairsAt: g.StairsAt, StairsNeed: g.StairsNeed, StairsLeft: g.StairsLeft,
 		StairsFound: g.Explored[st.Y*game.LW+st.X], Gold: g.PartyGold(), Kills: g.Kills}
 	return mustJSON(s)
 }

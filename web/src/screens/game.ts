@@ -5,7 +5,7 @@ import { Fx } from '../render/fx';
 import { VW, VH, buildLights, drawEnts, drawMap } from '../render/map';
 import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
-import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox } from '../render/hud';
+import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
 
@@ -18,6 +18,7 @@ export class GameScreen implements Screen {
   mouse: [number, number] = [-1, -1];
   reviving = 0;
   private lastRevSend = 0;
+  private levelSeen = 0;
 
   constructor(private app: App) {
     this.pred = new Predictor(app.st);
@@ -162,6 +163,9 @@ export class GameScreen implements Screen {
     this.pumpMovement(now);
     void this.lastRevSend;
     fb.reset([9, 9, 14]);
+    if (st.levelAt !== this.levelSeen) { // new floor: drop old effects and unacked moves
+      this.levelSeen = st.levelAt; this.fx.clear(); this.pred.reset();
+    }
     const ents = displayEnts(st, now);
     const you = this.youEnt();
     const yp = you ? (this.pred.ready && !you.downed && !you.dead ? { x: this.pred.x, y: this.pred.y } : { x: you.x, y: you.y }) : null;
@@ -213,6 +217,7 @@ export class GameScreen implements Screen {
     logPanel(fb, st, now);
     hotbar(fb, st, you?.cls ?? null);
     commandLine(fb, this.ui, now);
+    depthBanner(fb, st, now);
     if (st.overlay) overlayBox(fb, st.overlay, st, now);
     void H; void SKILL_BY_ID;
   }

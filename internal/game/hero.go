@@ -46,6 +46,24 @@ type Hero struct {
 
 func (h *Hero) Def() *ClassDef { return Classes[h.Cls] }
 
+func (h *Hero) save() heroSave {
+	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Potions: h.Potions}
+}
+
+func (h *Hero) restore(s heroSave) {
+	h.Lvl, h.XP, h.HP, h.HPMax, h.Res, h.ResMax, h.Gold, h.Potions = s.Lvl, s.XP, s.HP, s.HPMax, s.Res, s.ResMax, s.Gold, s.Potions
+	h.Dead, h.Downed = false, false
+}
+
+// freshOnFloor clears everything tied to the old floor: timers, statuses, revives and the vision cache.
+func (h *Hero) freshOnFloor() {
+	h.DownedUntil, h.ReviveTarget, h.ReviveProg = 0, 0, 0
+	h.WallUntil, h.WallAbsorb, h.BellUntil, h.SlowUntil, h.BleedUntil = 0, 0, 0, 0, 0
+	h.CDReady = [3]int{}
+	h.PotionReady = 0
+	h.fovValid = false
+}
+
 func (h *Hero) gainRes(n int) {
 	h.Res = min(h.ResMax, max(0, h.Res+n))
 }

@@ -463,7 +463,10 @@ func (r *Room) handleMsg(in inMsg) {
 		if r.g == nil {
 			r.startGame()
 		} else if r.g.Phase == game.PhaseWiped {
-			r.startGame() // restart with the same seed
+			// retry the floor the party fell on, with heroes as they arrived on it
+			r.g.RetryFloor()
+			r.overlay = "" // the client drops its overlay when a level arrives
+			r.sendLevel()
 		}
 	case proto.CSetting:
 		if !p.Host || r.g != nil {
@@ -541,11 +544,18 @@ func (r *Room) startGame() {
 	}
 	r.g.Tick()
 	r.sendAll(mustJSON(proto.Phase{T: "phase", Phase: "game"}))
+	r.sendLevel()
+	r.broadcastLobby()
+}
+
+// sendLevel sends the current floor and what is explored of it. The level message comes first because
+// the client clears its map when it arrives.
+func (r *Room) sendLevel() {
+	r.g.TakeLevelChanged()
 	r.sendAll(LevelMsg(r.g))
 	if ex := r.g.TakeExplored(); len(ex) > 0 {
 		r.sendAll(ExploreMsg(ex))
 	}
-	r.broadcastLobby()
 }
 
 func (r *Room) onHb(now time.Time) {
@@ -594,6 +604,9 @@ func (r *Room) onTick(now time.Time) {
 	r.botThink()
 	evs := r.g.Tick()
 	r.Metrics.Ticks.Add(1)
+	if r.g.TakeLevelChanged() {
+		r.sendAll(LevelMsg(r.g)) // the party went down the stairs
+	}
 	if ex := r.g.TakeExplored(); len(ex) > 0 {
 		r.sendAll(ExploreMsg(ex))
 	}

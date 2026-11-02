@@ -42,6 +42,32 @@ func EnemyHPMult(n int) float64 { return 1 + 0.6*float64(n-1) }
 func EliteHPMult(n int) float64 { return 1 + 0.8*float64(n-1) }
 func PackSize(base, n int) int  { return base + n - 1 }
 
+// Floors. A run goes down MaxDepth floors; the stairs on the last one end it.
+const (
+	MaxDepth     = 10
+	BossEvery    = 5   // a boss guards every 5th floor
+	FallenHPFrac = 0.5 // dead and downed heroes stand up with this much HP on the next floor
+)
+
+type FloorDef struct {
+	Kinds     string // monster kinds rolled for packs
+	Boss      byte   // 0 = no boss on this floor
+	PackBonus int    // extra monsters per room
+}
+
+func Floor(depth int) FloorDef {
+	f := FloorDef{Kinds: "zzzssfb", PackBonus: (depth - 1) / 3}
+	if depth%BossEvery == 0 {
+		f.Boss = 'K'
+	}
+	return f
+}
+
+// Scaling with depth (floor 1 is 1.0).
+func DepthHPMult(d int) float64  { return 1 + 0.15*float64(d-1) }
+func DepthDmgMult(d int) float64 { return 1 + 0.08*float64(d-1) }
+func DepthXPMult(d int) float64  { return 1 + 0.10*float64(d-1) }
+
 func Sec(s float64) int { return int(math.Round(s * TickHz)) }
 
 type ClassID string

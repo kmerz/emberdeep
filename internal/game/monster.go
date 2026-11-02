@@ -70,7 +70,7 @@ func (g *Game) killMonster(m *Monster, killer int) {
 	if m.Elite {
 		g.KingKilled = true
 	}
-	xp := def.XP
+	xp := int(math.Round(float64(def.XP) * DepthXPMult(g.Depth)))
 	g.gainXP(xp)
 	// gold is shared; potions are personal drops rolled per player
 	if m.Elite || g.rng.Chance(GoldDropChance) {
@@ -119,7 +119,7 @@ func (g *Game) monsterAI(m *Monster) {
 		if g.Now >= m.NextAtk {
 			def := m.Def()
 			m.NextAtk = g.Now + def.AtkTicks
-			dmg := int(math.Round(float64(def.Dmg) * Difficulties[g.Settings.Difficulty].DmgMult))
+			dmg := int(math.Round(float64(def.Dmg) * Difficulties[g.Settings.Difficulty].DmgMult * DepthDmgMult(g.Depth)))
 			if m.Elite {
 				dmg += 2 * (g.N - 1)
 			}

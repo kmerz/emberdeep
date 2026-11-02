@@ -181,6 +181,7 @@ func TestDisconnectedHeroIsInvulnerableAndIdle(t *testing.T) {
 
 func TestStairsWindow(t *testing.T) {
 	g := arena(3)
+	g.Depth = MaxDepth // the last floor's stairs end the run
 	st := g.Level.Stairs
 	a := hero(g, 1, Warrior, st.X-1, st.Y)
 	b := hero(g, 2, Rogue, st.X, st.Y-1)
@@ -217,6 +218,7 @@ func TestStairsWindow(t *testing.T) {
 	}
 	// dead and disconnected heroes do not have to be there
 	g2 := arena(3)
+	g2.Depth = MaxDepth
 	s2 := g2.Level.Stairs
 	hero(g2, 1, Warrior, s2.X, s2.Y)
 	d := hero(g2, 2, Rogue, 40, 25)

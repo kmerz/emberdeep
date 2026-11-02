@@ -13,7 +13,7 @@ export function statusBar(fb: Fb, st: GameState) {
   fb.segs(0, 0, [
     [' ◆ EMBERDEEP ', [22, 6, 20], PINK, 1],
     [' Cathedral of Ash ', [236, 228, 255], [44, 36, 68], 1],
-    [' Depth 01 ', [196, 186, 230], [32, 28, 50]],
+    [' Depth ' + String(st.level?.depth ?? 1).padStart(2, '0') + ' ', [196, 186, 230], [32, 28, 50]],
     [' seed ' + (st.level?.seed ?? '----') + ' ', [130, 124, 160], [22, 21, 34]],
   ]);
   const n = st.party.filter((p) => p.connected).length;
@@ -136,8 +136,14 @@ export function objectives(fb: Fb, st: GameState) {
   fb.box(113, 38, 47, 9, 'OBJECTIVES');
   const o = st.obj;
   if (!o) return;
-  fb.txt(115, 39, '◆ Slay the Tallow King', TX);
-  fb.txt(156, 39, o.kingAlive ? '0/1' : '1/1', o.kingAlive ? DIM : MINT);
+  if (o.boss) {
+    fb.txt(115, 39, '◆ Slay the Tallow King', TX);
+    fb.txt(156, 39, o.kingAlive ? '0/1' : '1/1', o.kingAlive ? DIM : MINT);
+  } else {
+    const d = st.level?.depth ?? 1, max = st.level?.maxDepth ?? 10;
+    fb.txt(115, 39, '◆ Reach the bottom', TX);
+    fb.txt(160 - 2 - (d + '/' + max).length, 39, d + '/' + max, DIM);
+  }
   fb.txt(115, 40, '◆ Find the stairs', TX);
   fb.txt(o.stairsFound ? 154 : 157, 40, o.stairsFound ? 'found' : '?', o.stairsFound ? [95, 230, 255] : DIM);
   const need = o.stairsNeed, all = o.stairsAt >= need && need > 0;
@@ -226,6 +232,17 @@ export function commandLine(fb: Fb, ui: UiState, now: number) {
   }
 }
 
+/** "DEPTH N" in the middle of the map for a moment after a new floor arrives. */
+export function depthBanner(fb: Fb, st: GameState, now: number) {
+  if (!st.level || !st.levelAt) return;
+  const age = now - st.levelAt;
+  if (age > 2500) return;
+  const txt = ' DEPTH ' + String(st.level.depth).padStart(2, '0') + ' ';
+  const fade = age < 2000 ? 1 : 1 - (age - 2000) / 500;
+  const x = Math.floor((VW - txt.length) / 2);
+  fb.txt(x, 8, txt, mul([24, 6, 20], fade), mul(GOLD, fade), 1);
+}
+
 export function overlayBox(fb: Fb, kind: 'wipe' | 'cleared', st: GameState, now: number) {
   const x = 50, y = 17, w = 60, h = 11;
   const wipe = kind === 'wipe';
@@ -233,10 +250,10 @@ export function overlayBox(fb: Fb, kind: 'wipe' | 'cleared', st: GameState, now:
   const blink = Math.floor(now / 500) % 2 === 0;
   if (wipe) {
     fb.ctxt(y + 3, 'Every hero has fallen.', TX, PAN, 1);
-    fb.ctxt(y + 5, 'The descent can be retried with the same seed.', DIM, PAN);
+    fb.ctxt(y + 5, 'Depth ' + (st.level?.depth ?? 1) + ' can be retried, with everyone as they arrived.', DIM, PAN);
     fb.ctxt(y + 7, st.isHost ? 'Press ENTER to restart' : 'Waiting for the host to restart…', blink ? PINK : mul(PINK, 0.6), PAN, 1);
   } else {
-    fb.ctxt(y + 3, 'The stairs lead deeper — for now the descent ends here.', TX, PAN, 1);
+    fb.ctxt(y + 3, 'Depth ' + (st.level?.depth ?? 10) + ' cleared — the party reached the bottom.', TX, PAN, 1);
     fb.ctxt(y + 5, 'Gold collected: ' + (st.obj?.gold ?? 0) + ' · slain: ' + (st.obj?.kills ?? 0), GOLD, PAN);
     fb.ctxt(y + 7, 'Returning to the lobby…', blink ? MINT : mul(MINT, 0.6), PAN, 1);
   }

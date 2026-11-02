@@ -60,11 +60,21 @@ func (l *Level) set(x, y int, t byte) {
 	}
 }
 
-// Generate builds a deterministic level for the seed. n is the party size at run start.
-func Generate(seed uint32, n int) *Level {
+// FloorSeed gives each floor of a run its own seed, so a floor is the same every time it is generated.
+func FloorSeed(seed uint32, depth int) uint32 {
+	if depth <= 1 {
+		return seed // floor 1 keeps the run seed's layout
+	}
+	return seed ^ uint32(depth)*0x9E3779B1
+}
+
+// Generate builds a deterministic level for the run seed and depth. n is the party size at run start.
+func Generate(seed uint32, depth, n int) *Level {
 	if n < 1 {
 		n = 1
 	}
+	fl := Floor(depth)
+	seed = FloorSeed(seed, depth)
 	rng := NewRNG(uint64(seed) + 77)
 	l := &Level{W: LW, H: LH, Tiles: make([]byte, LW*LH)}
 	for i := range l.Tiles {
@@ -217,7 +227,7 @@ func Generate(seed uint32, n int) *Level {
 		}
 		return r.Center()
 	}
-	kinds := []byte("zzzssfb")
+	kinds := []byte(fl.Kinds)
 	for i, r := range l.Rooms {
 		if i == l.StartRm {
 			continue
@@ -225,13 +235,13 @@ func Generate(seed uint32, n int) *Level {
 		// per-room generators keep the base layout identical whatever the party size
 		rg := NewRNG(uint64(seed)*131 + uint64(i) + 9000)
 		base := 2 + rg.Intn(3)
-		if i == l.BossRoom {
+		if i == l.BossRoom && fl.Boss != 0 {
 			c := r.Center()
 			taken[c] = true
-			l.Mons = append(l.Mons, MonSpawn{Kind: 'K', X: c.X, Y: c.Y, Elite: true})
+			l.Mons = append(l.Mons, MonSpawn{Kind: fl.Boss, X: c.X, Y: c.Y, Elite: true})
 			base = 3
 		}
-		for k := 0; k < PackSize(base, n); k++ {
+		for k := 0; k < PackSize(base, n)+fl.PackBonus; k++ {
 			p := free(rg, r)
 			l.Mons = append(l.Mons, MonSpawn{Kind: kinds[rg.Intn(len(kinds))], X: p.X, Y: p.Y})
 		}

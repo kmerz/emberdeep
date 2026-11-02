@@ -13,7 +13,7 @@ export interface PartyEntry {
 }
 export interface Vis { x0: number; y0: number; w: number; h: number; b: string }
 export interface Objectives {
-  kingAlive: boolean; stairsAt: number; stairsNeed: number; stairsLeft: number; stairsFound: boolean; gold: number; kills: number;
+  boss: boolean; kingAlive: boolean; stairsAt: number; stairsNeed: number; stairsLeft: number; stairsFound: boolean; gold: number; kills: number;
 }
 export interface Me {
   res: number; resMax: number; cd: number[]; cdMax: number[]; cost: number[]; potions: number; potCd: number;
@@ -35,7 +35,7 @@ export interface LobbyMsg {
   t: 'lobby'; code: string; players: LobbyPlayer[]; inGame: boolean;
   settings: { difficulty: string; seed: string; loot: string; friendlyFire: boolean };
 }
-export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number] }
+export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number]; depth: number; maxDepth: number }
 export type ServerMsg =
   | { t: 'welcome'; you: number; token: string; code: string; inviteUrl: string; isHost: boolean }
   | LobbyMsg

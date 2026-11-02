@@ -106,6 +106,10 @@ func (g *Game) checkStairs() {
 	}
 	g.StairsLeft = max(1, StairsWindow-(g.Now-g.stairsSince))
 	if g.Now-g.stairsSince >= StairsWindow {
+		if g.Depth < MaxDepth {
+			g.descend()
+			return
+		}
 		g.Phase = PhaseCleared
 		g.ClearedTick = g.Now
 		g.StairsLeft = 0

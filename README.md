@@ -44,8 +44,11 @@ All numbers live in `internal/game/balance.go`.
 - Gold is split between connected heroes; potion drops are personal (only their owner sees and picks them up).
 - At 0 HP a hero is downed for 20 s; if nobody revives them they die and spectate. The party wipes when no
   connected hero is standing (heroes held for a reconnect are idle and invulnerable, so they don't count).
-- Descend by having every living, connected hero on or next to `>` for 3 s. The run then ends ("DEPTH CLEARED")
-  and the room returns to the lobby with a new seed. After a wipe the host's `ENTER` restarts with the same seed.
+- Descend by having every living, connected hero on or next to `>` for 3 s. A run is 10 floors deep (`MaxDepth`);
+  level, XP, gold and potions carry over, and dead or downed heroes stand up on the next floor at 50% HP. Enemies get
+  tougher with depth, and a boss guards every 5th floor. The stairs on floor 10 end the run ("DEPTH CLEARED") and
+  the room returns to the lobby with a new seed.
+- After a wipe the host's `ENTER` retries the same floor, with every hero as they arrived on it.
 - A disconnected hero stays for 60 s; reconnecting with the same browser (token in `localStorage`) resumes it.
   Rooms that stay empty for 5 minutes are closed.
 

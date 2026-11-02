@@ -82,13 +82,15 @@ type Phase struct {
 }
 
 type Level struct {
-	T       string   `json:"t"`
-	W       int      `json:"w"`
-	H       int      `json:"h"`
-	Seed    string   `json:"seed"`
-	Torches [][2]int `json:"torches"`
-	Stairs  [2]int   `json:"stairs"`
-	Start   [2]int   `json:"start"`
+	T        string   `json:"t"`
+	W        int      `json:"w"`
+	H        int      `json:"h"`
+	Seed     string   `json:"seed"`
+	Torches  [][2]int `json:"torches"`
+	Stairs   [2]int   `json:"stairs"`
+	Start    [2]int   `json:"start"`
+	Depth    int      `json:"depth"`
+	MaxDepth int      `json:"maxDepth"`
 }
 
 // Explore carries newly explored tiles. It is delivered as an event (never dropped).
@@ -146,6 +148,7 @@ type Vis struct {
 }
 
 type Objectives struct {
+	Boss        bool `json:"boss"` // this floor has a boss
 	KingAlive   bool `json:"kingAlive"`
 	StairsAt    int  `json:"stairsAt"`
 	StairsNeed  int  `json:"stairsNeed"`

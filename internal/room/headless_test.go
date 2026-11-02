@@ -53,8 +53,10 @@ func TestHeadlessFourBotsSixtySeconds(t *testing.T) {
 	if rm.Metrics.Ticks.Load() < 900 {
 		t.Errorf("only %d ticks in 60 s (expected ~1200)", rm.Metrics.Ticks.Load())
 	}
-	var moved, explored int
+	var moved, explored, depth int
+	var phase game.Phase
 	rm.Inspect(func(g *game.Game, _ int) {
+		depth, phase = g.Depth, g.Phase
 		for _, hh := range g.Heroes {
 			if hh.X != g.Level.Start.X || hh.Y != g.Level.Start.Y {
 				moved++
@@ -66,9 +68,10 @@ func TestHeadlessFourBotsSixtySeconds(t *testing.T) {
 			}
 		}
 	})
-	if moved == 0 || explored < 400 {
-		t.Errorf("bots should have explored: moved=%d explored=%d", moved, explored)
+	// explored tiles reset on every new floor, so going deeper counts as exploring too
+	if moved == 0 || (explored < 400 && depth == 1) {
+		t.Errorf("bots should have explored: moved=%d explored=%d depth=%d phase=%v", moved, explored, depth, phase)
 	}
 	n, p50, p99, max := stats.Summary()
-	t.Logf("ticks=%d p50=%v p99=%v max=%v explored=%d applied=%d rejected=%d", n, p50, p99, max, explored, rm.Metrics.Applied.Load(), rm.Metrics.Rejected.Load())
+	t.Logf("depth=%d phase=%v ticks=%d p50=%v p99=%v max=%v explored=%d applied=%d rejected=%d", depth, phase, n, p50, p99, max, explored, rm.Metrics.Applied.Load(), rm.Metrics.Rejected.Load())
 }
