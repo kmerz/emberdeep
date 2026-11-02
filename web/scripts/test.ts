@@ -4,7 +4,8 @@ import { GameState } from '../src/state';
 import { displayEnts } from '../src/render/interp';
 import { Predictor, MOVE_MS } from '../src/render/predict';
 import type { Ent, Snap } from '../src/proto';
-import { Fx } from '../src/render/fx';
+import { Fx, streakLabel } from '../src/render/fx';
+import { depthBanner } from '../src/render/hud';
 import { Fb } from '../src/term/fb';
 import { VW, VH } from '../src/render/map';
 import { GamepadInput, type PadLike, type PadContext } from '../src/gamepad';
@@ -203,6 +204,41 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   cur = null;
   eq(step(950, 'world'), ['u:ArrowRight'], 'unplugging the pad releases held keys');
   eq(step(980, 'lobby'), [], 'no pad, no events');
+}
+
+// --- game feel: kill streaks, death bursts, remains on the floor
+{
+  eq([2, 3, 4, 7].map(streakLabel), ['DOUBLE KILL', 'TRIPLE KILL', 'QUAD KILL', 'MASSACRE ×7'], 'streak labels');
+  const fx = new Fx();
+  const got: number[] = [];
+  fx.onStreak = (_a, n) => got.push(n);
+  const kill = (t: number, actor = 1) => fx.add({ k: 'kill', actor, target: 20000 + t, x: 5, y: 5, fx: 's' }, t, 1);
+  kill(1000); kill(1500); kill(2000); kill(4000);
+  eq(got, [2, 3], 'kills within 1.5 s chain into a streak; a pause resets it');
+  eq(fx.list.filter((f) => f.kind === 'streak').length, 1, 'a new streak popup replaces the old one');
+  eq(fx.list.filter((f) => f.kind === 'burst').length, 4, 'every kill bursts');
+  const fb = new Fb(VW, VH, [0, 0, 0]);
+  const st = new GameState();
+  st.tiles.fill(46); st.vis.fill(1);
+  fx.drawUnder(fb, { x: 0, y: 0 }, 1030, st);
+  eq(fb.ch[5 * VW + 5], '*', 'a dying monster pops on its cell');
+
+  // remains: corpses where monsters die, never on stairs; reset on a new floor
+  st.tiles[6 * 176 + 6] = 62; // '>'
+  st.markRemains([{ k: 'kill', x: 3, y: 3, fx: 's' }, { k: 'kill', x: 6, y: 6, fx: 's' }, { k: 'kill', x: 8, y: 8, fx: 'S' }]);
+  eq(st.remains.get(3 * 176 + 3)?.[0], '%', 'a skeleton leaves bones');
+  eq(st.remains.has(6 * 176 + 6), false, 'nothing lands on the stairs');
+  eq(st.remains.has(8 * 176 + 8), false, 'a shade leaves nothing');
+  st.handle({ t: 'level', w: 176, h: 62, seed: 'x', torches: [], stairs: [1, 1], start: [2, 2], depth: 2, maxDepth: 10, theme: 'crypt', glows: [] }, 5000);
+  eq(st.remains.size, 0, 'a new floor starts clean');
+
+  // the floor card: depth label, then the theme name typed in, then the flavor line
+  const big = new Fb(160, 48, [0, 0, 0]);
+  depthBanner(big, st, 5000 + 2000);
+  const row = (y: number) => Array.from({ length: 160 }, (_, x) => big.ch[y * 160 + x]).join('');
+  eq(row(8).includes('DEPTH 02'), true, 'banner shows the depth');
+  eq(row(10).includes('F L O O D E D'), true, 'banner shows the theme name');
+  eq(row(12).includes('counts your steps'), true, 'banner shows the flavor line');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

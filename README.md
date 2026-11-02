@@ -30,6 +30,7 @@ pages). The text lives in `web/src/story.ts`.
 | hold `E` | revive an adjacent downed ally (3 s) |
 | `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/leave` or `/quit` leave the game, `/help`) |
 | Alt+click or middle click | ping the map (4 s) |
+| `M` | sound on or off (remembered in this browser) |
 | lobby: `ENTER` `C` `I` | ready, change class, copy invite link (host: `F` friendly fire, `D` difficulty, `B` add bot, `X` remove bot) |
 
 ### Classes
@@ -93,6 +94,10 @@ All numbers live in `internal/game/balance.go`.
 - Floors come in four themes, each with its own look, light and monster mix: Cathedral of Ash (1-2), Flooded
   Crypt (3-5), Fungal Caverns (6-8, cave-shaped rooms, glowing fungus) and Ember Depths (9-10). The bands live in
   `ThemeBands` in `balance.go`; the client palettes in `web/src/render/themes.ts`.
+- Sound is synthesized in the browser (`web/src/audio.ts`, no sample files): every hit, skill, pickup and death
+  has a short effect, each theme has an occasional soft chord swell and a few ambient noises, and a heartbeat plays below 25% HP.
+  Dead monsters burst into shards and leave remains (bones, slime, ash) on the floor, heavy hits splatter, and
+  kills less than 1.5 s apart pop a streak ("DOUBLE KILL", "MASSACRE ×5"). All of this is client-only.
 - After a wipe the host's `ENTER` retries the same floor, with every hero as they arrived on it.
 - A disconnected hero stays for 60 s; reconnecting with the same browser (token in `localStorage`) resumes it.
   Rooms that stay empty for 5 minutes are closed.

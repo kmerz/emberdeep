@@ -8,6 +8,7 @@ import { LandingScreen, store } from './screens/landing';
 import { LobbyScreen } from './screens/lobby';
 import type { ClassId } from './proto';
 import { GamepadInput, fakeKey } from './gamepad';
+import { sfx } from './audio';
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
 const term = new TermCanvas(canvas);
@@ -112,6 +113,8 @@ function tryReconnect() {
   }, 1500);
 }
 
+// browsers only start audio after a user gesture
+for (const t of ['keydown', 'pointerdown']) window.addEventListener(t, () => sfx.unlock(), { capture: true });
 window.addEventListener('keydown', (e) => current.onKey?.(e));
 window.addEventListener('keyup', (e) => current.onKeyUp?.(e));
 canvas.addEventListener('mousedown', (e) => current.onMouseDown?.(e, term.cellAt(e)));

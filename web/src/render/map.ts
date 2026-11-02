@@ -75,6 +75,11 @@ export function drawMap(mb: Fb, st: GameState, cam: Cam, t: number, lights: Ligh
   const pal = palette(st.level?.theme);
   const floorG: Glyph = { ...GLY['.'], fg: pal.floorFg };
   const glyph = (c: string) => (c === '.' ? floorG : GLY[c] || floorG);
+  // corpses and blood lie on top of the floor tile and take its light
+  const groundGlyph = (c: string, i: number): Glyph => {
+    const rm = st.remains.get(i);
+    return rm ? { ch: rm[0], fg: rm[1], lit: true } : glyph(c);
+  };
   for (let y = 0; y < VH; y++) {
     const wy = y + cam.y;
     if (wy < 0 || wy >= LH) continue;
@@ -89,7 +94,7 @@ export function drawMap(mb: Fb, st: GameState, cam: Cam, t: number, lights: Ligh
       if (!st.vis[wy * LW + wx]) {
         if (solid) mb.put(x, y, '▀', pal.memWallTop, pal.memWallFace, 0);
         else {
-          const g = glyph(c);
+          const g = groundGlyph(c, wy * LW + wx);
           mb.put(x, y, g.ch, mix(g.fg, pal.memFloorFg, 0.72), pal.memFloorBg, 0);
         }
         continue;
@@ -112,7 +117,7 @@ export function drawMap(mb: Fb, st: GameState, cam: Cam, t: number, lights: Ligh
         if (c === 'T') mb.put(x, y, 'Ψ', mix(pal.torchGlyph[0], pal.torchGlyph[1], 0.5 + 0.5 * Math.sin(t * 13 + x)), null, 1);
         continue;
       }
-      const g = glyph(c);
+      const g = groundGlyph(c, wy * LW + wx);
       let bg: RGB = [pal.bgBase[0] + Lr * pal.bgLight[0], pal.bgBase[1] + Lg * pal.bgLight[1], pal.bgBase[2] + Lb * pal.bgLight[2]];
       let fg: RGB = g.lit ? [g.fg[0] * (0.25 + Lr), g.fg[1] * (0.25 + Lg), g.fg[2] * (0.25 + Lb)] : g.fg;
       if (c === '~') bg = add(bg, [26, 0, 6]);

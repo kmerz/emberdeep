@@ -6,6 +6,7 @@ type V3 = [number, number, number];
 
 export interface Palette {
   name: string;
+  tagline: string;                 // one line of flavor under the floor title
   wallTop: RGB; wallFace: RGB;     // lit walls, drawn as '▀' (top half / bottom half)
   pillarTop: RGB; pillarFace: RGB;
   memWallTop: RGB; memWallFace: RGB; // explored but not in view
@@ -23,6 +24,7 @@ export interface Palette {
 export const THEMES: Record<string, Palette> = {
   cathedral: {
     name: 'Cathedral of Ash',
+    tagline: 'Ash still falls from a fire that burned out a thousand years ago.',
     wallTop: [100, 90, 134], wallFace: [48, 42, 70],
     pillarTop: [128, 116, 160], pillarFace: [72, 64, 98],
     memWallTop: [44, 46, 66], memWallFace: [26, 28, 40],
@@ -36,6 +38,7 @@ export const THEMES: Record<string, Palette> = {
   },
   crypt: {
     name: 'Flooded Crypt',
+    tagline: 'The water is cold, and something under it counts your steps.',
     wallTop: [78, 104, 116], wallFace: [36, 52, 62],
     pillarTop: [104, 132, 140], pillarFace: [56, 76, 86],
     memWallTop: [36, 50, 60], memWallFace: [20, 28, 36],
@@ -49,6 +52,7 @@ export const THEMES: Record<string, Palette> = {
   },
   caverns: {
     name: 'Fungal Caverns',
+    tagline: 'The fungus glows brighter when it is hungry.',
     wallTop: [86, 76, 96], wallFace: [40, 34, 48],
     pillarTop: [110, 98, 120], pillarFace: [60, 52, 70],
     memWallTop: [40, 36, 50], memWallFace: [22, 20, 30],
@@ -63,6 +67,7 @@ export const THEMES: Record<string, Palette> = {
   },
   dark: {
     name: 'The Black Hollow',
+    tagline: 'No light has ever lived here. Yours will not last long.',
     wallTop: [92, 86, 100], wallFace: [44, 40, 52],
     pillarTop: [110, 102, 120], pillarFace: [58, 52, 66],
     memWallTop: [26, 26, 34], memWallFace: [14, 14, 20],
@@ -76,6 +81,7 @@ export const THEMES: Record<string, Palette> = {
   },
   hive: {
     name: 'The Hive',
+    tagline: 'The walls hum. A thousand legs move in the dark.',
     wallTop: [130, 98, 60], wallFace: [66, 46, 26],
     pillarTop: [150, 116, 72], pillarFace: [80, 58, 34],
     memWallTop: [52, 40, 28], memWallFace: [28, 22, 14],
@@ -89,6 +95,7 @@ export const THEMES: Record<string, Palette> = {
   },
   village: {
     name: 'Gnome Village',
+    tagline: 'Warm lamps, small doors, and the smell of mushroom stew.',
     wallTop: [120, 106, 92], wallFace: [62, 52, 44],
     pillarTop: [170, 120, 70], pillarFace: [96, 64, 36],
     memWallTop: [52, 48, 44], memWallFace: [28, 26, 24],
@@ -102,6 +109,7 @@ export const THEMES: Record<string, Palette> = {
   },
   abyss: {
     name: 'The Abyss Gate',
+    tagline: 'The gate breathes. Whatever waits beyond it is awake.',
     wallTop: [96, 60, 92], wallFace: [46, 26, 46],
     pillarTop: [120, 80, 116], pillarFace: [64, 40, 62],
     memWallTop: [40, 26, 40], memWallFace: [22, 14, 22],
@@ -116,6 +124,7 @@ export const THEMES: Record<string, Palette> = {
   },
   ember: {
     name: 'Ember Depths',
+    tagline: 'The rock itself is burning. Somewhere below, the dragon dreams.',
     wallTop: [120, 70, 64], wallFace: [58, 28, 26],
     pillarTop: [146, 90, 76], pillarFace: [80, 40, 34],
     memWallTop: [58, 36, 36], memWallFace: [32, 18, 18],

@@ -3,6 +3,7 @@ import { CLS, SKILL_BY_ID } from './classes';
 import { DIM, GOLD, PINK, RGB, TX } from './term/fb';
 import { palette } from './render/themes';
 import { itemInfo } from './items';
+import { Remain, bleedFor, remainsFor, remainsOk } from './render/remains';
 
 const MINT_LOG: RGB = [126, 240, 178];
 
@@ -49,6 +50,7 @@ export class GameState {
   pingMs = 0;
   lastTarget = 0; // monster id last attacked by us
   errors: string[] = [];
+  remains = new Map<number, Remain>(); // corpses and blood on this floor, by tile index (client-only)
   // hooks wired by the screens
   onEvents: (evs: GameEvent[], now: number) => void = () => {};
   onPing: (p: PingMark) => void = () => {};
@@ -68,6 +70,33 @@ export class GameState {
     this.overlay = null;
     this.log = [];
     this.lastTarget = 0;
+    this.remains.clear();
+  }
+
+  /** Leaves corpses where monsters die and splatters on heavy hits. */
+  markRemains(evs: GameEvent[]) {
+    const put = (x: number, y: number, r: Remain, over: boolean) => {
+      if (x < 0 || y < 0 || x >= LW || y >= LH || !remainsOk(this.tileAt(x, y))) return;
+      const i = y * LW + x;
+      if (!over && this.remains.has(i)) return;
+      this.remains.delete(i); // re-insert so the newest stays when we trim
+      this.remains.set(i, r);
+      if (this.remains.size > 600) this.remains.delete(this.remains.keys().next().value!);
+    };
+    for (const e of evs) {
+      if (e.k === 'kill') {
+        const r = remainsFor(e.fx ?? '');
+        if (r) put(e.x, e.y, r, true);
+      } else if (e.k === 'hit' && e.target) {
+        const heavy = e.fx === 'crit' || (e.amount ?? 0) >= 18;
+        if (!heavy) continue;
+        let kind = '';
+        if (e.target >= 10000) kind = this.recs[this.recs.length - 1]?.ents.find((n) => n.id === e.target)?.g ?? '?';
+        const col = bleedFor(kind);
+        if (!col) continue;
+        put(e.x + Math.floor(Math.random() * 3) - 1, e.y + Math.floor(Math.random() * 3) - 1, [Math.random() < 0.5 ? ',' : '.', col], false);
+      }
+    }
   }
 
   nameOf(id: number): string {
@@ -213,6 +242,7 @@ export class GameState {
         }
         this.level = m; this.tiles.fill(0); this.vis.fill(0);
         this.recs = []; this.latest = null; this.pings = []; this.overlay = null; this.lastTarget = 0;
+        this.remains.clear();
         this.levelAt = now;
         break;
       case 'explore':
@@ -231,6 +261,7 @@ export class GameState {
         break;
       }
       case 'events':
+        this.markRemains(m.list);
         this.logEvents(m.list, now);
         this.onEvents(m.list, now);
         break;

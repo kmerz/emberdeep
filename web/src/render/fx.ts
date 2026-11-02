@@ -1,7 +1,7 @@
 // One effect pipeline: every effect is {kind, x, y, t0, actor, palette...} and contributes glyphs, lights and
 // optional camera shake. drawBlast is a port of design/Main.dc.html (lines 135-170).
 import type { GameEvent } from '../proto';
-import { CLS } from '../classes';
+import { CLS, MC } from '../classes';
 import { Fb, RGB, add, c01, dist, hash, hx, mix, mul, ramp, DIM, PINK } from '../term/fb';
 import { GameState, INTERP_MS } from '../state';
 
@@ -79,13 +79,26 @@ const WARM: RGB = [1, 0.85, 0.5];
 let seedCtr = 1;
 const nr = (c: RGB): RGB => [c[0] / 255, c[1] / 255, c[2] / 255];
 
+const BOSSES = 'KQD';
+
+/** The popup for n kills in a row: DOUBLE KILL, TRIPLE KILL, QUAD KILL, then MASSACRE ×n. */
+export function streakLabel(n: number): string {
+  return n === 2 ? 'DOUBLE KILL' : n === 3 ? 'TRIPLE KILL' : n === 4 ? 'QUAD KILL' : 'MASSACRE ×' + n;
+}
+export const STREAK_MS = 1500; // kills closer together than this count as a streak
+
 export class Fx {
   list: Effect[] = [];
   flashes = new Map<number, number>(); // entity id -> time of last hit
+  private me = 0;
+  private streaks = new Map<number, { n: number; at: number }>(); // hero id -> kills in a row
+  /** Called when a hero kills two or more monsters in quick succession. */
+  onStreak: (actor: number, n: number) => void = () => {};
 
   clear() { this.list = []; }
 
   add(ev: GameEvent, now: number, me: number) {
+    this.me = me;
     const t0 = now + (ev.actor === me ? 0 : INTERP_MS);
     const base = { x: ev.x, y: ev.y, tx: ev.tx ?? ev.x, ty: ev.ty ?? ev.y, t0, actor: ev.actor ?? 0, r: ev.r ?? 0, pal: 'ember', amount: ev.amount ?? 0, seed: seedCtr++ };
     const push = (kind: string, dur: number, extra: Partial<Effect> = {}) => this.list.push({ ...base, kind, dur, ...extra });
@@ -122,7 +135,25 @@ export class Fx {
       case 'hit':
         if (ev.target) this.flashes.set(ev.target, t0);
         if ((ev.amount ?? 0) > 0) push('dmg', 1300, { crit: ev.fx === 'crit', hero: (ev.target ?? 0) < 10000, text: String(ev.amount) });
+        if (ev.target === me && (ev.amount ?? 0) > 0) push('hurt', 400, { t0: now });
         break;
+      case 'kill': {
+        const boss = BOSSES.includes(ev.fx ?? '');
+        push('burst', boss ? 1400 : 600, { text: ev.fx, r: boss ? 1 : 0 });
+        if (boss) push('leap', 900);
+        const a = ev.actor ?? 0;
+        if (a > 0 && a < 10000) {
+          const s = this.streaks.get(a);
+          const n = s && now - s.at < STREAK_MS ? s.n + 1 : 1;
+          this.streaks.set(a, { n, at: now });
+          if (n >= 2) {
+            this.list = this.list.filter((f) => !(f.kind === 'streak' && f.actor === a));
+            push('streak', 1600, { text: streakLabel(n) });
+            this.onStreak(a, n);
+          }
+        }
+        break;
+      }
       case 'potion': push('dmg', 1300, { text: '+' + ev.amount, pal: 'heal' }); break;
       case 'revive': push('flare', 900, { pal: 'revive', x: ev.x, y: ev.y }); break;
       case 'levelup': push('dmg', 1800, { text: 'LEVEL UP', pal: 'level' }); break;
@@ -220,6 +251,13 @@ export class Fx {
         const kx = 1 - e / 0.4;
         ox += Math.round(Math.sin(e * 95) * 2.4 * kx);
         oy += e < 0.14 ? (Math.floor(e * 40) % 2 ? 1 : -1) : 0;
+      } else if (f.kind === 'hurt' && e < 0.15 && f.amount >= 8) {
+        ox += Math.floor(e * 50) % 2 ? 1 : -1;
+      } else if (f.kind === 'dmg' && f.crit && f.actor === this.me && e < 0.1) {
+        ox += Math.floor(e * 60) % 2 ? 1 : -1;
+      } else if (f.kind === 'burst' && f.r > 0 && e < 0.6) {
+        ox += Math.round(Math.sin(e * 90) * 2 * (1 - e / 0.6));
+        oy += e < 0.2 ? (Math.floor(e * 40) % 2 ? 1 : -1) : 0;
       } else if (f.kind === 'leap' && e < 0.25 && Math.abs(hx_ - f.tx) <= 12 && Math.abs(hy - f.ty) <= 7) {
         ox += Math.round(Math.sin(e * 110) * (1 - e / 0.25));
       }
@@ -246,6 +284,7 @@ export class Fx {
         case 'leap': this.drawLeap(mb, tx, ty, e, isOpen, f.seed); break;
         case 'bell': this.drawBell(mb, sx, sy, e, f.r, isOpen); break;
         case 'slash': this.drawSlash(mb, sx, sy, tx, ty, e, f); break;
+        case 'burst': this.drawBurst(mb, tx, ty, e, f, isOpen); break;
         case 'blink': {
           const a = c01(1 - e / 0.42);
           for (const [px, py] of [[sx, sy], [tx, ty]]) {
@@ -335,6 +374,21 @@ export class Fx {
     }
   }
 
+  /** A dying monster flies apart into shards of its own color. */
+  private drawBurst(mb: Fb, cx: number, cy: number, e: number, f: Effect, isOpen: IsOpen) {
+    const col: RGB = MC[f.text ?? ''] ?? [220, 220, 220];
+    const big = f.r > 0, n = big ? 26 : 9, T = f.dur / 1000;
+    if (e < 0.09 && isOpen(cx, cy)) mb.put(cx, cy, '*', [255, 255, 255], mul(col, 0.5), 1);
+    for (let k = 0; k < n; k++) {
+      const ang = hash(k, 1, f.seed) * Math.PI * 2, spd = (big ? 11 : 3.4) * (0.5 + hash(k, 2, f.seed));
+      const dd = spd * (1 - Math.exp(-e * 6));
+      const x = Math.round(cx + Math.cos(ang) * dd), y = Math.round(cy + (Math.sin(ang) * dd) / 2);
+      if (!isOpen(x, y)) continue;
+      const a = c01(e / T);
+      mb.put(x, y, a < 0.3 ? '*' : a < 0.6 ? "'" : '·', mul(mix(col, [255, 255, 255], (1 - a) * 0.5), 1 - a * 0.7), null, 1);
+    }
+  }
+
   private drawSlash(mb: Fb, sx: number, sy: number, tx: number, ty: number, e: number, f: Effect) {
     const a = c01(1 - e / 0.18);
     const col = mix([60, 50, 50], [255, 245, 220], a);
@@ -381,6 +435,22 @@ export class Fx {
         for (let k = 4; k >= 0; k--) {
           const q = Math.max(0, p - k * 0.08);
           mb.put(Math.round(sx + (tx - sx) * q), Math.round(sy + (ty - sy) * q), k === 0 ? '●' : k < 3 ? '•' : '·', k === 0 ? [255, 255, 255] : ramp(PALS.ember.ramp, 0.15 + k * 0.12), k === 0 ? mul(PALS.ember.ramp[1], 0.5) : null, 1);
+        }
+      } else if (f.kind === 'streak') {
+        const h = st.recs[st.recs.length - 1]?.ents.find((n) => n.id === f.actor);
+        const hx0 = (h ? h.x : f.tx) - cam.x, hy0 = (h ? h.y : f.ty) - cam.y;
+        const s = ' ' + (f.text ?? '') + ' ', col = st.colOf(f.actor);
+        const fd = e > 1.1 ? c01(1 - (e - 1.1) / 0.5) : 1, pop = e < 0.12;
+        const yy = hy0 - 3 - (e < 0.3 ? 0 : Math.floor((e - 0.3) * 1.5));
+        mb.txt(hx0 - Math.floor(s.length / 2), yy, s, pop ? [20, 10, 20] : mix([9, 9, 14], [255, 255, 255], fd), pop ? [255, 255, 255] : mul(col, 0.55 * fd), 1);
+      } else if (f.kind === 'hurt') {
+        // the screen edges flash red when you take a hit
+        const a = c01(1 - e / (f.dur / 1000)) * Math.min(1, 0.35 + f.amount / 40);
+        for (let y = 0; y < mb.h; y++) for (let x = 0; x < mb.w; x++) {
+          const depth = Math.min(x / 2, (mb.w - 1 - x) / 2, y, mb.h - 1 - y);
+          if (depth >= 3) { x = Math.max(x, mb.w - 7); continue; }
+          const k = a * (1 - depth / 3), i = y * mb.w + x;
+          mb.setBg(i, add(mb.getBg(i), [120 * k, 0, 12 * k]));
         }
       } else if (f.kind === 'dmg') {
         const age = e, yy = ty - 1 - Math.floor(age * 2.6), s = f.text ?? '';

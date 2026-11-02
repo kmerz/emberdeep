@@ -253,14 +253,31 @@ export function commandLine(fb: Fb, ui: UiState, now: number) {
 export function depthBanner(fb: Fb, st: GameState, now: number) {
   if (!st.level || !st.levelAt) return;
   const age = now - st.levelAt;
-  if (age > 2500) return;
-  const txt = st.level.village ? ' GNOME VILLAGE ' : ' DEPTH ' + String(st.level.depth).padStart(2, '0') + ' ';
-  const fade = age < 2000 ? 1 : 1 - (age - 2000) / 500;
-  const x = Math.floor((VW - txt.length) / 2);
-  fb.txt(x, 8, txt, mul([24, 6, 20], fade), mul(GOLD, fade), 1);
-  const name = palette(st.level.theme).name;
-  fb.txt(Math.floor((VW - name.length) / 2), 10, name, mul(TX, fade), null, 0);
+  if (age > BANNER_MS) return;
+  const pal = palette(st.level.theme);
+  const fade = age < BANNER_MS - 700 ? 1 : c01((BANNER_MS - age) / 700);
+  const txt = st.level.village ? ' SAFE HAVEN ' : ' DEPTH ' + String(st.level.depth).padStart(2, '0') + ' ';
+  const name = pal.name.toUpperCase().split('').join(' ');
+  const width = Math.max(name.length, pal.tagline.length) + 8;
+  const x0 = Math.floor((VW - width) / 2);
+  // a dark band behind the card so it reads over a lit room
+  for (let y = 6; y <= 14; y++) for (let x = x0; x < x0 + width; x++) {
+    const i = y * W + x;
+    fb.setBg(i, mix(fb.getBg(i), [6, 5, 10], 0.75 * fade));
+  }
+  // the rules grow out from the depth label, the name types itself in, the flavor line follows
+  const grow = c01(age / 400), rule = Math.floor(((width - txt.length) / 2 - 2) * grow);
+  const tx = Math.floor((VW - txt.length) / 2);
+  fb.txt(tx - rule - 1, 8, '─'.repeat(rule), mul(GOLD, 0.6 * fade));
+  fb.txt(tx + txt.length + 1, 8, '─'.repeat(rule), mul(GOLD, 0.6 * fade));
+  fb.txt(tx, 8, txt, mul([24, 6, 20], fade), mul(GOLD, fade), 1);
+  const shown = name.slice(0, Math.floor(c01((age - 250) / 700) * name.length));
+  fb.txt(Math.floor((VW - name.length) / 2), 10, shown, mul(WH, fade), null, 1);
+  const tagA = c01((age - 1000) / 600) * fade;
+  if (tagA > 0) fb.txt(Math.floor((VW - pal.tagline.length) / 2), 12, pal.tagline, mul(DIM, 0.4 + 0.8 * tagA), null, 0);
 }
+
+const BANNER_MS = 4500;
 
 export function overlayBox(fb: Fb, kind: 'wipe' | 'cleared', st: GameState, now: number) {
   const x = 50, y = 17, w = 60, h = 11;

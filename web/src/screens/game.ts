@@ -1,7 +1,8 @@
 import type { App, Screen } from '../app';
-import { Fb, W, H, DIM, PINK, WH } from '../term/fb';
+import { Fb, W, H, DIM, PINK, WH, TX } from '../term/fb';
 import { LW, LH } from '../state';
-import { Fx } from '../render/fx';
+import { Fx, streakLabel } from '../render/fx';
+import { sfx } from '../audio';
 import { VW, VH, buildLights, drawEnts, drawMap } from '../render/map';
 import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
@@ -36,6 +37,8 @@ export class GameScreen implements Screen {
   private journalOpen = false;
   private journalSel = 0;
   private levelSeen = 0;
+  private yp: { x: number; y: number } | null = null; // where we drew ourselves last frame (for sound falloff)
+  private stairsSec = 0;
 
   constructor(private app: App) {
     this.pred = new Predictor(app.st);
@@ -51,14 +54,21 @@ export class GameScreen implements Screen {
     this.shopOpen = false;
     this.boardOpen = this.journalOpen = false;
     st.onSnap = () => this.pred.onSnap();
+    this.fx.onStreak = (actor, n) => {
+      sfx.play('streak', actor === st.youId ? 1 : 0.5);
+      if (n >= 3) st.pushLog([[st.nameOf(actor), st.colOf(actor), 1], [' · ', DIM], [streakLabel(n), WH, 1]]);
+    };
     st.onEvents = (evs: GameEvent[], now: number) => {
       for (const e of evs) {
         this.fx.add(e, now, st.youId);
+        sfx.event(e, st.youId, this.yp);
         if (e.k === 'shop' && e.actor === st.youId) { this.closePanels(); this.shopOpen = true; this.shopSel = 0; }
         if (e.k === 'questboard' && e.actor === st.youId) { this.closePanels(); this.boardOpen = true; this.boardSel = 0; }
       }
     };
   }
+
+  onLeave() { sfx.setTheme(''); }
 
   /** Gamepad button map to use: panels and the wipe overlay get menu-style buttons; chat gets none. */
   padContext(): PadContext {
@@ -95,6 +105,11 @@ export class GameScreen implements Screen {
     if (k === '1' || k === '2' || k === '3') { this.cast(parseInt(k) - 1); ev.preventDefault(); }
     else if (k === 'q') { net.send({ t: 'potion', seq: this.pred.nextSeq() }); ev.preventDefault(); }
     else if (k === 'e') { this.startRevive(); ev.preventDefault(); }
+    else if (k === 'm') {
+      const on = sfx.toggleMute();
+      st.pushLog([['Sound ' + (on ? 'on' : 'off'), TX], ['  (M toggles)', DIM]]);
+      ev.preventDefault();
+    }
   }
 
   onKeyUp(ev: KeyboardEvent) {
@@ -225,7 +240,7 @@ export class GameScreen implements Screen {
       else if (cmd === '/leave' || cmd === '/quit') { this.app.setScreen('landing'); return; }
       else if (cmd === '/help') {
         st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['/help', [214, 208, 234]]]);
-        st.pushLog([['keys: WASD move · 1-3 skills · Q potion · E revive · Alt+click ping', DIM]]);
+        st.pushLog([['keys: WASD move · 1-3 skills · Q potion · E revive · Alt+click ping · M sound on/off', DIM]]);
         st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · LB potion · LT revive · Select pack · Start journal · R3 skills · A/B in panels', DIM]]);
         return;
       } else { st.pushLog([['unknown command ' + cmd + ' (try /help)', PINK]]); return; }
@@ -334,6 +349,13 @@ export class GameScreen implements Screen {
     const ents = displayEnts(st, now);
     const you = this.youEnt();
     const yp = you ? (this.pred.ready && !you.downed && !you.dead ? { x: this.pred.x, y: this.pred.y } : { x: you.x, y: you.y }) : null;
+    this.yp = yp;
+    // sound: the floor's drone, ambient noises, a heartbeat at low hp, and a tick per second of the stairs countdown
+    sfx.setTheme(st.level?.theme ?? '');
+    const pe = st.party.find((p) => p.id === st.youId);
+    sfx.update(now, !!pe && !pe.downed && !pe.dead && pe.hp > 0 && pe.hp < pe.hpMax * 0.25);
+    const sec = Math.ceil((st.obj?.stairsLeft ?? 0) / 20);
+    if (sec !== this.stairsSec) { if (sec > 0) sfx.play('tick'); this.stairsSec = sec; }
     // camera: follow ourselves, or a living party member when we are dead
     let fx0 = yp;
     if (!fx0 || you?.dead) { const o = ents.find((e) => e.k === 'h' && !e.dead); if (o) fx0 = { x: o.x, y: o.y }; }
