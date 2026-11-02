@@ -95,6 +95,10 @@ func ToIntent(m proto.ClientMsg) (game.Intent, bool) {
 		return game.Intent{Kind: game.IntCast, Slot: m.Slot, X: m.X, Y: m.Y, Seq: m.Seq}, true
 	case proto.CPotion:
 		return game.Intent{Kind: game.IntPotion, Seq: m.Seq}, true
+	case proto.CUse:
+		return game.Intent{Kind: game.IntUse, Slot: m.Slot, X: m.X, Y: m.Y, Seq: m.Seq}, true
+	case proto.CDrop:
+		return game.Intent{Kind: game.IntDrop, Slot: m.Slot, Seq: m.Seq}, true
 	case proto.CRevive:
 		return game.Intent{Kind: game.IntRevive, Target: m.Target, Hold: m.Hold, Seq: m.Seq}, true
 	}

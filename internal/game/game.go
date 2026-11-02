@@ -24,8 +24,10 @@ type IntentKind int
 const (
 	IntMove IntentKind = iota
 	IntCast
-	IntPotion
+	IntPotion // drink the first healing potion (the Q key)
 	IntRevive
+	IntUse  // use the item in Slot (thrown items land at X, Y)
+	IntDrop // drop the stack in Slot
 )
 
 type Intent struct {
@@ -50,6 +52,7 @@ var (
 	ErrBadTarget = errors.New("bad target")
 	ErrBadIntent = errors.New("bad intent")
 	ErrNoPotion  = errors.New("no potions")
+	ErrNoItem    = errors.New("no such item")
 	ErrPhase     = errors.New("run is over")
 )
 
@@ -74,7 +77,8 @@ type TileUpdate struct {
 
 type Item struct {
 	ID     int
-	Kind   byte // '$' gold, '!' potion
+	Kind   byte   // '$' gold, otherwise the item's glyph
+	Def    string // rucksack item id ("" = gold)
 	X, Y   int
 	Amount int
 	Owner  int // 0 = shared
@@ -137,7 +141,8 @@ type Game struct {
 
 // heroSave is the part of a hero that carries over between floors.
 type heroSave struct {
-	Lvl, XP, HP, HPMax, Res, ResMax, Gold, Potions int
+	Lvl, XP, HP, HPMax, Res, ResMax, Gold int
+	Pack                                  [PackSlots]Stack
 }
 
 const monIDBase = 10000
@@ -298,8 +303,10 @@ func (g *Game) AddHero(id int, name string, cls ClassID) *Hero {
 
 func newHero(id int, name string, cls ClassID, connected bool) *Hero {
 	def := Classes[cls]
-	return &Hero{ID: id, Name: name, Cls: cls, Lvl: 1, HPMax: def.HP, HP: def.HP, ResMax: def.ResMax, Res: def.ResStart,
-		Potions: StartPotions, Connected: connected, Facing: 2}
+	h := &Hero{ID: id, Name: name, Cls: cls, Lvl: 1, HPMax: def.HP, HP: def.HP, ResMax: def.ResMax, Res: def.ResStart,
+		Connected: connected, Facing: 2}
+	h.AddItem("potion", StartPotions)
+	return h
 }
 
 func (g *Game) RemoveHero(id int) {
@@ -362,6 +369,10 @@ func (g *Game) Apply(pid int, in Intent) error {
 		return g.applyCast(h, in)
 	case IntPotion:
 		return g.applyPotion(h)
+	case IntUse:
+		return g.applyUse(h, in)
+	case IntDrop:
+		return g.applyDrop(h, in)
 	case IntRevive:
 		return g.applyRevive(h, in)
 	}
@@ -406,17 +417,67 @@ func (g *Game) moveEntity(id int32, px, py *int, nx, ny int) {
 }
 
 func (g *Game) applyPotion(h *Hero) error {
-	if h.Potions <= 0 {
+	slot := h.firstSlot("potion")
+	if slot < 0 {
 		return ErrNoPotion
 	}
-	if g.Now < h.PotionReady {
-		return ErrCooldown
+	return g.applyUse(h, Intent{Kind: IntUse, Slot: slot})
+}
+
+func (g *Game) applyUse(h *Hero, in Intent) error {
+	if in.Slot < 0 || in.Slot >= PackSlots || h.Pack[in.Slot].N <= 0 {
+		return ErrNoItem
 	}
-	h.Potions--
-	h.PotionReady = g.Now + PotionCD
-	heal := int(float64(h.HPMax) * PotionHealFrac)
-	h.HP = min(h.HPMax, h.HP+heal)
-	g.emit(Event{K: "potion", Actor: h.ID, X: h.X, Y: h.Y, Amount: heal})
+	def := Items[h.Pack[in.Slot].Item]
+	switch def.Use {
+	case "heal", "resource":
+		if g.Now < h.PotionReady {
+			return ErrCooldown
+		}
+		h.PotionReady = g.Now + PotionCD
+		if def.Use == "heal" {
+			heal := int(float64(h.HPMax) * def.Amount)
+			h.HP = min(h.HPMax, h.HP+heal)
+			g.emit(Event{K: "potion", Actor: h.ID, X: h.X, Y: h.Y, Amount: heal})
+		} else {
+			n := int(float64(h.ResMax) * def.Amount)
+			h.gainRes(n)
+			g.emit(Event{K: "use", Actor: h.ID, X: h.X, Y: h.Y, Amount: n, FX: def.ID})
+		}
+	case "throw":
+		if in.X < 0 || in.Y < 0 || in.X >= LW || in.Y >= LH {
+			return ErrBadTarget
+		}
+		if dist(h.X, h.Y, in.X, in.Y) > def.Range+0.5 {
+			return ErrRange
+		}
+		if (in.X != h.X || in.Y != h.Y) && !g.Level.LineClear(h.X, h.Y, in.X, in.Y) {
+			return ErrLOS
+		}
+		if Solid(g.Level.At(in.X, in.Y)) {
+			return ErrBlocked
+		}
+		h.Facing = dirIndex(in.X-h.X, in.Y-h.Y, h.Facing)
+		g.emit(Event{K: "cast", Actor: h.ID, X: h.X, Y: h.Y, TX: in.X, TY: in.Y, FX: def.ID, R: def.Radius, Amount: ThrowDelay})
+		g.pend = append(g.pend, pending{at: g.Now + ThrowDelay, skill: def.ID, caster: h.ID, x: in.X, y: in.Y})
+	default:
+		return ErrBadIntent
+	}
+	h.removeAt(in.Slot, 1)
+	h.ReviveTarget, h.ReviveProg = 0, 0
+	return nil
+}
+
+// applyDrop puts a whole stack on the hero's cell; anyone can pick it up.
+func (g *Game) applyDrop(h *Hero, in Intent) error {
+	if in.Slot < 0 || in.Slot >= PackSlots || h.Pack[in.Slot].N <= 0 {
+		return ErrNoItem
+	}
+	s := h.Pack[in.Slot]
+	def := Items[s.Item]
+	h.Pack[in.Slot] = Stack{}
+	g.Items = append(g.Items, &Item{ID: g.newID(), Kind: def.Glyph, Def: def.ID, X: h.X, Y: h.Y, Amount: s.N})
+	g.emit(Event{K: "drop", Actor: h.ID, X: h.X, Y: h.Y, Amount: s.N, FX: def.ID})
 	return nil
 }
 
@@ -426,16 +487,27 @@ func (g *Game) pickup(h *Hero) {
 		if it.X != h.X || it.Y != h.Y || (it.Owner != 0 && it.Owner != h.ID) {
 			continue
 		}
-		g.Items = append(g.Items[:i], g.Items[i+1:]...)
-		i--
-		switch it.Kind {
-		case '$':
+		if it.Def == "" { // gold
+			g.Items = append(g.Items[:i], g.Items[i+1:]...)
+			i--
 			g.splitGold(h, it.Amount)
 			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: it.Amount, FX: "gold", Text: "gold"})
-		case '!':
-			h.Potions = min(MaxPotions, h.Potions+1)
-			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: 1, FX: "potion", Text: "potion"})
+			continue
 		}
+		n := h.AddItem(it.Def, it.Amount)
+		if n > 0 {
+			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: n, FX: it.Def, Text: Items[it.Def].Name})
+		}
+		if n < it.Amount { // the rest stays on the floor
+			it.Amount -= n
+			if h.packFullAt == 0 || g.Now-h.packFullAt >= PackFullEvery {
+				h.packFullAt = g.Now
+				g.emit(Event{K: "packfull", Actor: h.ID, X: h.X, Y: h.Y})
+			}
+			continue
+		}
+		g.Items = append(g.Items[:i], g.Items[i+1:]...)
+		i--
 	}
 }
 

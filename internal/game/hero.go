@@ -11,12 +11,13 @@ type Hero struct {
 	X, Y   int
 	Facing int
 
-	HP, HPMax int
-	Res       int
-	ResMax    int
-	resAcc    float64
-	Gold      int
-	Potions   int
+	HP, HPMax  int
+	Res        int
+	ResMax     int
+	resAcc     float64
+	Gold       int
+	Pack       [PackSlots]Stack
+	packFullAt int // last tick a "rucksack full" message was sent
 
 	CDReady     [3]int
 	PotionReady int
@@ -47,12 +48,87 @@ type Hero struct {
 func (h *Hero) Def() *ClassDef { return Classes[h.Cls] }
 
 func (h *Hero) save() heroSave {
-	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Potions: h.Potions}
+	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Pack: h.Pack}
 }
 
 func (h *Hero) restore(s heroSave) {
-	h.Lvl, h.XP, h.HP, h.HPMax, h.Res, h.ResMax, h.Gold, h.Potions = s.Lvl, s.XP, s.HP, s.HPMax, s.Res, s.ResMax, s.Gold, s.Potions
+	h.Lvl, h.XP, h.HP, h.HPMax, h.Res, h.ResMax, h.Gold, h.Pack = s.Lvl, s.XP, s.HP, s.HPMax, s.Res, s.ResMax, s.Gold, s.Pack
 	h.Dead, h.Downed = false, false
+}
+
+// Stack is one rucksack slot.
+type Stack struct {
+	Item string
+	N    int
+}
+
+// AddItem puts up to n of an item into the rucksack: existing stacks first, then empty slots.
+// It returns how many fit.
+func (h *Hero) AddItem(id string, n int) int {
+	def := Items[id]
+	if def == nil || n <= 0 {
+		return 0
+	}
+	added := 0
+	for pass := 0; pass < 2 && added < n; pass++ {
+		for i := range h.Pack {
+			s := &h.Pack[i]
+			if (pass == 0 && s.Item != id) || (pass == 1 && s.N != 0) {
+				continue
+			}
+			k := min(n-added, def.MaxStack-s.N)
+			if k <= 0 {
+				continue
+			}
+			s.Item, s.N = id, s.N+k
+			added += k
+			if added == n {
+				break
+			}
+		}
+	}
+	return added
+}
+
+// removeAt takes n items out of a slot.
+func (h *Hero) removeAt(slot, n int) {
+	s := &h.Pack[slot]
+	s.N -= n
+	if s.N <= 0 {
+		*s = Stack{}
+	}
+}
+
+// Count is how many of an item the hero carries.
+func (h *Hero) Count(id string) int {
+	n := 0
+	for _, s := range h.Pack {
+		if s.Item == id {
+			n += s.N
+		}
+	}
+	return n
+}
+
+// firstSlot is the first slot holding the item, or -1.
+func (h *Hero) firstSlot(id string) int {
+	for i, s := range h.Pack {
+		if s.Item == id && s.N > 0 {
+			return i
+		}
+	}
+	return -1
+}
+
+// PackUsed is the number of occupied slots.
+func (h *Hero) PackUsed() int {
+	n := 0
+	for _, s := range h.Pack {
+		if s.N > 0 {
+			n++
+		}
+	}
+	return n
 }
 
 // freshOnFloor clears everything tied to the old floor: timers, statuses, revives and the vision cache.

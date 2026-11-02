@@ -93,6 +93,7 @@ export class Fx {
       case 'cast':
         switch (ev.fx) {
           case 'nova': push('charge', Math.max(300, (ev.amount ?? 9) * 50), { pal: 'ember' }); break;
+          case 'firebomb': push('bolt', Math.max(200, (ev.amount ?? 8) * 50)); break;
           case 'shadowbomb': push('charge', Math.max(300, (ev.amount ?? 8) * 50), { pal: 'void' }); break;
           case 'spark': push('bolt', 170); break;
           case 'blink': push('blink', 420); break;
@@ -106,6 +107,7 @@ export class Fx {
         break;
       case 'impact':
         if (ev.fx === 'nova') push('blast', 2000, { pal: 'ember', r: ev.r ?? 9 });
+        else if (ev.fx === 'firebomb') push('blast', 1400, { pal: 'ember', r: ev.r ?? 3 });
         else if (ev.fx === 'shadowbomb') push('blast', 2000, { pal: 'void', r: ev.r ?? 5 });
         else if (ev.fx === 'leap') push('leap', 1100);
         break;

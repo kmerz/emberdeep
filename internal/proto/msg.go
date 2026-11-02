@@ -32,6 +32,8 @@ const (
 	CMove     = "move"
 	CCast     = "cast"
 	CPotion   = "potion"
+	CUse      = "use"  // use the rucksack item in slot (x, y: where to throw it)
+	CDrop     = "drop" // drop the stack in slot
 	CRevive   = "revive"
 	CChat     = "chat"
 	CPing     = "ping"
@@ -123,6 +125,7 @@ type Ent struct {
 	Elite  bool     `json:"el,omitempty"`
 	Face   int      `json:"face"`
 	St     []Status `json:"st,omitempty"`
+	It     string   `json:"it,omitempty"` // item id for rucksack items on the floor
 }
 
 type PartyEntry struct {
@@ -160,18 +163,24 @@ type Objectives struct {
 	Kills       int  `json:"kills"`
 }
 
+type PackSlot struct {
+	Item string `json:"item"`
+	N    int    `json:"n"`
+}
+
 type Me struct {
-	Res     int   `json:"res"`
-	ResMax  int   `json:"resMax"`
-	CD      []int `json:"cd"`    // remaining ticks
-	CDMax   []int `json:"cdMax"` // total ticks
-	Cost    []int `json:"cost"`
-	Potions int   `json:"potions"`
-	PotCD   int   `json:"potCd"`
-	Gold    int   `json:"gold"`
-	XP      int   `json:"xp"`
-	XPNeed  int   `json:"xpNeed"`
-	Lvl     int   `json:"lvl"`
+	Res     int        `json:"res"`
+	ResMax  int        `json:"resMax"`
+	CD      []int      `json:"cd"`    // remaining ticks
+	CDMax   []int      `json:"cdMax"` // total ticks
+	Cost    []int      `json:"cost"`
+	Potions int        `json:"potions"` // healing potions in the rucksack (the Q key)
+	PotCD   int        `json:"potCd"`   // shared cooldown of potions and draughts
+	Pack    []PackSlot `json:"pack"`    // always PackSlots entries; empty ones are {"", 0}
+	Gold    int        `json:"gold"`
+	XP      int        `json:"xp"`
+	XPNeed  int        `json:"xpNeed"`
+	Lvl     int        `json:"lvl"`
 }
 
 // SnapShared is the part of a snapshot identical for every client of a room.

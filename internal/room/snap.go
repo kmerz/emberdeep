@@ -136,7 +136,7 @@ func BuildShared(g *game.Game) []byte {
 	}
 	for _, it := range g.Items {
 		if it.Owner == 0 && g.IsVisible(it.X, it.Y) {
-			s.Ents = append(s.Ents, proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount})
+			s.Ents = append(s.Ents, proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount, It: it.Def})
 		}
 	}
 	for _, p := range g.Patches {
@@ -159,8 +159,11 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 		return append(out, '}')
 	}
 	def := h.Def()
-	me := proto.Me{Res: h.Res, ResMax: h.ResMax, Potions: h.Potions, Gold: h.Gold, XP: h.XP, XPNeed: game.XPNeed(h.Lvl), Lvl: h.Lvl,
+	me := proto.Me{Res: h.Res, ResMax: h.ResMax, Potions: h.Count("potion"), Pack: make([]proto.PackSlot, game.PackSlots), Gold: h.Gold, XP: h.XP, XPNeed: game.XPNeed(h.Lvl), Lvl: h.Lvl,
 		CD: make([]int, 3), CDMax: make([]int, 3), Cost: make([]int, 3), PotCD: max(0, h.PotionReady-g.Now)}
+	for i, s := range h.Pack {
+		me.Pack[i] = proto.PackSlot{Item: s.Item, N: s.N}
+	}
 	for i := 0; i < 3; i++ {
 		me.CD[i] = max(0, h.CDReady[i]-g.Now)
 		me.CDMax[i] = def.Skills[i].CD
@@ -173,7 +176,7 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 	drops := []proto.Ent{}
 	for _, it := range g.Items {
 		if it.Owner == pid && g.IsVisible(it.X, it.Y) {
-			drops = append(drops, proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount})
+			drops = append(drops, proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount, It: it.Def})
 		}
 	}
 	out = append(out, `,"drops":`...)

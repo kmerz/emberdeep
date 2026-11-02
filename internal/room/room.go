@@ -729,7 +729,7 @@ func (r *Room) botThink() {
 
 func (r *Room) botView(h *game.Hero, humans map[int]bool) *bot.View {
 	g := r.g
-	v := &bot.View{Me: h.ID, Cls: string(h.Cls), Res: h.Res, Potions: h.Potions, HP: h.HP, HPMax: h.HPMax, Humans: humans,
+	v := &bot.View{Me: h.ID, Cls: string(h.Cls), Res: h.Res, Potions: h.Count("potion"), HP: h.HP, HPMax: h.HPMax, Humans: humans,
 		PotCD: max(0, h.PotionReady-g.Now), CD: make([]int, 3), Cost: make([]int, 3)}
 	for i := 0; i < 3; i++ {
 		v.CD[i] = max(0, h.CDReady[i]-g.Now)

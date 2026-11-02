@@ -20,7 +20,8 @@ Open the page, **create a game** (or join with a code such as `ASH-7Q2`, or open
 | WASD / arrows | move (hold two for diagonals) |
 | `1` `2` `3` | class skills, aimed at the mouse cursor (or the nearest enemy / facing) |
 | left click | skill 1 |
-| `Q` | potion |
+| `Q` | drink a healing potion |
+| `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use, `X` drop, `I`/`Esc` close) |
 | hold `E` | revive an adjacent downed ally (3 s) |
 | `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/leave` or `/quit` leave the game, `/help`) |
 | Alt+click or middle click | ping the map (4 s) |
@@ -41,7 +42,9 @@ All numbers live in `internal/game/balance.go`.
 
 - Scaling uses the party size **at run start**: enemy HP x `1+0.6(N-1)`, elite HP x `1+0.8(N-1)`, packs `+N-1`.
   Heroes joining mid-run do **not** rescale enemies that already exist.
-- Gold is split between connected heroes; potion drops are personal (only their owner sees and picks them up).
+- Gold is split between connected heroes. Item drops (healing potions, resource draughts, firebombs, garnets) are
+  personal: only their owner sees and picks them up. Each hero has a 12-slot rucksack (items stack); an item
+  dropped from the rucksack can be picked up by anyone, which is how you hand things to a teammate.
 - At 0 HP a hero is downed for 20 s; if nobody revives them they die and spectate. The party wipes when no
   connected hero is standing (heroes held for a reconnect are idle and invulnerable, so they don't count).
 - Descend by having every living, connected hero on or next to `>` for 3 s. A run is 10 floors deep (`MaxDepth`);

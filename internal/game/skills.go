@@ -119,6 +119,11 @@ func (g *Game) impact(p pending) {
 	if h == nil {
 		return
 	}
+	if def := Items[p.skill]; def != nil { // a thrown item
+		g.emit(Event{K: "impact", Actor: h.ID, X: p.x, Y: p.y, FX: def.ID, R: def.Radius})
+		g.areaDamage(h, p.x, p.y, def.Radius, h.dmgScale(int(def.Amount)))
+		return
+	}
 	var sk SkillDef
 	for _, s := range h.Def().Skills {
 		if s.ID == p.skill {

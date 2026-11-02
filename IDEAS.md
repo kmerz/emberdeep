@@ -16,7 +16,7 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [ ] [M] Ambient sound per theme (needs a small audio system first)
 
 ## 3. Foundation: items
-- [ ] [L] Rucksack with an inventory UI (pick up, use, drop; personal per hero)
+- [x] [L] Rucksack with an inventory UI (12 slots; potions, draughts, firebombs, garnets)
 - [ ] [M] Chests with loot, and mimics (chests that bite)
 - [ ] [M] Torch item and light spell (needed for the pitch-black floor)
 
@@ -38,7 +38,7 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 
 ## 7. Special floors
 - [ ] [M] Pitch-black floor (bring a torch or the light spell)
-- [ ] [XL] Gnome village further down: friendly gnomes, trading, a town spell to come back later
+- [ ] [XL] Gnome village further down: friendly gnomes, trading (garnets are worth gold there), a town spell to come back later
 
 ## Suggested order
 bot fix → `/leave` → multi-floor + themes → inventory + chests/mimics/torch → dark floor → monster roles + blob →

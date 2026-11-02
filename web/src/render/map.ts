@@ -18,6 +18,9 @@ const GLY: Record<string, Glyph> = {
   '%': { ch: '%', fg: [214, 204, 184], lit: true },
   '$': { ch: '$', fg: [255, 212, 92], b: true },
   '!': { ch: '!', fg: [255, 92, 122], b: true },
+  '&': { ch: '&', fg: [110, 190, 255], b: true }, // resource draught
+  '*': { ch: '*', fg: [255, 140, 50], b: true },  // firebomb
+  'g': { ch: '♦', fg: [230, 60, 90], b: true },   // garnet
   '>': { ch: '>', fg: [120, 240, 255], b: true },
   '=': { ch: '≈', fg: [70, 140, 170], lit: true },
   '"': { ch: '♣', fg: [120, 230, 140], b: true },

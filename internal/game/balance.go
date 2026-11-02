@@ -18,10 +18,8 @@ const (
 
 	MaxHeroes = 4
 
-	PotionHealFrac = 0.40
-	PotionCD       = 10 * TickHz
-	StartPotions   = 2
-	MaxPotions     = 9
+	PotionCD     = 10 * TickHz // shared cooldown of healing potions and draughts
+	StartPotions = 2
 
 	// Co-op rules
 	ThreatWindow   = 5 * TickHz
@@ -212,10 +210,35 @@ type Difficulty struct {
 var Difficulties = []Difficulty{{"NORMAL", 1.0}, {"NIGHTMARE", 1.5}}
 
 // Loot
+const GoldDropChance = 0.5
+
+// Rucksack
 const (
-	GoldDropChance   = 0.5
-	PotionDropChance = 0.18 // rolled per player on every kill
+	PackSlots     = 12
+	ThrowDelay    = 8      // ticks a thrown item flies before it lands
+	PackFullEvery = TickHz // at most one "rucksack full" message per second
 )
+
+type ItemDef struct {
+	ID, Name, Desc string
+	Glyph          byte // plain-ASCII fallback; the client draws its own glyph by ID
+	MaxStack       int
+	Use            string  // "heal", "resource", "throw"; "" = can't be used
+	Amount         float64 // heal/resource share of the maximum, or damage for "throw"
+	Radius, Range  float64
+	Value          int     // gold value (for trading later)
+	DropChance     float64 // rolled per player on every kill; elites always drop potions
+}
+
+var Items = map[string]*ItemDef{
+	"potion":   {ID: "potion", Name: "Healing Potion", Desc: "restores 40% HP", Glyph: '!', MaxStack: 9, Use: "heal", Amount: 0.40, DropChance: 0.18},
+	"draught":  {ID: "draught", Name: "Resource Draught", Desc: "refills half your resource", Glyph: '&', MaxStack: 9, Use: "resource", Amount: 0.50, DropChance: 0.12},
+	"firebomb": {ID: "firebomb", Name: "Firebomb", Desc: "throw at the cursor: fire blast", Glyph: '*', MaxStack: 5, Use: "throw", Amount: 22, Radius: 3, Range: 12, DropChance: 0.04},
+	"gem":      {ID: "gem", Name: "Garnet", Desc: "worth 40 gold to a trader", Glyph: 'g', MaxStack: 20, Value: 40, DropChance: 0.05},
+}
+
+// ItemOrder fixes the order drops are rolled in (map order is random, the simulation must not be).
+var ItemOrder = []string{"potion", "draught", "firebomb", "gem"}
 
 // dist is the aspect-corrected metric used for radii and FOV (cells are twice as tall as wide).
 func dist(ax, ay, bx, by int) float64 {

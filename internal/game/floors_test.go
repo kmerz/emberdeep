@@ -35,7 +35,8 @@ func TestDescendKeepsProgressAndLoadsNewFloor(t *testing.T) {
 	g := New(42, Settings{}, 2)
 	a := g.AddHero(1, "kmerz", Warrior)
 	b := g.AddHero(2, "nyx", Rogue)
-	a.Lvl, a.XP, a.Gold, a.Potions = 3, 17, 55, 4
+	a.Lvl, a.XP, a.Gold = 3, 17, 55
+	a.AddItem("firebomb", 2)
 	b.HP = 0
 	b.Downed = true
 	old := append([]byte(nil), g.Level.Tiles...)
@@ -51,7 +52,7 @@ func TestDescendKeepsProgressAndLoadsNewFloor(t *testing.T) {
 	if bytes.Equal(old, g.Level.Tiles) {
 		t.Fatal("depth 2 should have a different layout")
 	}
-	if a.Lvl != 3 || a.XP != 17 || a.Gold != 55 || a.Potions != 4 {
+	if a.Lvl != 3 || a.XP != 17 || a.Gold != 55 || a.Count("potion") != StartPotions || a.Count("firebomb") != 2 {
 		t.Fatalf("progress must carry over: %+v", a.save())
 	}
 	if b.Downed || b.Dead || b.HP != b.HPMax/2 {
@@ -214,12 +215,14 @@ func TestRetryFloorRestoresArrival(t *testing.T) {
 	g := New(11, Settings{}, 1)
 	a := g.AddHero(1, "kmerz", Sorcerer)
 	takeStairs(g) // now on depth 2
-	a.Gold, a.Potions = 30, 3
+	a.Gold = 30
+	a.AddItem("gem", 3)
 	g.arrival[1] = a.save() // as if they arrived with this
 	arrived := a.save()
 	layout := append([]byte(nil), g.Level.Tiles...)
 
-	a.Gold, a.Potions, a.XP = 99, 0, 40
+	a.Gold, a.XP = 99, 40
+	a.Pack = [PackSlots]Stack{}
 	downHeroNow(g, a)
 	for i := 0; i < 3; i++ {
 		g.Tick()

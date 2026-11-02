@@ -882,3 +882,44 @@ func TestStairsTakeThePartyDownThenRetryAfterWipe(t *testing.T) {
 		}
 	})
 }
+
+func TestRucksackOverTheRoom(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	waitFor(t, "level", func() bool { return hasType(a, "level") })
+	r.Inspect(func(g *game.Game, _ int) { g.Hero(1).AddItem("gem", 2) })
+
+	lastMe := func() *proto.Me {
+		_, raws := drain(a)
+		var me *proto.Me
+		for _, b := range raws {
+			var s struct {
+				T  string    `json:"t"`
+				Me *proto.Me `json:"me"`
+			}
+			if json.Unmarshal(b, &s) == nil && s.T == "snap" && s.Me != nil {
+				me = s.Me
+			}
+		}
+		return me
+	}
+	var me *proto.Me
+	waitFor(t, "pack in snapshot", func() bool {
+		if m := lastMe(); m != nil {
+			me = m
+		}
+		return me != nil && len(me.Pack) == game.PackSlots && me.Pack[1].Item == "gem" && me.Pack[1].N == 2
+	})
+	if me.Potions != game.StartPotions || me.Pack[0].Item != "potion" {
+		t.Fatalf("expected the starting potions in slot 0: %+v", me.Pack[0])
+	}
+
+	r.Submit(a, proto.ClientMsg{T: "drop", Slot: 1, Seq: 1})
+	waitFor(t, "gem dropped", func() bool {
+		gone := false
+		r.Inspect(func(g *game.Game, _ int) { gone = g.Hero(1).Count("gem") == 0 && len(g.Items) > 0 })
+		return gone
+	})
+}

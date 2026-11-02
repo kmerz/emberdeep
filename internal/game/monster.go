@@ -84,8 +84,11 @@ func (g *Game) killMonster(m *Monster, killer int) {
 		if h.Dead || !h.Connected {
 			continue
 		}
-		if m.Elite || g.rng.Chance(PotionDropChance) {
-			g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '!', X: m.X, Y: m.Y, Amount: 1, Owner: h.ID})
+		for _, id := range ItemOrder {
+			def := Items[id]
+			if (m.Elite && def.Use == "heal") || g.rng.Chance(def.DropChance) {
+				g.Items = append(g.Items, &Item{ID: g.newID(), Kind: def.Glyph, Def: id, X: m.X, Y: m.Y, Amount: 1, Owner: h.ID})
+			}
 		}
 	}
 }

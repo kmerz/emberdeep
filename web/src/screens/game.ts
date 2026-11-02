@@ -5,6 +5,8 @@ import { Fx } from '../render/fx';
 import { VW, VH, buildLights, drawEnts, drawMap } from '../render/map';
 import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
+import { inventoryPanel, slotAt, INV } from '../render/inventory';
+import { itemInfo, PACK_SLOTS } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
@@ -18,6 +20,8 @@ export class GameScreen implements Screen {
   mouse: [number, number] = [-1, -1];
   reviving = 0;
   private lastRevSend = 0;
+  private invOpen = false;
+  private invSel = 0;
   private levelSeen = 0;
 
   constructor(private app: App) {
@@ -29,6 +33,7 @@ export class GameScreen implements Screen {
     this.fx.clear();
     this.pred.reset();
     this.held.clear();
+    this.invOpen = false;
     st.onSnap = () => this.pred.onSnap();
     st.onEvents = (evs: GameEvent[], now: number) => { for (const e of evs) this.fx.add(e, now, st.youId); };
   }
@@ -45,6 +50,8 @@ export class GameScreen implements Screen {
     }
     if (st.overlay === 'wipe' && ev.key === 'Enter') { if (st.isHost) net.send({ t: 'start' }); ev.preventDefault(); return; }
     const k = ev.key.toLowerCase();
+    if (this.invOpen && this.invKey(ev, k)) { ev.preventDefault(); return; }
+    if (k === 'i' && !ev.repeat) { this.invOpen = true; this.held.clear(); ev.preventDefault(); return; }
     if (ev.key === 'Enter') { this.ui.chatActive = true; this.ui.chatText = ''; this.held.clear(); ev.preventDefault(); return; }
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) { this.held.add(k); ev.preventDefault(); return; }
     if (ev.repeat) return;
@@ -66,10 +73,46 @@ export class GameScreen implements Screen {
 
   onMouseDown(ev: MouseEvent, cell: [number, number]) {
     this.mouse = cell;
+    if (this.invOpen && ev.button === 0) {
+      const s = slotAt(cell[0], cell[1]);
+      if (s >= 0) { this.invSel = s; ev.preventDefault(); return; }
+    }
     const w = this.cellToWorld(cell);
     if (!w) return;
     if (ev.altKey || ev.button === 1) { this.app.net.send({ t: 'ping', cell: w }); ev.preventDefault(); return; }
     if (ev.button === 0 && !this.ui.chatActive) this.cast(0);
+  }
+
+  /** Keys while the rucksack is open. Returns true when the key was used by the panel. */
+  private invKey(ev: KeyboardEvent, k: string): boolean {
+    const cols = INV.cols;
+    if (k === 'i' || ev.key === 'Escape') { if (!ev.repeat) this.invOpen = false; return true; }
+    if (k === 'arrowleft') { this.invSel = (this.invSel + PACK_SLOTS - 1) % PACK_SLOTS; return true; }
+    if (k === 'arrowright') { this.invSel = (this.invSel + 1) % PACK_SLOTS; return true; }
+    if (k === 'arrowup') { this.invSel = (this.invSel + PACK_SLOTS - cols) % PACK_SLOTS; return true; }
+    if (k === 'arrowdown') { this.invSel = (this.invSel + cols) % PACK_SLOTS; return true; }
+    if (ev.repeat) return false;
+    if (k === 'u' || ev.key === 'Enter') { this.useItem(this.invSel); return true; }
+    if (k === 'x') { this.app.net.send({ t: 'drop', slot: this.invSel, seq: this.pred.nextSeq() }); return true; }
+    return false;
+  }
+
+  private useItem(slot: number) {
+    const st = this.app.st, s = st.me?.pack?.[slot];
+    const me = this.youEnt();
+    if (!s || s.n <= 0 || !me) return;
+    const it = itemInfo(s.item);
+    if (!it.usable) { st.pushLog([[it.name, it.col], [' cannot be used', DIM]]); return; }
+    let tx = 0, ty = 0;
+    if (it.thrown) { // aim like a targeted skill: the mouse cursor, else the nearest monster, else ahead
+      const px = this.pred.ready ? this.pred.x : me.x, py = this.pred.ready ? this.pred.y : me.y;
+      const w = this.cellToWorld(this.mouse);
+      const near = w ? null : this.nearestMonster(px, py);
+      if (w) [tx, ty] = w;
+      else if (near) { tx = near.x; ty = near.y; }
+      else { const d = DIRS[this.pred.face]; tx = px + d[0] * 4; ty = py + d[1] * 4; }
+    }
+    this.app.net.send({ t: 'use', slot, x: tx, y: ty, seq: this.pred.nextSeq() });
   }
 
   private sendChat() {
@@ -217,6 +260,7 @@ export class GameScreen implements Screen {
     logPanel(fb, st, now);
     hotbar(fb, st, you?.cls ?? null);
     commandLine(fb, this.ui, now);
+    if (this.invOpen) inventoryPanel(fb, st, this.invSel);
     depthBanner(fb, st, now);
     if (st.overlay) overlayBox(fb, st.overlay, st, now);
     void H; void SKILL_BY_ID;

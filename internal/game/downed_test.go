@@ -275,17 +275,17 @@ func TestSharedGoldPersonalPotions(t *testing.T) {
 		t.Fatal("party gold total")
 	}
 	// personal potion: only the owner can pick it up
-	g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '!', X: 42, Y: 25, Amount: 1, Owner: 2})
+	g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '!', Def: "potion", X: 42, Y: 25, Amount: 1, Owner: 2})
 	a.NextMove = 0
 	if err := g.Apply(1, Intent{Kind: IntMove, Dir: 2}); err != nil {
 		t.Fatal(err)
 	}
-	if a.Potions != StartPotions || len(g.Items) != 1 {
-		t.Fatalf("a must not pick up b's potion: potions=%d items=%d", a.Potions, len(g.Items))
+	if a.Count("potion") != StartPotions || len(g.Items) != 1 {
+		t.Fatalf("a must not pick up b's potion: potions=%d items=%d", a.Count("potion"), len(g.Items))
 	}
 	g.place(b, 41, 25)
 	b.NextMove = 0
-	if err := g.Apply(2, Intent{Kind: IntMove, Dir: 2}); err == nil && b.X == 42 && b.Potions != StartPotions+1 {
+	if err := g.Apply(2, Intent{Kind: IntMove, Dir: 2}); err == nil && b.X == 42 && b.Count("potion") != StartPotions+1 {
 		t.Fatal("owner should pick up the potion")
 	}
 }

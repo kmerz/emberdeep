@@ -2,6 +2,7 @@ import type { Ent, GameEvent, LevelMsg, LobbyMsg, Me, Objectives, PartyEntry, Se
 import { CLS, SKILL_BY_ID } from './classes';
 import { DIM, GOLD, PINK, RGB, TX } from './term/fb';
 import { palette } from './render/themes';
+import { itemInfo } from './items';
 
 export const LW = 176;
 export const LH = 62;
@@ -101,6 +102,7 @@ export class GameState {
       const you = e.actor === this.youId;
       switch (e.k) {
         case 'cast': {
+          if (e.fx === 'firebomb') { this.pushLog([[an, ac], [' throws a ', DIM], ['FIREBOMB', [255, 140, 50], 1]], now); break; }
           const sk = e.fx ? SKILL_BY_ID[e.fx] : undefined;
           if (sk && sk.meta.log) this.pushLog([[an, ac], [' casts ', DIM], [sk.meta.name, CLS[sk.cls].col]], now);
           break;
@@ -110,7 +112,11 @@ export class GameState {
           break;
         case 'pickup':
           if (e.fx === 'gold') this.pushLog([[you ? 'You' : an, you ? TX : ac], [' pick' + (you ? '' : 's') + ' up ', DIM], [(e.amount || 0) + ' gold', GOLD, 1]], now);
+          else if (you && e.fx) { const it = itemInfo(e.fx); this.pushLog([['You pick up ', DIM], [(e.amount || 1) > 1 ? e.amount + '× ' + it.name : it.name, it.col, 1]], now); }
           break;
+        case 'packfull': if (you) this.pushLog([['Your rucksack is full', PINK]], now); break;
+        case 'use': if (e.fx) { const it = itemInfo(e.fx); this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' drink a ' : ' drinks a ', DIM], [it.name, it.col]], now); } break;
+        case 'drop': if (e.fx) { const it = itemInfo(e.fx); this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' drop ' : ' drops ', DIM], [(e.amount || 1) + '× ' + it.name, it.col]], now); } break;
         case 'down': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is DOWN!', PINK, 1]], now); break;
         case 'revive': this.pushLog([[an, ac], [' revives ', DIM], [this.nameOf(e.target || 0), this.colOf(e.target || 0)]], now); break;
         case 'dead': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' has fallen', PINK]], now); break;
