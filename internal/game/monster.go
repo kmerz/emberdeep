@@ -244,7 +244,7 @@ func (g *Game) callerAct(m *Monster, tgt *Hero) bool {
 				}
 			}
 			if bd > d {
-				m.NextMove = g.Now + def.MoveTicks
+				m.NextMove = g.Now + def.StepTicks()
 				g.moveEntity(int32(m.ID), &m.X, &m.Y, best.X, best.Y)
 				return true
 			}
@@ -354,7 +354,7 @@ func (g *Game) monsterAI(m *Monster) {
 	if g.Now < m.NextMove {
 		return
 	}
-	cost := m.Def().MoveTicks
+	cost := m.Def().StepTicks()
 	if g.Now < m.SlowUntil {
 		cost *= 2
 	}

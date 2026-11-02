@@ -245,6 +245,13 @@ var Classes = map[ClassID]*ClassDef{
 func HPPerLevel(base int) int { return base / 8 }
 func XPNeed(lvl int) int      { return 300 + 20*lvl } // floor 1 ends near level 3, a full run near 20
 
+// MonsterSpeedScale stretches every monster's step time so nothing out-runs
+// the heroes (hero step = MoveTicks). Raise it to slow monsters further.
+const MonsterSpeedScale = 1.25
+
+// StepTicks is the ticks a monster takes per step (MoveTicks, scaled).
+func (d MonDef) StepTicks() int { return int(math.Round(float64(d.MoveTicks) * MonsterSpeedScale)) }
+
 type MonDef struct {
 	Name      string
 	HP        int

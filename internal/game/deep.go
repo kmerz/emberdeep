@@ -97,7 +97,7 @@ func (g *Game) stepAway(m *Monster, tgt *Hero) bool {
 	if bd <= d {
 		return false
 	}
-	m.NextMove = g.Now + m.Def().MoveTicks
+	m.NextMove = g.Now + m.Def().StepTicks()
 	g.moveEntity(int32(m.ID), &m.X, &m.Y, best.X, best.Y)
 	return true
 }
