@@ -8,3 +8,4 @@ internal/web/dist/*
 .smoke.mjs
 .vibepit
 so.sh
+/bin

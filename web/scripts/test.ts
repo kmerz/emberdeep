@@ -16,7 +16,7 @@ function eq(a: unknown, b: unknown, msg: string) {
 
 const hero = (id: number, x: number, y: number): Ent => ({ id, k: 'h', g: '@', x, y, cls: 'rogue', name: 'h' + id, face: 2 });
 const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
-  t: 'snap', tick, ackSeq: ack, ents, party: [], obj: { kingAlive: true, stairsAt: 0, stairsNeed: 1, stairsLeft: 0, stairsFound: false, gold: 0, kills: 0 },
+  t: 'snap', tick, ackSeq: ack, ents, party: [], obj: { boss: false, kingAlive: true, stairsAt: 0, stairsNeed: 1, stairsLeft: 0, stairsFound: false, gold: 0, kills: 0 },
   vis: { x0: 0, y0: 0, w: 0, h: 0, b: '' },
 });
 
