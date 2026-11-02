@@ -7,6 +7,8 @@ export const ITEMS: Record<string, ItemInfo> = {
   potion: { name: 'Healing Potion', ch: '!', col: [255, 92, 122], desc: 'restores 40% HP', usable: true },
   draught: { name: 'Resource Draught', ch: '&', col: [110, 190, 255], desc: 'refills half your resource', usable: true },
   firebomb: { name: 'Firebomb', ch: '*', col: [255, 140, 50], desc: 'throw at the cursor: fire blast', thrown: true, usable: true },
+  torch: { name: 'Torch', ch: '/', col: [255, 170, 70], desc: 'burns for 2 minutes; you see in the dark', usable: true },
+  lightorb: { name: 'Scroll of Light', ch: '?', col: [230, 230, 170], desc: 'lights the spot at the cursor for a minute', thrown: true, usable: true },
   gem: { name: 'Garnet', ch: '♦', col: [230, 60, 90], desc: 'worth 40 gold to a trader', usable: false },
 };
 

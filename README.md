@@ -45,6 +45,9 @@ All numbers live in `internal/game/balance.go`.
 - Gold is split between connected heroes. Item drops (healing potions, resource draughts, firebombs, garnets) are
   personal: only their owner sees and picks them up. Each hero has a 12-slot rucksack (items stack); an item
   dropped from the rucksack can be picked up by anyone, which is how you hand things to a teammate.
+- Floor 7, The Black Hollow, is pitch black: you see only what a light reaches. Everyone starts with 2 torches
+  (`I`, then use one: it burns for 2 minutes and doesn't survive the stairs), and a Scroll of Light lights the
+  spot at the cursor for a minute, for the whole party. Torches and scrolls also drop from monsters and chests.
 - About a third of the rooms hold a chest `■`: walk into it to open it. It spills gold for the party and two
   item rolls for every hero. From floor 2 on, some chests are mimics (8% rising to 38% at floor 10): they bite
   when bumped, and hitting a chest gives a mimic away. A dead mimic drops the treasure it was guarding.

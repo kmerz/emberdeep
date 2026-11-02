@@ -38,6 +38,9 @@ func heroStatuses(g *game.Game, h *game.Hero) []proto.Status {
 	if g.Now < h.SlowUntil {
 		st = append(st, proto.Status{K: "slow", T: ceilSec(h.SlowUntil - g.Now)})
 	}
+	if g.Now < h.TorchUntil {
+		st = append(st, proto.Status{K: "torch", T: ceilSec(h.TorchUntil - g.Now)})
+	}
 	return st
 }
 
@@ -53,7 +56,7 @@ func LevelMsg(g *game.Game) []byte {
 	}
 	return mustJSON(proto.Level{T: "level", W: l.W, H: l.H, Seed: SeedString(g.Seed), Torches: tor,
 		Stairs: [2]int{l.Stairs.X, l.Stairs.Y}, Start: [2]int{l.Start.X, l.Start.Y}, Depth: g.Depth, MaxDepth: game.MaxDepth,
-		Theme: l.Theme.ID, Glows: glows})
+		Theme: l.Theme.ID, Glows: glows, Dark: l.Theme.Dark})
 }
 
 func ExploreMsg(tiles []game.TileUpdate) []byte {
@@ -147,6 +150,9 @@ func BuildShared(g *game.Game) []byte {
 		if it.Owner == 0 && g.IsVisible(it.X, it.Y) {
 			s.Ents = append(s.Ents, proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount, It: it.Def})
 		}
+	}
+	for _, o := range g.Orbs {
+		s.Orbs = append(s.Orbs, [3]int{o.X, o.Y, ceilSec(o.Until - g.Now)})
 	}
 	for _, p := range g.Patches {
 		if g.IsVisible(p.X, p.Y) {

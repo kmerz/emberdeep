@@ -20,6 +20,7 @@ const (
 
 	PotionCD     = 10 * TickHz // shared cooldown of healing potions and draughts
 	StartPotions = 2
+	StartTorches = 2
 
 	// Co-op rules
 	ThreatWindow   = 5 * TickHz
@@ -63,12 +64,14 @@ type Theme struct {
 	Decor       string  // decor tiles rolled on floor cells
 	DecorChance float64
 	Glow        byte // decor tile that gives off light (0 = none)
+	Dark        bool // pitch black: heroes only see what a light reaches
 }
 
 var Themes = map[string]*Theme{
 	"cathedral": {ID: "cathedral", Name: "Cathedral of Ash", Kinds: "zzzssfb", TorchRate: 1, Decor: "~:%", DecorChance: 0.03},
 	"crypt":     {ID: "crypt", Name: "Flooded Crypt", Kinds: "zzzzzssb", TorchRate: 0.6, Decor: "==:=%", DecorChance: 0.06},
 	"caverns":   {ID: "caverns", Name: "Fungal Caverns", Kinds: "bbbbfzs", Caves: true, Decor: "\":\"%", DecorChance: 0.04, Glow: '"'},
+	"dark":      {ID: "dark", Name: "The Black Hollow", Kinds: "bbbzzs", Caves: true, Decor: ":%~", DecorChance: 0.03, Dark: true},
 	"ember":     {ID: "ember", Name: "Ember Depths", Kinds: "fffsszb", TorchRate: 0.4, Decor: "^^:%~", DecorChance: 0.04, Glow: '^'},
 }
 
@@ -76,7 +79,17 @@ var Themes = map[string]*Theme{
 var ThemeBands = []struct {
 	From  int
 	Theme string
-}{{1, "cathedral"}, {3, "crypt"}, {6, "caverns"}, {9, "ember"}}
+}{{1, "cathedral"}, {3, "crypt"}, {6, "caverns"}, {7, "dark"}, {8, "caverns"}, {9, "ember"}}
+
+// Light on dark floors (radii in the aspect-corrected metric, like VisionRadius).
+const (
+	BareLight  = 4.5  // a hero without a torch sees only the cells next to them
+	TorchLight = 12.0 // a lit torch
+	OrbLight   = 11.0 // a light orb
+	TorchTicks = 120 * TickHz
+	OrbTicks   = 60 * TickHz
+	MaxOrbs    = 8 // per floor at once; the oldest goes out first
+)
 
 func ThemeAt(depth int) *Theme {
 	t := Themes[ThemeBands[0].Theme]
@@ -240,7 +253,7 @@ type ItemDef struct {
 	ID, Name, Desc string
 	Glyph          byte // plain-ASCII fallback; the client draws its own glyph by ID
 	MaxStack       int
-	Use            string  // "heal", "resource", "throw"; "" = can't be used
+	Use            string  // "heal", "resource", "throw", "torch", "orb"; "" = can't be used
 	Amount         float64 // heal/resource share of the maximum, or damage for "throw"
 	Radius, Range  float64
 	Value          int     // gold value (for trading later)
@@ -251,11 +264,13 @@ var Items = map[string]*ItemDef{
 	"potion":   {ID: "potion", Name: "Healing Potion", Desc: "restores 40% HP", Glyph: '!', MaxStack: 9, Use: "heal", Amount: 0.40, DropChance: 0.18},
 	"draught":  {ID: "draught", Name: "Resource Draught", Desc: "refills half your resource", Glyph: '&', MaxStack: 9, Use: "resource", Amount: 0.50, DropChance: 0.12},
 	"firebomb": {ID: "firebomb", Name: "Firebomb", Desc: "throw at the cursor: fire blast", Glyph: '*', MaxStack: 5, Use: "throw", Amount: 22, Radius: 3, Range: 12, DropChance: 0.04},
+	"torch":    {ID: "torch", Name: "Torch", Desc: "burns for 2 minutes; you see in the dark", Glyph: 't', MaxStack: 5, Use: "torch", DropChance: 0.06},
+	"lightorb": {ID: "lightorb", Name: "Scroll of Light", Desc: "lights the spot at the cursor for a minute", Glyph: '?', MaxStack: 5, Use: "orb", Range: 14, DropChance: 0.04},
 	"gem":      {ID: "gem", Name: "Garnet", Desc: "worth 40 gold to a trader", Glyph: 'g', MaxStack: 20, Value: 40, DropChance: 0.05},
 }
 
 // ItemOrder fixes the order drops are rolled in (map order is random, the simulation must not be).
-var ItemOrder = []string{"potion", "draught", "firebomb", "gem"}
+var ItemOrder = []string{"potion", "draught", "firebomb", "torch", "lightorb", "gem"}
 
 // dist is the aspect-corrected metric used for radii and FOV (cells are twice as tall as wide).
 func dist(ax, ay, bx, by int) float64 {

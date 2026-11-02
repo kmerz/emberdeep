@@ -220,7 +220,10 @@ export class GameScreen implements Screen {
       this.cam.y = Math.max(0, Math.min(LH - VH, fx0.y - (VH >> 1)));
     }
     this.fx.prune(now);
-    const heroes = ents.filter((e) => e.k === 'h' && !e.dead).map((e) => (e.id === st.youId && yp ? yp : { x: e.x, y: e.y }));
+    const heroes = ents.filter((e) => e.k === 'h' && !e.dead).map((e) => {
+      const torch = !!e.st?.some((s) => s.k === 'torch');
+      return e.id === st.youId && yp ? { ...yp, torch } : { x: e.x, y: e.y, torch };
+    });
     const lights = buildLights(st, this.cam, t, heroes, this.fx.lights(now, st, heroes));
     const mb = this.mb;
     mb.reset([7, 8, 12]);

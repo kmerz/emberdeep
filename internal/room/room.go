@@ -718,6 +718,15 @@ func (r *Room) botThink() {
 		if h == nil {
 			continue
 		}
+		// in the dark a bot lights a torch when it has one
+		if r.g.Level.Theme.Dark && r.g.Now >= h.TorchUntil && !h.Downed && !h.Dead {
+			for i, s := range h.Pack {
+				if s.Item == "torch" {
+					r.applyIntent(p.ID, game.Intent{Kind: game.IntUse, Slot: i})
+					break
+				}
+			}
+		}
 		v := r.botView(h, humans)
 		for _, m := range p.brain.Think(v) {
 			if it, ok := ToIntent(m); ok {

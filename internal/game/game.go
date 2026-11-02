@@ -117,6 +117,7 @@ type Game struct {
 	Items   []*Item
 	Patches []*Patch
 	Chests  []*Chest
+	Orbs    []Orb
 
 	Explored []bool
 	Visible  []bool
@@ -173,7 +174,7 @@ func (g *Game) loadFloor(depth int) {
 	g.Depth = depth
 	g.Level = Generate(g.Seed, depth, n)
 	g.rng = NewRNG(uint64(FloorSeed(g.Seed, depth))*31 + 5)
-	g.Mons, g.Items, g.Patches, g.pend, g.Chests = nil, nil, nil, nil, nil
+	g.Mons, g.Items, g.Patches, g.pend, g.Chests, g.Orbs = nil, nil, nil, nil, nil, nil
 	g.KingKilled = false
 	g.stairsSince, g.StairsLeft, g.StairsAt, g.StairsNeed = -1, 0, 0, 0
 	g.explNew = nil
@@ -330,6 +331,7 @@ func newHero(id int, name string, cls ClassID, connected bool) *Hero {
 	h := &Hero{ID: id, Name: name, Cls: cls, Lvl: 1, HPMax: def.HP, HP: def.HP, ResMax: def.ResMax, Res: def.ResStart,
 		Connected: connected, Facing: 2}
 	h.AddItem("potion", StartPotions)
+	h.AddItem("torch", StartTorches)
 	return h
 }
 
@@ -531,18 +533,21 @@ func (g *Game) applyUse(h *Hero, in Intent) error {
 			h.gainRes(n)
 			g.emit(Event{K: "use", Actor: h.ID, X: h.X, Y: h.Y, Amount: n, FX: def.ID})
 		}
+	case "torch":
+		h.TorchUntil = g.Now + TorchTicks // lighting a new one replaces the old
+		g.emit(Event{K: "use", Actor: h.ID, X: h.X, Y: h.Y, FX: def.ID})
+	case "orb":
+		if err := g.checkAim(h, in, def.Range); err != nil {
+			return err
+		}
+		if len(g.Orbs) >= MaxOrbs {
+			g.Orbs = g.Orbs[1:]
+		}
+		g.Orbs = append(g.Orbs, Orb{X: in.X, Y: in.Y, Until: g.Now + OrbTicks})
+		g.emit(Event{K: "use", Actor: h.ID, X: h.X, Y: h.Y, TX: in.X, TY: in.Y, FX: def.ID})
 	case "throw":
-		if in.X < 0 || in.Y < 0 || in.X >= LW || in.Y >= LH {
-			return ErrBadTarget
-		}
-		if dist(h.X, h.Y, in.X, in.Y) > def.Range+0.5 {
-			return ErrRange
-		}
-		if (in.X != h.X || in.Y != h.Y) && !g.Level.LineClear(h.X, h.Y, in.X, in.Y) {
-			return ErrLOS
-		}
-		if Solid(g.Level.At(in.X, in.Y)) {
-			return ErrBlocked
+		if err := g.checkAim(h, in, def.Range); err != nil {
+			return err
 		}
 		h.Facing = dirIndex(in.X-h.X, in.Y-h.Y, h.Facing)
 		g.emit(Event{K: "cast", Actor: h.ID, X: h.X, Y: h.Y, TX: in.X, TY: in.Y, FX: def.ID, R: def.Radius, Amount: ThrowDelay})
@@ -552,6 +557,23 @@ func (g *Game) applyUse(h *Hero, in Intent) error {
 	}
 	h.removeAt(in.Slot, 1)
 	h.ReviveTarget, h.ReviveProg = 0, 0
+	return nil
+}
+
+// checkAim validates a cursor target: inside the map, in range, in line of sight, not a wall.
+func (g *Game) checkAim(h *Hero, in Intent, rng float64) error {
+	if in.X < 0 || in.Y < 0 || in.X >= LW || in.Y >= LH {
+		return ErrBadTarget
+	}
+	if dist(h.X, h.Y, in.X, in.Y) > rng+0.5 {
+		return ErrRange
+	}
+	if (in.X != h.X || in.Y != h.Y) && !g.Level.LineClear(h.X, h.Y, in.X, in.Y) {
+		return ErrLOS
+	}
+	if Solid(g.Level.At(in.X, in.Y)) {
+		return ErrBlocked
+	}
 	return nil
 }
 

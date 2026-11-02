@@ -36,6 +36,7 @@ function statusSegs(p: PartyEntry): [string, RGB, (RGB | null)?, number?][] {
     if (s.k === 'wall') out.push(['▲ Iron Wall', GOLD], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'bell') out.push(['◆ Bell of Warding', GOLD], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'slow') out.push(['▼ Slowed', [150, 196, 106]], [' ' + s.t + 's', DIM], ['   ', DIM]);
+    else if (s.k === 'torch') out.push(['/ Torch', [255, 170, 70]], [' ' + s.t + 's', DIM], ['   ', DIM]);
   }
   if (!out.length) out.push(['◇ steady', DIM]);
   return out;

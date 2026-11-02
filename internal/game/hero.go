@@ -37,6 +37,7 @@ type Hero struct {
 	BellUntil  int
 	SlowUntil  int
 	BleedUntil int
+	TorchUntil int // tick a lit torch goes out (0 = none)
 	LastDamage int // tick of last damage taken (for display)
 
 	fov      []int32
@@ -136,6 +137,7 @@ func (h *Hero) freshOnFloor() {
 	h.DownedUntil, h.ReviveTarget, h.ReviveProg = 0, 0, 0
 	h.WallUntil, h.WallAbsorb, h.BellUntil, h.SlowUntil, h.BleedUntil = 0, 0, 0, 0, 0
 	h.CDReady = [3]int{}
+	h.TorchUntil = 0 // a torch doesn't make it down the stairs
 	h.PotionReady = 0
 	h.fovValid = false
 }
@@ -240,8 +242,61 @@ func (g *Game) downHero(h *Hero) {
 }
 
 // updateVision unions every hero's FOV into Visible and records newly explored tiles.
+// Light is a light source on a dark floor.
+type Light struct {
+	X, Y int
+	R    float64
+}
+
+// Orb is a light cast from a Scroll of Light.
+type Orb struct {
+	X, Y  int
+	Until int
+}
+
+// Lights lists every light on the floor: each living hero's own light (bigger with a torch) and the orbs.
+func (g *Game) Lights() []Light {
+	var out []Light
+	for _, h := range g.Heroes {
+		if h.Dead {
+			continue
+		}
+		r := BareLight
+		if g.Now < h.TorchUntil {
+			r = TorchLight
+		}
+		out = append(out, Light{h.X, h.Y, r})
+	}
+	for _, o := range g.Orbs {
+		out = append(out, Light{o.X, o.Y, OrbLight})
+	}
+	return out
+}
+
+func (g *Game) lit(lights []Light, x, y int) bool {
+	for _, l := range lights {
+		if dist(x, y, l.X, l.Y) <= l.R {
+			return true
+		}
+	}
+	return false
+}
+
 func (g *Game) updateVision() {
 	clear(g.Visible)
+	n := 0
+	for _, o := range g.Orbs { // orbs burn out
+		if o.Until > g.Now {
+			g.Orbs[n] = o
+			n++
+		}
+	}
+	g.Orbs = g.Orbs[:n]
+	dark := g.Level.Theme != nil && g.Level.Theme.Dark
+	var lights []Light
+	if dark {
+		lights = g.Lights()
+	}
 	for _, h := range g.Heroes {
 		if h.Dead {
 			continue
@@ -251,6 +306,14 @@ func (g *Game) updateVision() {
 			hh := h
 			ComputeFOV(g.Level, h.X, h.Y, VisionRadius, func(x, y int) { hh.fov = append(hh.fov, int32(y*LW+x)) })
 			h.fovX, h.fovY, h.fovValid = h.X, h.Y, true
+		}
+		if dark {
+			for _, i := range h.fov {
+				if g.lit(lights, int(i)%LW, int(i)/LW) {
+					g.Visible[i] = true
+				}
+			}
+			continue
 		}
 		for _, i := range h.fov {
 			g.Visible[i] = true

@@ -18,7 +18,7 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 ## 3. Foundation: items
 - [x] [L] Rucksack with an inventory UI (12 slots; potions, draughts, firebombs, garnets)
 - [x] [M] Chests with loot, and mimics (chests that bite)
-- [ ] [M] Torch item and light spell (needed for the pitch-black floor)
+- [x] [M] Torch item and light spell (a Scroll of Light for now; could become a Sorcerer skill with the skill tree)
 
 ## 4. Progression
 - [ ] [XL] Skill tree on level-up (Diablo 2 style): skill points, unlockable nodes, any learned skill can go on 1/2/3
@@ -37,7 +37,7 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [ ] [L] Deep floors: dragons, incubus, succubus
 
 ## 7. Special floors
-- [ ] [M] Pitch-black floor (bring a torch or the light spell)
+- [x] [M] Pitch-black floor (floor 7, The Black Hollow)
 - [ ] [XL] Gnome village further down: friendly gnomes, trading (garnets are worth gold there), a town spell to come back later
 
 ## Suggested order

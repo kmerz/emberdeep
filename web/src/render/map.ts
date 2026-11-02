@@ -22,13 +22,15 @@ const GLY: Record<string, Glyph> = {
   '*': { ch: '*', fg: [255, 140, 50], b: true },  // firebomb
   'g': { ch: '♦', fg: [230, 60, 90], b: true },   // garnet
   'C': { ch: '■', fg: [214, 150, 80], b: true },   // closed chest (or a mimic pretending)
+  't': { ch: '/', fg: [255, 170, 70], b: true },   // torch
+  '?': { ch: '?', fg: [230, 230, 170], b: true },  // scroll of light
   '>': { ch: '>', fg: [120, 240, 255], b: true },
   '=': { ch: '≈', fg: [70, 140, 170], lit: true },
   '"': { ch: '♣', fg: [120, 230, 140], b: true },
   '^': { ch: '^', fg: [255, 120, 50], b: true },
 };
 
-export function buildLights(st: GameState, cam: Cam, t: number, heroes: { x: number; y: number }[], extra: Light[]): Light[] {
+export function buildLights(st: GameState, cam: Cam, t: number, heroes: { x: number; y: number; torch?: boolean }[], extra: Light[]): Light[] {
   const out: Light[] = [];
   const inView = (x: number, y: number, r: number) =>
     x + r >= cam.x && x - r <= cam.x + VW && y + r / 2 >= cam.y && y - r / 2 <= cam.y + VH;
@@ -47,7 +49,17 @@ export function buildLights(st: GameState, cam: Cam, t: number, heroes: { x: num
     const s = lv.stairs;
     if (st.tileAt(s[0], s[1]) !== 0 && inView(s[0], s[1], 9)) out.push({ x: s[0], y: s[1], r: 9, c: [0.27, 0.86, 1], i: 0.7 });
   }
-  for (const h of heroes) if (inView(h.x, h.y, 16)) out.push({ x: h.x, y: h.y, r: 16, c: pal.hero, i: 0.5 });
+  const dark = !!lv?.dark;
+  heroes.forEach((h, k) => {
+    // a lit torch is a warm flickering light; on the dark floor a hero without one barely glows
+    const flick = 0.9 + 0.1 * Math.sin(t * 9.1 + k * 2.1);
+    const l = h.torch ? { r: dark ? 13 : 18, c: [1, 0.72, 0.4], i: 0.75 * flick }
+      : dark ? { r: 5, c: pal.hero, i: 0.45 } : { r: 16, c: pal.hero, i: 0.5 };
+    if (inView(h.x, h.y, l.r)) out.push({ x: h.x, y: h.y, ...l });
+  });
+  for (const o of st.latest?.orbs ?? []) {
+    if (inView(o[0], o[1], 12)) out.push({ x: o[0], y: o[1], r: 12, c: [0.75, 0.85, 1], i: Math.min(1, o[2] / 3) * (0.8 + 0.05 * Math.sin(t * 4)) });
+  }
   for (const l of extra) if (inView(l.x, l.y, l.r)) out.push(l);
   return out;
 }

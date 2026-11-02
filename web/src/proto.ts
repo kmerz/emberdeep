@@ -24,7 +24,7 @@ export interface Me {
 export interface PackSlot { item: string; n: number }
 export interface Snap {
   t: 'snap'; tick: number; ackSeq?: number; vis: Vis; ents: Ent[]; party: PartyEntry[]; obj: Objectives;
-  patches?: [number, number][]; me?: Me; drops?: Ent[];
+  patches?: [number, number][]; orbs?: [number, number, number][]; me?: Me; drops?: Ent[];
 }
 export interface GameEvent {
   k: string; actor?: number; target?: number; x: number; y: number; tx?: number; ty?: number;
@@ -38,7 +38,7 @@ export interface LobbyMsg {
   t: 'lobby'; code: string; players: LobbyPlayer[]; inGame: boolean;
   settings: { difficulty: string; seed: string; loot: string; friendlyFire: boolean };
 }
-export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][] }
+export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][]; dark?: boolean }
 export type ServerMsg =
   | { t: 'welcome'; you: number; token: string; code: string; inviteUrl: string; isHost: boolean }
   | LobbyMsg

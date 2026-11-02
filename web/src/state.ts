@@ -118,7 +118,14 @@ export class GameState {
         case 'packfull': if (you) this.pushLog([['Your rucksack is full', PINK]], now); break;
         case 'chest': this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' open a ' : ' opens a ', DIM], ['chest', GOLD, 1]], now); break;
         case 'mimic': this.pushLog([['The chest was a ', DIM], ['MIMIC', PINK, 1], ['!', DIM]], now); break;
-        case 'use': if (e.fx) { const it = itemInfo(e.fx); this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' drink a ' : ' drinks a ', DIM], [it.name, it.col]], now); } break;
+        case 'use': {
+          if (!e.fx) break;
+          const it = itemInfo(e.fx), who: LogSeg = [you ? 'You' : an, you ? TX : ac];
+          if (e.fx === 'torch') this.pushLog([who, [you ? ' light a ' : ' lights a ', DIM], ['torch', it.col]], now);
+          else if (e.fx === 'lightorb') this.pushLog([who, [you ? ' read a ' : ' reads a ', DIM], [it.name, it.col]], now);
+          else this.pushLog([who, [you ? ' drink a ' : ' drinks a ', DIM], [it.name, it.col]], now);
+          break;
+        }
         case 'drop': if (e.fx) { const it = itemInfo(e.fx); this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' drop ' : ' drops ', DIM], [(e.amount || 1) + '× ' + it.name, it.col]], now); } break;
         case 'down': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is DOWN!', PINK, 1]], now); break;
         case 'revive': this.pushLog([[an, ac], [' revives ', DIM], [this.nameOf(e.target || 0), this.colOf(e.target || 0)]], now); break;
@@ -163,6 +170,7 @@ export class GameState {
         // a new floor (or a retry): forget everything about the old map
         if (m.theme !== this.level?.theme) {
           this.pushLog([['You enter the ', DIM], [palette(m.theme).name, TX], [' · Depth ' + String(m.depth).padStart(2, '0'), DIM]], now);
+          if (m.dark) this.pushLog([['It is pitch black. Light a torch from your rucksack (', DIM], ['I', TX, 1], [').', DIM]], now);
         }
         this.level = m; this.tiles.fill(0); this.vis.fill(0);
         this.recs = []; this.latest = null; this.pings = []; this.overlay = null; this.lastTarget = 0;

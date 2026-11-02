@@ -93,8 +93,9 @@ type Level struct {
 	Start    [2]int   `json:"start"`
 	Depth    int      `json:"depth"`
 	MaxDepth int      `json:"maxDepth"`
-	Theme    string   `json:"theme"` // palette id on the client
-	Glows    [][2]int `json:"glows"` // decor tiles that give off light
+	Theme    string   `json:"theme"`          // palette id on the client
+	Glows    [][2]int `json:"glows"`          // decor tiles that give off light
+	Dark     bool     `json:"dark,omitempty"` // pitch black: only lit cells are visible
 }
 
 // Explore carries newly explored tiles. It is delivered as an event (never dropped).
@@ -192,6 +193,7 @@ type SnapShared struct {
 	Party   []PartyEntry `json:"party"`
 	Obj     Objectives   `json:"obj"`
 	Patches [][2]int     `json:"patches,omitempty"`
+	Orbs    [][3]int     `json:"orbs,omitempty"` // light orbs: x, y, seconds left
 }
 
 type Events struct {
