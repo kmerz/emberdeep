@@ -33,7 +33,7 @@ export class LobbyScreen implements Screen {
     else if (k === 'd' && st.isHost) net.send({ t: 'setting', key: 'difficulty' });
     else if (k === 'b' && st.isHost) net.send({ t: 'setting', key: 'addBot' });
     else if (k === 'x' && st.isHost) net.send({ t: 'setting', key: 'removeBot' });
-    else if (k === 'q') { net.close(); this.app.setScreen('landing'); }
+    else if (k === 'q') this.app.setScreen('landing');
   }
 
   render(fb: Fb, now: number) {

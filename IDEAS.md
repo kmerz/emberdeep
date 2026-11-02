@@ -7,7 +7,7 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 
 ## 1. Now / small
 - [x] [S] Host can add and remove bots in the lobby (`B` / `X`)
-- [ ] [S] `/quit` or `/leave` chat command: leave cleanly, go back to the landing page, free the slot at once (no 60 s hold)
+- [x] [S] `/leave` or `/quit` chat command: leave cleanly, go back to the landing page, free the slot at once (no 60 s hold)
 
 ## 2. Foundation: depth
 - [ ] [L] Multi-floor runs: `>` takes the party down. 10 floors first, data-driven so it can grow to 30.

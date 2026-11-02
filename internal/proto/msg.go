@@ -36,6 +36,7 @@ const (
 	CChat     = "chat"
 	CPing     = "ping"
 	CHbAck    = "hbAck"
+	CLeave    = "leave" // leave the room for good: no 60 s reconnect hold
 )
 
 type Welcome struct {

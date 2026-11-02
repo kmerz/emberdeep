@@ -779,3 +779,36 @@ func TestHostAddsAndRemovesBots(t *testing.T) {
 		return len(lobbyBots(l)) == 0 && len(l.Players) == 3
 	})
 }
+
+func TestLeaveMidRunRemovesHeroAtOnce(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	b, _ := join(t, r, "nyx", "rogue")
+	r.Submit(a, proto.ClientMsg{T: "ready"})
+	r.Submit(b, proto.ClientMsg{T: "ready"})
+	waitFor(t, "start", func() bool { return r.Metrics.Ticks.Load() > 0 })
+	drain(a)
+
+	r.Submit(b, proto.ClientMsg{T: "leave"})
+	r.Leave(b) // the client closes its socket right after
+	waitFor(t, "nyx removed", func() bool {
+		gone := false
+		r.Inspect(func(g *game.Game, players int) {
+			gone = players == 1 && len(g.Heroes) == 1 && g.Heroes[0].Name == "kmerz"
+		})
+		return gone
+	})
+	_, raws := drain(a)
+	saw := false
+	for _, raw := range raws {
+		saw = saw || strings.Contains(string(raw), "nyx left the dungeon")
+	}
+	if !saw {
+		t.Errorf("the party should be told that nyx left")
+	}
+	// the slot is free right away: a new player can join mid-run
+	if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: "vela", Cls: "monk"}); err != nil {
+		t.Fatalf("join after leave: %v", err)
+	}
+}

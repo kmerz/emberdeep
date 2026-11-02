@@ -393,6 +393,16 @@ func (r *Room) handleLeave(c *Conn) {
 	r.broadcastLobby()
 }
 
+// quit removes a player who left on purpose (/leave): the hero leaves the world at once instead of
+// waiting out the reconnect window, and the slot is free for someone else.
+func (r *Room) quit(p *Player) {
+	r.removePlayer(p)
+	if r.g != nil {
+		r.sendAll(mustJSON(proto.Events{T: "events", Tick: r.g.Now, List: []game.Event{{K: "msg", Text: p.Name + " left the dungeon"}}}))
+	}
+	r.broadcastLobby()
+}
+
 func (r *Room) removePlayer(p *Player) {
 	for i, o := range r.players {
 		if o == p {
@@ -478,6 +488,8 @@ func (r *Room) handleMsg(in inMsg) {
 			return
 		}
 		r.broadcastLobby()
+	case proto.CLeave:
+		r.quit(p)
 	case proto.CHbAck:
 		if t, ok := p.hbSent[m.N]; ok {
 			p.PingMs = int(r.cfg.Clock().Sub(t).Milliseconds())

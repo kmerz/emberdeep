@@ -22,7 +22,7 @@ Open the page, **create a game** (or join with a code such as `ASH-7Q2`, or open
 | left click | skill 1 |
 | `Q` | potion |
 | hold `E` | revive an adjacent downed ally (3 s) |
-| `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/help`) |
+| `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/leave` or `/quit` leave the game, `/help`) |
 | Alt+click or middle click | ping the map (4 s) |
 | lobby: `ENTER` `C` `I` | ready, change class, copy invite link (host: `F` friendly fire, `D` difficulty, `B` add bot, `X` remove bot) |
 

@@ -79,8 +79,9 @@ export class GameScreen implements Screen {
     if (text.startsWith('/')) {
       const [cmd, ...rest] = text.split(' ');
       if (cmd === '/p') text = rest.join(' ').trim();
+      else if (cmd === '/leave' || cmd === '/quit') { this.app.setScreen('landing'); return; }
       else if (cmd === '/help') {
-        st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/help', [214, 208, 234]]]);
+        st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['/help', [214, 208, 234]]]);
         st.pushLog([['keys: WASD move · 1-3 skills · Q potion · E revive · Alt+click ping', DIM]]);
         return;
       } else { st.pushLog([['unknown command ' + cmd + ' (try /help)', PINK]]); return; }

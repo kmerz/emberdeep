@@ -27,9 +27,9 @@ const app: App = {
   net, st, term,
   setScreen(name) {
     if (name === currentName) return;
-    if (name === 'landing' && currentName === 'lobby' && session) {
-      // the player chose to leave the room
-      leaving = true; session = null; net.close(); st.reset();
+    if (name === 'landing' && (currentName === 'lobby' || currentName === 'game') && session) {
+      // the player chose to leave the room: tell the server so it frees the slot now (no reconnect hold)
+      leaving = true; session = null; net.send({ t: 'leave' }); net.close(); st.reset();
       history.replaceState(null, '', '/'); landing.fixedCode = null;
     }
     current?.onLeave?.();
