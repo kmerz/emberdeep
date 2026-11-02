@@ -8,7 +8,7 @@ import { Predictor, DIRS } from '../render/predict';
 import { inventoryPanel, slotAt, INV } from '../render/inventory';
 import { treePanel, PANEL_ORDER } from '../render/tree';
 import { shopPanel, sellSlots } from '../render/shop';
-import { itemInfo, PACK_SLOTS, SHOP } from '../items';
+import { itemInfo, packCap, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
@@ -91,7 +91,7 @@ export class GameScreen implements Screen {
   onMouseDown(ev: MouseEvent, cell: [number, number]) {
     this.mouse = cell;
     if (this.invOpen && ev.button === 0) {
-      const s = slotAt(cell[0], cell[1]);
+      const s = slotAt(cell[0], cell[1], packCap(this.app.st.me));
       if (s >= 0) { this.invSel = s; ev.preventDefault(); return; }
     }
     const w = this.cellToWorld(cell);
@@ -135,12 +135,12 @@ export class GameScreen implements Screen {
 
   /** Keys while the rucksack is open. Returns true when the key was used by the panel. */
   private invKey(ev: KeyboardEvent, k: string): boolean {
-    const cols = INV.cols;
+    const cols = INV.cols, n = packCap(this.app.st.me);
     if (k === 'i' || ev.key === 'Escape') { if (!ev.repeat) this.invOpen = false; return true; }
-    if (k === 'arrowleft') { this.invSel = (this.invSel + PACK_SLOTS - 1) % PACK_SLOTS; return true; }
-    if (k === 'arrowright') { this.invSel = (this.invSel + 1) % PACK_SLOTS; return true; }
-    if (k === 'arrowup') { this.invSel = (this.invSel + PACK_SLOTS - cols) % PACK_SLOTS; return true; }
-    if (k === 'arrowdown') { this.invSel = (this.invSel + cols) % PACK_SLOTS; return true; }
+    if (k === 'arrowleft') { this.invSel = (this.invSel + n - 1) % n; return true; }
+    if (k === 'arrowright') { this.invSel = (this.invSel + 1) % n; return true; }
+    if (k === 'arrowup') { this.invSel = (this.invSel + n - cols) % n; return true; }
+    if (k === 'arrowdown') { this.invSel = (this.invSel + cols) % n; return true; }
     if (ev.repeat) return false;
     if (k === 'u' || ev.key === 'Enter') { this.useItem(this.invSel); return true; }
     if (k === 'x') { this.app.net.send({ t: 'drop', slot: this.invSel, seq: this.pred.nextSeq() }); return true; }

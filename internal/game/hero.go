@@ -17,6 +17,7 @@ type Hero struct {
 	resAcc     float64
 	Gold       int
 	Pack       [PackSlots]Stack
+	PackCap    int // usable slots (StartPackCap, more with the Gnome Satchel)
 	packFullAt int // last tick a "rucksack full" message was sent
 
 	CDReady [TreeSize]int // per skill, so moving a skill to another key doesn't reset it
@@ -61,13 +62,13 @@ type Hero struct {
 func (h *Hero) Def() *ClassDef { return Classes[h.Cls] }
 
 func (h *Hero) save() heroSave {
-	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Pack: h.Pack,
+	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Pack: h.Pack, PackCap: h.PackCap,
 		Ranks: h.Ranks, Binds: h.Binds, Points: h.Points}
 }
 
 func (h *Hero) restore(s heroSave) {
 	h.Lvl, h.XP, h.HP, h.HPMax, h.Res, h.ResMax, h.Gold, h.Pack = s.Lvl, s.XP, s.HP, s.HPMax, s.Res, s.ResMax, s.Gold, s.Pack
-	h.Ranks, h.Binds, h.Points = s.Ranks, s.Binds, s.Points
+	h.Ranks, h.Binds, h.Points, h.PackCap = s.Ranks, s.Binds, s.Points, s.PackCap
 	h.Dead, h.Downed = false, false
 }
 
@@ -128,7 +129,7 @@ func (h *Hero) AddItem(id string, n int) int {
 	}
 	added := 0
 	for pass := 0; pass < 2 && added < n; pass++ {
-		for i := range h.Pack {
+		for i := range h.Pack[:h.PackCap] {
 			s := &h.Pack[i]
 			if (pass == 0 && s.Item != id) || (pass == 1 && s.N != 0) {
 				continue

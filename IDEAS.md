@@ -39,7 +39,8 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 ## 7. Special floors
 - [x] [M] Pitch-black floor (floor 7, The Black Hollow)
 - [x] [XL] Gnome village after floor 5: gnomes, Grimble the trader, Scroll of Return portal
-- [ ] [S] More wares and traders in the village (a Gnome Satchel: +4 rucksack slots)
+- [x] [S] Gnome Satchel in the village (+4 rucksack slots)
+- [ ] [S] More traders and wares in the village
 
 ## Suggested order
 bot fix → `/leave` → multi-floor + themes → inventory + chests/mimics/torch → dark floor → monster roles + blob →

@@ -236,7 +236,7 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 	for i, s := range def.Skills {
 		me.Tree[i] = proto.TreeSkill{ID: s.ID, Rank: h.Ranks[i]}
 	}
-	me.Points, me.Respec = h.Points, g.AtStairs(h)
+	me.Points, me.Respec, me.PackCap = h.Points, g.AtStairs(h), h.PackCap
 	out = append(out, `,"ackSeq":`...)
 	out = strconv.AppendInt(out, int64(h.LastSeq), 10)
 	out = append(out, `,"me":`...)

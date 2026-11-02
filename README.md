@@ -62,7 +62,8 @@ All numbers live in `internal/game/balance.go`.
   every ant within 12 cells. Soldier ants are always hostile, and the Ant Queen in the deepest chamber lays a
   soldier every 6 s (up to 4 at a time) while she sees you.
 - After floor 5 the stairs lead to the Gnome Village, a safe extra floor between 5 and 6. Walk into Grimble to
-  trade: he sells potions, draughts, torches, Scrolls of Light, firebombs and Scrolls of Return, and buys
+  trade: he sells potions, draughts, torches, Scrolls of Light, firebombs, Scrolls of Return and a Gnome Satchel
+  (+4 rucksack slots, 200 gold, one per hero), and buys
   anything (garnets for 40 gold, everything else for half its price). Everyone shops with their own gold.
 - A Scroll of Return, read anywhere below the village, opens a portal for 30 s. When the whole party stands in it
   for 3 s you go back to the village; its stairs then lead back down to a fresh copy of the floor you left.

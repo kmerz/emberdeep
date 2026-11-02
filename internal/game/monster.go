@@ -400,7 +400,7 @@ func (g *Game) stepToward(sx, sy, tx, ty int) (Pt, bool) {
 	g.bfsPar[start] = -1
 	q := []int32{start}
 	expanded := 0
-	for len(q) > 0 && expanded < 700 {
+	for len(q) > 0 && expanded < PathSearch {
 		c := q[0]
 		q = q[1:]
 		expanded++

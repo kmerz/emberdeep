@@ -30,6 +30,7 @@ const (
 	StairsWindow   = 3 * TickHz
 	StairsReach    = 1 // Chebyshev distance counted as "next to >"
 	AggroRange     = 18.0
+	PathSearch     = 2500 // cells a monster's path search may look at (enough for ~24 cells across open ground)
 	LeashRange     = 34.0
 	ClearedReturn  = 6 * TickHz
 	IronWallThreat = 60
@@ -356,7 +357,7 @@ const (
 var ShopStock = []struct {
 	Item  string
 	Price int
-}{{"potion", 30}, {"draught", 30}, {"torch", 15}, {"lightorb", 40}, {"firebomb", 60}, {"returnscroll", 120}}
+}{{"potion", 30}, {"draught", 30}, {"torch", 15}, {"lightorb", 40}, {"firebomb", 60}, {"returnscroll", 120}, {"satchel", SatchelPrice}}
 
 // SellPrice is what Grimble pays for one item: its Value if it has one, else half the shop price.
 func SellPrice(id string) int {
@@ -373,7 +374,10 @@ func SellPrice(id string) int {
 
 // Rucksack
 const (
-	PackSlots     = 12
+	PackSlots     = 16 // the most a rucksack can ever hold (with the Gnome Satchel)
+	StartPackCap  = 12 // slots a hero starts with
+	SatchelSlots  = 4  // the Gnome Satchel adds this many, once
+	SatchelPrice  = 200
 	ThrowDelay    = 8      // ticks a thrown item flies before it lands
 	PackFullEvery = TickHz // at most one "rucksack full" message per second
 )

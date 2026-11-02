@@ -10,10 +10,13 @@ export const ITEMS: Record<string, ItemInfo> = {
   torch: { name: 'Torch', ch: '/', col: [255, 170, 70], desc: 'burns for 2 minutes; you see in the dark', usable: true },
   lightorb: { name: 'Scroll of Light', ch: '?', col: [230, 230, 170], desc: 'lights the spot at the cursor for a minute', thrown: true, usable: true },
   returnscroll: { name: 'Scroll of Return', ch: '%', col: [150, 230, 255], desc: 'opens a portal back to the gnome village', usable: true },
+  satchel: { name: 'Gnome Satchel', ch: '▣', col: [190, 150, 90], desc: '+4 rucksack slots (one per hero)', usable: false },
   gem: { name: 'Garnet', ch: '♦', col: [230, 60, 90], desc: 'worth 40 gold to a trader', usable: false },
 };
 
-export const PACK_SLOTS = 12;
+export const PACK_SLOTS = 12; // slots a hero starts with (me.packCap has the real number)
+
+export function packCap(me: { packCap?: number } | null | undefined): number { return me?.packCap || PACK_SLOTS; }
 
 export function itemInfo(id: string): ItemInfo {
   return ITEMS[id] ?? { name: id, ch: '?', col: [200, 200, 200], desc: '', usable: false };
@@ -23,6 +26,7 @@ export function itemInfo(id: string): ItemInfo {
 export const SHOP: { item: string; price: number }[] = [
   { item: 'potion', price: 30 }, { item: 'draught', price: 30 }, { item: 'torch', price: 15 },
   { item: 'lightorb', price: 40 }, { item: 'firebomb', price: 60 }, { item: 'returnscroll', price: 120 },
+  { item: 'satchel', price: 200 },
 ];
 const VALUE: Record<string, number> = { gem: 40 };
 

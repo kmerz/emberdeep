@@ -195,6 +195,7 @@ type Me struct {
 	Potions int         `json:"potions"` // healing potions in the rucksack (the Q key)
 	PotCD   int         `json:"potCd"`   // shared cooldown of potions and draughts
 	Pack    []PackSlot  `json:"pack"`    // always PackSlots entries; empty ones are {"", 0}
+	PackCap int         `json:"packCap"` // usable slots (12, or 16 with the Gnome Satchel)
 	Binds   []string    `json:"binds"`   // skill id on keys 1-3 ("" = empty)
 	Tree    []TreeSkill `json:"tree"`    // the class's 6 skills in tree order
 	Points  int         `json:"points"`  // unspent skill points

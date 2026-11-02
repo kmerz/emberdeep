@@ -20,7 +20,8 @@ export interface Objectives {
 export interface Me {
   res: number; resMax: number; cd: number[]; cdMax: number[]; cost: number[]; potions: number; potCd: number;
   gold: number; xp: number; xpNeed: number; lvl: number;
-  pack: PackSlot[]; // always 12 entries; empty ones are { item: '', n: 0 }
+  pack: PackSlot[]; // always 16 entries; empty ones are { item: '', n: 0 }
+  packCap: number;  // usable slots: 12, or 16 with the Gnome Satchel
   binds: string[];  // skill id on keys 1-3 ('' = empty)
   tree: { id: string; rank: number }[]; // the class's 6 skills in tree order
   points: number;   // unspent skill points

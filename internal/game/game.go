@@ -65,6 +65,7 @@ var (
 	ErrNotHere   = errors.New("not here")
 	ErrNoGold    = errors.New("not enough gold")
 	ErrCharmed   = errors.New("charmed")
+	ErrHaveIt    = errors.New("already have it")
 	ErrPackFull  = errors.New("rucksack full")
 	ErrPhase     = errors.New("run is over")
 )
@@ -179,6 +180,7 @@ type Game struct {
 type heroSave struct {
 	Lvl, XP, HP, HPMax, Res, ResMax, Gold int
 	Pack                                  [PackSlots]Stack
+	PackCap                               int
 	Ranks                                 [TreeSize]int
 	Binds                                 [3]int
 	Points                                int
@@ -401,7 +403,7 @@ func (g *Game) AddHero(id int, name string, cls ClassID) *Hero {
 func newHero(id int, name string, cls ClassID, connected bool) *Hero {
 	def := Classes[cls]
 	h := &Hero{ID: id, Name: name, Cls: cls, Lvl: 1, HPMax: def.HP, HP: def.HP, ResMax: def.ResMax, Res: def.ResStart,
-		Connected: connected, Facing: 2}
+		Connected: connected, Facing: 2, PackCap: StartPackCap}
 	h.AddItem("potion", StartPotions)
 	h.AddItem("torch", StartTorches)
 	h.resetTree() // the first skill on key 1

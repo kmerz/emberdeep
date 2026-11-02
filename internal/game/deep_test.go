@@ -44,7 +44,7 @@ func TestImpShootsAndKeepsAway(t *testing.T) {
 func TestGolemLeavesBurningGround(t *testing.T) {
 	g := arena(1)
 	h := hero(g, 1, Warrior, 30, 25)
-	golem := g.addMon('G', 40, 25, 1) // within the pathfinder's reach (it searches ~700 cells)
+	golem := g.addMon('G', 45, 25, 1)
 	start := Pt{golem.X, golem.Y}
 	for i := 0; i < 40; i++ {
 		g.Tick()
@@ -156,5 +156,17 @@ func TestDragonBreathIsTelegraphed(t *testing.T) {
 	}
 	if side.HP != side.HPMax {
 		t.Fatal("a hero outside the cone is safe")
+	}
+}
+
+func TestMonstersFindHeroesAcrossOpenGround(t *testing.T) {
+	g := arena(1)
+	hero(g, 1, Warrior, 22, 25)
+	z := g.addMon('z', 40, 25, 1) // 18 cells away in a wide open room
+	for i := 0; i < 30; i++ {
+		g.Tick()
+	}
+	if z.X >= 40 {
+		t.Fatal("an awake monster 18 cells away should walk toward the hero")
 	}
 }

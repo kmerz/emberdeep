@@ -220,7 +220,7 @@ export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null) {
   fb.bar(70, 43, 34, m.xp / Math.max(1, m.xpNeed), [177, 120, 255], [30, 22, 48]);
   fb.txt(106, 43, (Math.round((100 * m.xp) / Math.max(1, m.xpNeed)) + '%').padStart(4), TX);
   if ((m.points ?? 0) > 0) fb.segs(67, 45, [[String(m.points), GOLD, null, 1], [m.points === 1 ? ' skill point' : ' skill points', GOLD], [' to spend (T)', DIM]]);
-  fb.segs(67, 44, [['LV ' + m.lvl, TX, null, 1], ['   gold ', DIM], [String(m.gold), GOLD, null, 1], ['   rucksack ', DIM], [(m.pack ?? []).filter((s) => s.n > 0).length + '/12', TX, null, 1], [' (I)', DIM]]);
+  fb.segs(67, 44, [['LV ' + m.lvl, TX, null, 1], ['   gold ', DIM], [String(m.gold), GOLD, null, 1], ['   rucksack ', DIM], [(m.pack ?? []).filter((s) => s.n > 0).length + '/' + (m.packCap || 12), TX, null, 1], [' (I)', DIM]]);
 }
 
 export function commandLine(fb: Fb, ui: UiState, now: number) {

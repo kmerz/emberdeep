@@ -186,6 +186,15 @@ func (g *Game) applyBuy(h *Hero, id string) error {
 	if h.Gold < price {
 		return ErrNoGold
 	}
+	if id == "satchel" { // not an item: a bigger rucksack, once
+		if h.PackCap >= PackSlots {
+			return ErrHaveIt
+		}
+		h.PackCap = min(PackSlots, h.PackCap+SatchelSlots)
+		h.Gold -= price
+		g.emit(Event{K: "trade", Actor: h.ID, X: h.X, Y: h.Y, FX: id, Amount: -price})
+		return nil
+	}
 	if h.AddItem(id, 1) != 1 {
 		return ErrPackFull
 	}

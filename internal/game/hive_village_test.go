@@ -221,3 +221,31 @@ func TestVillageStairsNeverEndTheRun(t *testing.T) {
 		t.Fatal("floor 10's own stairs still end the run")
 	}
 }
+
+func TestGnomeSatchel(t *testing.T) {
+	g, h := villageWithTrader(t)
+	if h.PackCap != StartPackCap {
+		t.Fatalf("heroes start with %d slots, got %d", StartPackCap, h.PackCap)
+	}
+	for i := 0; i < StartPackCap; i++ {
+		h.Pack[i] = Stack{Item: "gem", N: Items["gem"].MaxStack}
+	}
+	if h.AddItem("potion", 1) != 0 {
+		t.Fatal("a full 12-slot rucksack takes nothing more")
+	}
+	h.Gold = SatchelPrice
+	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "satchel"}); err != nil {
+		t.Fatal(err)
+	}
+	if h.PackCap != StartPackCap+SatchelSlots || h.Gold != 0 || h.AddItem("potion", 1) != 1 {
+		t.Fatalf("the satchel adds %d slots: cap %d gold %d", SatchelSlots, h.PackCap, h.Gold)
+	}
+	h.Gold = SatchelPrice
+	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "satchel"}); err != ErrHaveIt {
+		t.Fatalf("only one satchel per hero: %v", err)
+	}
+	takeStairs(g)
+	if h.PackCap != StartPackCap+SatchelSlots {
+		t.Fatal("the satchel stays with the hero")
+	}
+}
