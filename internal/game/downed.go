@@ -96,6 +96,14 @@ func (g *Game) checkStairs() {
 			at++
 		}
 	}
+	for _, n := range g.Npcs { // a gnome being rescued has to come along too
+		if n.Follower && n.Following != 0 {
+			need++
+			if cheb(n.X, n.Y, st.X, st.Y) <= RescueReach {
+				at++
+			}
+		}
+	}
 	g.StairsNeed, g.StairsAt = need, at
 	if need == 0 || at < need {
 		g.stairsSince, g.StairsLeft = -1, 0

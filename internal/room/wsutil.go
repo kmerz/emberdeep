@@ -103,6 +103,8 @@ func ToIntent(m proto.ClientMsg) (game.Intent, bool) {
 		return game.Intent{Kind: game.IntBind, Slot: m.Slot, Skill: m.Skill, Seq: m.Seq}, true
 	case proto.CBuy:
 		return game.Intent{Kind: game.IntBuy, Skill: m.Skill, Seq: m.Seq}, true
+	case proto.CAccept:
+		return game.Intent{Kind: game.IntAccept, Skill: m.Skill, Seq: m.Seq}, true
 	case proto.CSell:
 		return game.Intent{Kind: game.IntSell, Slot: m.Slot, Seq: m.Seq}, true
 	case proto.CRespec:

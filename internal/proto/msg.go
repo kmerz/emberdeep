@@ -40,6 +40,7 @@ const (
 	CRespec   = "respec" // reset the skill tree (at the stairs)
 	CBuy      = "buy"    // buy one item (skill: item id) from the trader
 	CSell     = "sell"   // sell one item from rucksack slot
+	CAccept   = "accept" // accept a quest (skill: quest id) from the giver next to you
 	CRevive   = "revive"
 	CChat     = "chat"
 	CPing     = "ping"
@@ -135,6 +136,8 @@ type Ent struct {
 	St     []Status `json:"st,omitempty"`
 	It     string   `json:"it,omitempty"`     // item id for rucksack items on the floor
 	Trader bool     `json:"trader,omitempty"` // gnomes (k "n"): this one trades
+	Board  bool     `json:"board,omitempty"`  // k "n": the notice board
+	Follow bool     `json:"follow,omitempty"` // k "n": a gnome being rescued
 }
 
 type PartyEntry struct {
@@ -255,4 +258,25 @@ type Overlay struct {
 type Error struct {
 	T   string `json:"t"`
 	Msg string `json:"msg"`
+}
+
+// QuestList is the party's quests (sent when they change, and on join). Delivered as an event.
+type QuestList struct {
+	T    string      `json:"t"`
+	List []QuestInfo `json:"list"`
+}
+
+type QuestInfo struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Text     string `json:"text"`
+	Giver    string `json:"giver"` // board, grimble
+	Kind     string `json:"kind"`  // hunt, rescue, fetch, collect
+	Depth    int    `json:"depth"`
+	State    string `json:"state"` // offered, active, done, failed
+	Progress int    `json:"progress"`
+	Count    int    `json:"count"`
+	Gold     int    `json:"gold"`
+	XP       int    `json:"xp"`
+	Point    bool   `json:"point"`
 }

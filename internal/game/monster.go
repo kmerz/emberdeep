@@ -24,6 +24,7 @@ type Monster struct {
 	NextAbility      int // breath, charm or blink ready again
 	BreathAt         int // tick the dragon's breath lands (0 = not winding up)
 	BreathX, BreathY int
+	Named            string // a hunt quest's target
 	Threat           []ThreatEntry
 
 	SlowUntil  int
@@ -87,6 +88,10 @@ func (g *Game) killMonster(m *Monster, killer int) {
 	}
 	g.Kills++
 	def := m.Def()
+	g.questKill(m)
+	if m.Named != "" { // a named monster guards a little treasure
+		g.chestLoot(m.X, m.Y)
+	}
 	if def.Role == "splitter" && m.Gen == 0 {
 		g.split(m)
 	}
@@ -324,14 +329,19 @@ func (g *Game) monsterAI(m *Monster) {
 			return
 		}
 	}
+	if f := g.adjacentFollower(m); f != nil && cheb(m.X, m.Y, tgt.X, tgt.Y) > 1 { // no hero in reach: bite the gnome
+		if g.Now >= m.NextAtk {
+			m.NextAtk = g.Now + m.Def().AtkTicks
+			m.Facing = dirIndex(f.X-m.X, f.Y-m.Y, m.Facing)
+			g.hurtFollower(f, g.monsterDmg(m, float64(m.Def().Dmg)), m.ID)
+		}
+		return
+	}
 	if cheb(m.X, m.Y, tgt.X, tgt.Y) <= 1 {
 		if g.Now >= m.NextAtk {
 			def := m.Def()
 			m.NextAtk = g.Now + def.AtkTicks
-			dmg := int(math.Round(float64(def.Dmg) * Difficulties[g.Settings.Difficulty].DmgMult * DepthDmgMult(g.Depth)))
-			if m.Elite {
-				dmg += 2 * (g.N - 1)
-			}
+			dmg := g.monsterDmg(m, float64(def.Dmg))
 			dx, dy := tgt.X-m.X, tgt.Y-m.Y
 			m.Facing = dirIndex(dx, dy, m.Facing)
 			g.damageHero(tgt, dmg, m.ID)

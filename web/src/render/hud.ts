@@ -158,6 +158,11 @@ export function objectives(fb: Fb, st: GameState) {
   fb.txt(115, 41, (all ? '◆ ' : '◇ ') + o.stairsAt + '/' + need + ' at the stairs', all ? TX : DIM);
   if (o.stairsLeft > 0) fb.txt(150, 41, ('descending ' + (o.stairsLeft / 20).toFixed(1)).padStart(10), GOLD, null, 1);
   if (o.portalNeed) fb.segs(115, 42, [['◎ ', [150, 230, 255]], [o.portalAt + '/' + o.portalNeed + ' at the portal', TX]]);
+  else {
+    const active = st.quests.filter((q) => q.state === 'active').length;
+    if (active) fb.segs(115, 42, [['◆ ', GOLD], [active + (active === 1 ? ' quest' : ' quests'), TX], [' (J)', DIM]]);
+    else if (st.level?.depth === 1 && st.quests.some((q) => q.giver === 'board' && q.state === 'offered')) fb.segs(115, 42, [['◇ ', DIM], ['read the notice board ', DIM], ['≡', GOLD]]);
+  }
   fb.txt(115, 43, 'PARTY LOOT', DIM, null, 1);
   fb.segs(115, 44, [[String(o.gold), GOLD, null, 1], [' gold  ·  ', DIM], [String(o.kills), TX, null, 1], [' slain', DIM]]);
 }

@@ -25,6 +25,7 @@ pages). The text lives in `web/src/story.ts`.
 | left click | skill 1 |
 | `Q` | drink a healing potion |
 | `T` | open the skill tree (arrows pick, `ENTER` learn or rank up, `1` `2` `3` put the skill on that key, `R` reset at the stairs) |
+| `J` | the quest journal |
 | `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use, `X` drop, `I`/`Esc` close) |
 | hold `E` | revive an adjacent downed ally (3 s) |
 | `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/leave` or `/quit` leave the game, `/help`) |
@@ -75,6 +76,11 @@ All numbers live in `internal/game/balance.go`.
   itself, blinks away when hit). The Ember Depths (9-10) add Imps (fast, shoot firebolts, keep away), Drakes
   (spit fire, bite up close) and Magma Golems (slow, tough, leave burning ground). Floor 10's boss is the Ember
   Dragon: it winds up for a second before breathing a cone of fire that keeps burning, so step out of it.
+- Sidequests: the mayor's notice board `≡` in floor 1's first room and Grimble in the village (TAB to his
+  errands) each offer 3 quests per run: hunt a named monster, rescue a lost gnome (walk into them, then lead them
+  to the stairs; the stairs wait for them), fetch an item, or collect a few things. Quests are shared: anyone
+  accepts, everyone gets the gold and XP, and some give each hero a skill point. Fetch and collect quests are
+  handed in by walking into Grimble. `J` opens the journal. The quests live in `internal/game/quests.go`.
 - About a third of the rooms hold a chest `■`: walk into it to open it. It spills gold for the party and two
   item rolls for every hero. From floor 2 on, some chests are mimics (8% rising to 38% at floor 10): they bite
   when bumped, and hitting a chest gives a mimic away. A dead mimic drops the treasure it was guarding.

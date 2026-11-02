@@ -1004,3 +1004,57 @@ func TestTradeMessagesMapToIntents(t *testing.T) {
 		t.Fatalf("sell: %+v", in)
 	}
 }
+
+func lastQuests(c *Conn) *proto.QuestList {
+	_, raws := drain(c)
+	var out *proto.QuestList
+	for _, b := range raws {
+		var q proto.QuestList
+		if json.Unmarshal(b, &q) == nil && q.T == "quests" {
+			cp := q
+			out = &cp
+		}
+	}
+	return out
+}
+
+func TestQuestsOverTheRoom(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	var ql *proto.QuestList
+	waitFor(t, "quest list", func() bool { ql = lastQuests(a); return ql != nil })
+	if len(ql.List) != 2*game.QuestOffers || ql.List[0].State != "offered" {
+		t.Fatalf("the run's offers arrive with the level: %+v", ql.List)
+	}
+	var id string
+	for _, q := range ql.List {
+		if q.Giver == "board" {
+			id = q.ID
+			break
+		}
+	}
+	r.Inspect(func(g *game.Game, _ int) { // stand next to the notice board
+		for _, n := range g.Npcs {
+			if n.Board {
+				for _, d := range [][2]int{{0, 1}, {1, 0}, {-1, 0}, {0, -1}, {1, 1}, {-1, 1}} {
+					if g.Teleport(1, n.X+d[0], n.Y+d[1]) {
+						return
+					}
+				}
+			}
+		}
+	})
+	r.Submit(a, proto.ClientMsg{T: "accept", Skill: id, Seq: 1})
+	waitFor(t, "accepted", func() bool {
+		if q := lastQuests(a); q != nil {
+			for _, x := range q.List {
+				if x.ID == id && x.State == "active" {
+					return true
+				}
+			}
+		}
+		return false
+	})
+}

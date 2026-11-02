@@ -148,7 +148,11 @@ func BuildShared(g *game.Game) []byte {
 	}
 	for _, n := range g.Npcs {
 		if g.IsVisible(n.X, n.Y) {
-			s.Ents = append(s.Ents, proto.Ent{ID: n.ID, K: "n", G: "g", X: n.X, Y: n.Y, Name: n.Name, Trader: n.Trader})
+			e := proto.Ent{ID: n.ID, K: "n", G: "g", X: n.X, Y: n.Y, Name: n.Name, Trader: n.Trader, Board: n.Board, Follow: n.Follower}
+			if n.Follower {
+				e.HP, e.HPMax = n.HP, n.HPMax
+			}
+			s.Ents = append(s.Ents, e)
 		}
 	}
 	for _, f := range g.Fires {
@@ -179,6 +183,9 @@ func BuildShared(g *game.Game) []byte {
 			Name: m.Def().Name}
 		if m.Gen > 0 {
 			e.Name = "Blobling"
+		}
+		if m.Named != "" { // a hunt target: labelled like a boss
+			e.Name, e.Elite = m.Named, true
 		}
 		if g.Now < m.SlowUntil {
 			e.St = append(e.St, proto.Status{K: "slow", T: ceilSec(m.SlowUntil - g.Now)})
@@ -250,4 +257,17 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 	out = append(out, `,"drops":`...)
 	out = append(out, mustJSON(drops)...)
 	return append(out, '}')
+}
+
+var questStates = map[game.QuestState]string{game.QuestOffered: "offered", game.QuestActive: "active", game.QuestDone: "done", game.QuestFailed: "failed"}
+
+// QuestsMsg is the party's quest list.
+func QuestsMsg(g *game.Game) []byte {
+	out := proto.QuestList{T: "quests", List: []proto.QuestInfo{}}
+	for _, q := range g.Quests {
+		d := q.Def
+		out.List = append(out.List, proto.QuestInfo{ID: d.ID, Title: d.Title, Text: d.Text, Giver: d.Giver, Kind: d.Kind, Depth: d.Depth,
+			State: questStates[q.State], Progress: q.Progress, Count: max(1, d.Count), Gold: d.Gold, XP: d.XP, Point: d.Point})
+	}
+	return mustJSON(out)
 }

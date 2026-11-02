@@ -42,6 +42,10 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [x] [S] Gnome Satchel in the village (+4 rucksack slots)
 - [ ] [S] More traders and wares in the village
 
+## 8. Quests
+- [x] [L] Sidequests: notice board on floor 1 and Grimble; hunt, rescue, fetch, collect; shared rewards
+- [ ] [M] More quests (the pool is in `internal/game/quests.go`)
+
 ## Suggested order
 bot fix → `/leave` → multi-floor + themes → inventory + chests/mimics/torch → dark floor → monster roles + blob →
 skill tree → new classes one at a time → ant hive → gnome village → deep monsters

@@ -359,6 +359,7 @@ func (r *Room) syncConn(p *Player) {
 	if r.g != nil {
 		c.Send(mustJSON(proto.Phase{T: "phase", Phase: "game"}))
 		c.Send(LevelMsg(r.g))
+		c.Send(QuestsMsg(r.g))
 		if ex := r.g.ExploredTiles(); len(ex) > 0 {
 			c.Send(ExploreMsg(ex))
 		}
@@ -552,7 +553,9 @@ func (r *Room) startGame() {
 // the client clears its map when it arrives.
 func (r *Room) sendLevel() {
 	r.g.TakeLevelChanged()
+	r.g.TakeQuestsChanged()
 	r.sendAll(LevelMsg(r.g))
+	r.sendAll(QuestsMsg(r.g))
 	if ex := r.g.TakeExplored(); len(ex) > 0 {
 		r.sendAll(ExploreMsg(ex))
 	}
@@ -606,6 +609,9 @@ func (r *Room) onTick(now time.Time) {
 	r.Metrics.Ticks.Add(1)
 	if r.g.TakeLevelChanged() {
 		r.sendAll(LevelMsg(r.g)) // the party went down the stairs
+	}
+	if r.g.TakeQuestsChanged() {
+		r.sendAll(QuestsMsg(r.g))
 	}
 	if ex := r.g.TakeExplored(); len(ex) > 0 {
 		r.sendAll(ExploreMsg(ex))

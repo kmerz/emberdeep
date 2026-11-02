@@ -8,6 +8,8 @@ export interface Ent {
   downed?: boolean; dead?: boolean; downT?: number; rev?: number; el?: boolean; face: number; st?: Status[];
   it?: string; // rucksack item id for items on the floor
   trader?: boolean; // gnomes: this one trades
+  board?: boolean;  // the mayor's notice board
+  follow?: boolean; // a lost gnome being rescued (hp/hpMax set)
 }
 export interface PartyEntry {
   id: number; name: string; cls: ClassId; lvl: number; hp: number; hpMax: number; res: number; resMax: number;
@@ -57,4 +59,11 @@ export type ServerMsg =
   | { t: 'ping'; from: number; name: string; cls: ClassId; cell: [number, number] }
   | { t: 'hb'; n: number }
   | { t: 'overlay'; kind: 'wipe' | 'cleared' }
-  | { t: 'error'; msg: string };
+  | { t: 'error'; msg: string }
+  | { t: 'quests'; list: QuestInfo[] };
+
+export interface QuestInfo {
+  id: string; title: string; text: string; giver: 'board' | 'grimble'; kind: 'hunt' | 'rescue' | 'fetch' | 'collect';
+  depth: number; state: 'offered' | 'active' | 'done' | 'failed'; progress: number; count: number;
+  gold: number; xp: number; point: boolean;
+}

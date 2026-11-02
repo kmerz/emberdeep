@@ -1,8 +1,10 @@
-import type { Ent, GameEvent, LevelMsg, LobbyMsg, Me, Objectives, PartyEntry, ServerMsg, Snap, ClassId } from './proto';
+import type { Ent, GameEvent, LevelMsg, LobbyMsg, Me, Objectives, PartyEntry, ServerMsg, Snap, ClassId, QuestInfo } from './proto';
 import { CLS, SKILL_BY_ID } from './classes';
 import { DIM, GOLD, PINK, RGB, TX } from './term/fb';
 import { palette } from './render/themes';
 import { itemInfo } from './items';
+
+const MINT_LOG: RGB = [126, 240, 178];
 
 export const LW = 176;
 export const LH = 62;
@@ -41,6 +43,7 @@ export class GameState {
   pings: PingMark[] = [];
   overlay: 'wipe' | 'cleared' | null = null;
   levelAt = 0; // when the current level arrived (for the depth banner)
+  quests: QuestInfo[] = []; // the party's sidequests
   lobby: LobbyMsg | null = null;
   phase: 'lobby' | 'game' = 'lobby';
   pingMs = 0;
@@ -53,6 +56,7 @@ export class GameState {
 
   reset() {
     this.level = null;
+    this.quests = [];
     this.tiles.fill(0);
     this.vis.fill(0);
     this.recs = [];
@@ -124,6 +128,12 @@ export class GameState {
         case 'breath': this.pushLog([['The Ember Dragon', [255, 60, 30], 1], [' draws a deep breath…', DIM]], now); break;
         case 'charm': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is charmed by the ', DIM], ['Succubus', [255, 110, 200], 1]], now); break;
         case 'drain': if (e.target === this.youId) this.pushLog([['The Incubus', [180, 90, 255]], [' drains ' + (e.amount ?? 0) + ' of your power', DIM]], now); break;
+        case 'questnew': this.pushLog([['New quest: ', GOLD, 1], [e.text || '', TX], ['  (J: journal)', DIM]], now); break;
+        case 'questprogress': this.pushLog([['Quest: ', GOLD], [e.text || '', TX], [' · ' + (e.amount ?? 0) + ' found', DIM]], now); break;
+        case 'questdone':
+          this.pushLog([['Quest done: ', MINT_LOG, 1], [e.text || '', TX], [' · +' + (e.amount ?? 0) + ' gold, +' + (e.tx ?? 0) + ' XP' + (e.ty ? ', +1 skill point' : ''), GOLD]], now);
+          break;
+        case 'questfail': this.pushLog([['Quest failed: ', PINK, 1], [e.text || '', TX]], now); break;
         case 'alarm': this.pushLog([['The hive is alarmed!', [255, 170, 60], 1], [' ' + (e.amount ?? 0) + ' ants turn on you', DIM]], now); break;
         case 'say': if (you && e.text) this.pushLog([[e.text, [140, 220, 120]]], now); break;
         case 'shop': if (you) this.pushLog([['Grimble', [255, 212, 92], 1], [': Have a look, have a look!', [140, 220, 120]]], now); break;
@@ -237,6 +247,7 @@ export class GameState {
         break;
       }
       case 'overlay': this.overlay = m.kind; break;
+      case 'quests': this.quests = m.list; break;
       case 'error': this.errors.push(m.msg); break;
     }
   }

@@ -163,7 +163,9 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
       if (e.el) mb.txt(x - 1, y - 1, (e.name || '').replace(/^The /, '').toUpperCase(), [255, 110, 150], null, 1);
     } else if (e.k === 'n') {
       const nm = e.name || '';
-      mb.txt(x - Math.floor(nm.length / 2), y - 1, nm, e.trader ? GNOME_TRADER : mul(GNOME, 0.8), null, e.trader ? 1 : 0);
+      const hot = e.trader || e.board;
+      mb.txt(x - Math.floor(nm.length / 2), y - 1, nm, hot ? GNOME_TRADER : mul(GNOME, 0.8), null, hot ? 1 : 0);
+      if (e.follow && e.hpMax) mb.bar(x - 2, y - 2, 5, (e.hp ?? 0) / e.hpMax, [126, 240, 178], [20, 40, 30]);
     } else if (e.k === 'h') {
       const col = (e.cls && CLS[e.cls].col) || [220, 220, 220];
       const you = e.id === o.youId;
@@ -198,7 +200,11 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
   for (const e of list) {
     const [x, y] = pos(e);
     if (!inV(x, y)) continue;
-    if (e.k === 'n') { mb.put(x, y, 'g', e.trader ? GNOME_TRADER : GNOME, null, 1); continue; }
+    if (e.k === 'n') {
+      if (e.board) mb.put(x, y, '≡', GNOME_TRADER, [60, 40, 16], 1);
+      else mb.put(x, y, 'g', e.trader ? GNOME_TRADER : GNOME, e.follow ? [20, 50, 30] : null, 1);
+      continue;
+    }
     if (e.k === 'i') {
       const g = GLY[e.g];
       if (g) mb.put(x, y, g.ch, g.fg, null, 1);

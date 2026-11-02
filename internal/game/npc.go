@@ -12,6 +12,12 @@ type Npc struct {
 	Trader   bool
 	NextMove int
 	said     int
+
+	Board     bool   // the mayor's notice board (quests)
+	Follower  bool   // a lost gnome from a rescue quest
+	Quest     string // the quest this gnome belongs to
+	HP, HPMax int    // followers can be hurt
+	Following int    // hero id it follows (0 = still waiting to be found)
 }
 
 type NpcSpawn struct {
@@ -129,7 +135,7 @@ func (g *Game) npcAt(x, y int) *Npc {
 // tickNpcs lets the gnomes potter about near their spot (the trader stays at the stall).
 func (g *Game) tickNpcs() {
 	for _, n := range g.Npcs {
-		if n.Trader || g.Now < n.NextMove {
+		if n.Trader || n.Board || n.Follower || g.Now < n.NextMove {
 			continue
 		}
 		n.NextMove = g.Now + NpcMoveTicks + g.rng.Intn(NpcMoveTicks)
@@ -147,8 +153,21 @@ func (g *Game) bumpNpc(h *Hero, x, y int) bool {
 	if n == nil {
 		return false
 	}
-	if n.Trader {
+	switch {
+	case n.Board:
+		g.emit(Event{K: "questboard", Actor: h.ID, Target: n.ID, X: n.X, Y: n.Y, Text: "board"})
+		return true
+	case n.Trader:
+		g.questTurnIn(h)
 		g.emit(Event{K: "shop", Actor: h.ID, Target: n.ID, X: n.X, Y: n.Y, Text: n.Name})
+		return true
+	case n.Follower:
+		if n.Following == 0 {
+			n.Following = h.ID
+			g.emit(Event{K: "say", Actor: h.ID, Target: n.ID, X: n.X, Y: n.Y, Text: n.Name + ": Oh thank the spoons! Lead the way to the stairs, I'll follow."})
+		} else {
+			g.emit(Event{K: "say", Actor: h.ID, Target: n.ID, X: n.X, Y: n.Y, Text: n.Name + ": Stairs! Find the stairs!"})
+		}
 		return true
 	}
 	line := gnomeLines[(n.said+n.ID)%len(gnomeLines)]
@@ -211,6 +230,9 @@ func (g *Game) applySell(h *Hero, slot int) error {
 		return ErrNoItem
 	}
 	id := h.Pack[slot].Item
+	if Items[id].Quest {
+		return ErrBadIntent // Grimble won't buy what someone is waiting for
+	}
 	price := SellPrice(id)
 	h.removeAt(slot, 1)
 	h.Gold += price
@@ -249,6 +271,7 @@ func (g *Game) checkPortal() {
 		g.portalSince = g.Now
 	}
 	if g.Now-g.portalSince >= PortalWindow {
+		g.questsOnLeave()
 		g.ReturnDepth = g.Depth
 		g.standUp()
 		g.loadVillage()

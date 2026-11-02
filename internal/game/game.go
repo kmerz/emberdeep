@@ -33,6 +33,7 @@ const (
 	IntRespec // reset the tree (only at the stairs)
 	IntBuy    // buy one of item Skill from the trader
 	IntSell   // sell one item from rucksack Slot to the trader
+	IntAccept // accept quest Skill (quest id) from the giver next to the hero
 )
 
 type Intent struct {
@@ -137,6 +138,7 @@ type Game struct {
 	Orbs    []Orb
 	Npcs    []*Npc
 	Portal  *Portal
+	Quests  []*Quest // the run's sidequests (offered, active, done, failed)
 	Fires   []Fire
 
 	InVillage   bool
@@ -172,8 +174,9 @@ type Game struct {
 	bfsPar    []int32
 	stamp     int32
 
-	arrival      map[int]heroSave // each hero as they arrived on this floor (a wipe retries from here)
-	levelChanged bool
+	arrival       map[int]heroSave // each hero as they arrived on this floor (a wipe retries from here)
+	questsChanged bool
+	levelChanged  bool
 }
 
 // heroSave is the part of a hero that carries over between floors.
@@ -195,6 +198,7 @@ func NewAt(seed uint32, st Settings, n, depth int) *Game {
 	g := &Game{Seed: seed, Settings: st, N: n, stairsSince: -1}
 	g.nextID = monIDBase
 	g.heroByID = map[int]*Hero{}
+	g.initQuests()
 	g.loadFloor(min(max(depth, 1), MaxDepth))
 	return g
 }
@@ -251,6 +255,15 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 		g.npcByID[c.ID] = c
 		g.occ[c.Y*LW+c.X] = int32(c.ID)
 	}
+	if depth == 1 && !g.InVillage { // the mayor's notice board stands in the first room
+		s := lvl.Start
+		if p, ok := lvl.nearestFree(Pt{s.X + 2, s.Y - 2}, func(x, y int) bool { return g.occ[y*LW+x] == 0 && (x != s.X || y != s.Y) }); ok {
+			b := &Npc{ID: g.newID(), X: p.X, Y: p.Y, Home: p, Name: "Notice Board", Board: true}
+			g.Npcs = append(g.Npcs, b)
+			g.npcByID[b.ID] = b
+			g.occ[p.Y*LW+p.X] = int32(b.ID)
+		}
+	}
 	g.chestByID = map[int]*Chest{}
 	for _, cs := range g.Level.Chests {
 		if cs.Mimic {
@@ -267,6 +280,7 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 		g.chestByID[c.ID] = c
 		g.occ[c.Y*LW+c.X] = int32(c.ID)
 	}
+	g.questsOnFloor()
 	g.arrival = map[int]heroSave{}
 	for _, h := range g.Heroes {
 		h.freshOnFloor()
@@ -280,6 +294,7 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 
 // descend takes the party to the next floor. The fallen stand up with FallenHPFrac of their HP.
 func (g *Game) descend() {
+	g.questsOnLeave()
 	g.standUp()
 	switch {
 	case g.InVillage: // back down: to the floor the party came from, or the one after the village
@@ -514,6 +529,8 @@ func (g *Game) Apply(pid int, in Intent) error {
 		return g.applyBuy(h, in.Skill)
 	case IntSell:
 		return g.applySell(h, in.Slot)
+	case IntAccept:
+		return g.applyAccept(h, in.Skill)
 	case IntRespec:
 		if !g.AtStairs(h) {
 			return ErrNotHere
@@ -708,6 +725,9 @@ func (g *Game) applyDrop(h *Hero, in Intent) error {
 	if in.Slot < 0 || in.Slot >= PackSlots || h.Pack[in.Slot].N <= 0 {
 		return ErrNoItem
 	}
+	if Items[h.Pack[in.Slot].Item].Quest {
+		return ErrBadIntent // quest items stay in the rucksack
+	}
 	s := h.Pack[in.Slot]
 	def := Items[s.Item]
 	h.Pack[in.Slot] = Stack{}
@@ -732,6 +752,9 @@ func (g *Game) pickup(h *Hero) {
 		n := h.AddItem(it.Def, it.Amount)
 		if n > 0 {
 			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: n, FX: it.Def, Text: Items[it.Def].Name})
+		}
+		if n > 0 && Items[it.Def].Quest {
+			g.questPickup(it.Def)
 		}
 		if n < it.Amount { // the rest stays on the floor
 			it.Amount -= n

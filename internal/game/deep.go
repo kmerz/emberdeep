@@ -49,6 +49,9 @@ func (g *Game) tickFires() {
 
 // monsterDmg is a monster's hit after difficulty and depth.
 func (g *Game) monsterDmg(m *Monster, base float64) int {
+	if m.Named != "" {
+		base *= NamedDmgMult
+	}
 	dmg := int(math.Round(base * Difficulties[g.Settings.Difficulty].DmgMult * DepthDmgMult(g.Depth)))
 	if m.Elite {
 		dmg += 2 * (g.N - 1)

@@ -8,6 +8,7 @@ import { Predictor, DIRS } from '../render/predict';
 import { inventoryPanel, slotAt, INV } from '../render/inventory';
 import { treePanel, PANEL_ORDER } from '../render/tree';
 import { shopPanel, sellSlots } from '../render/shop';
+import { questBoardPanel, journalPanel, giverQuests, journalQuests } from '../render/quests';
 import { itemInfo, packCap, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
@@ -27,8 +28,12 @@ export class GameScreen implements Screen {
   private treeOpen = false;
   private treeSel = 0;
   private shopOpen = false;
-  private shopSide: 0 | 1 = 0;
+  private shopSide: 0 | 1 | 2 = 0; // buy, sell, quests
   private shopSel = 0;
+  private boardOpen = false;
+  private boardSel = 0;
+  private journalOpen = false;
+  private journalSel = 0;
   private levelSeen = 0;
 
   constructor(private app: App) {
@@ -43,11 +48,13 @@ export class GameScreen implements Screen {
     this.invOpen = false;
     this.treeOpen = false;
     this.shopOpen = false;
+    this.boardOpen = this.journalOpen = false;
     st.onSnap = () => this.pred.onSnap();
     st.onEvents = (evs: GameEvent[], now: number) => {
       for (const e of evs) {
         this.fx.add(e, now, st.youId);
-        if (e.k === 'shop' && e.actor === st.youId) { this.shopOpen = true; this.invOpen = this.treeOpen = false; this.shopSel = 0; }
+        if (e.k === 'shop' && e.actor === st.youId) { this.closePanels(); this.shopOpen = true; this.shopSel = 0; }
+        if (e.k === 'questboard' && e.actor === st.youId) { this.closePanels(); this.boardOpen = true; this.boardSel = 0; }
       }
     };
   }
@@ -64,7 +71,11 @@ export class GameScreen implements Screen {
     }
     if (st.overlay === 'wipe' && ev.key === 'Enter') { if (st.isHost) net.send({ t: 'start' }); ev.preventDefault(); return; }
     const k = ev.key.toLowerCase();
+    if (this.boardOpen && this.questKey(ev, k, 'board')) { ev.preventDefault(); return; }
+    if (this.journalOpen && this.journalKey(ev, k)) { ev.preventDefault(); return; }
+    if (this.shopOpen && this.shopSide === 2 && ev.key !== 'Tab' && this.questKey(ev, k, 'grimble')) { ev.preventDefault(); return; }
     if (this.shopOpen && this.shopKey(ev, k)) { ev.preventDefault(); return; }
+    if (k === 'j' && !ev.repeat) { const o = !this.journalOpen; this.closePanels(); this.journalOpen = o; this.journalSel = 0; ev.preventDefault(); return; }
     if (this.treeOpen && this.treeKey(ev, k)) { ev.preventDefault(); return; }
     if (this.invOpen && this.invKey(ev, k)) { ev.preventDefault(); return; }
     if (k === 'i' && !ev.repeat) { this.invOpen = true; this.treeOpen = false; this.held.clear(); ev.preventDefault(); return; }
@@ -100,11 +111,40 @@ export class GameScreen implements Screen {
     if (ev.button === 0 && !this.ui.chatActive) this.cast(0);
   }
 
+  private closePanels() { this.invOpen = this.treeOpen = this.shopOpen = this.boardOpen = this.journalOpen = false; }
+
+  /** Keys for a quest list (the notice board, or Grimble's QUESTS tab). */
+  private questKey(ev: KeyboardEvent, k: string, giver: 'board' | 'grimble'): boolean {
+    const list = giverQuests(this.app.st, giver), n = Math.max(1, list.length);
+    const close = () => { if (giver === 'board') this.boardOpen = false; else this.shopOpen = false; };
+    if (ev.key === 'Escape') { close(); return true; }
+    const sel = giver === 'board' ? this.boardSel : this.shopSel;
+    const set = (v: number) => { if (giver === 'board') this.boardSel = v; else this.shopSel = v; };
+    if (k === 'arrowup') { set((sel + n - 1) % n); return true; }
+    if (k === 'arrowdown') { set((sel + 1) % n); return true; }
+    if (ev.repeat) return false;
+    if (ev.key === 'Enter' || k === 'u') {
+      const q = list[sel];
+      if (q && q.state === 'offered') this.app.net.send({ t: 'accept', skill: q.id, seq: this.pred.nextSeq() });
+      return true;
+    }
+    if (k === 'j' && giver === 'board') { this.boardOpen = false; this.journalOpen = true; this.journalSel = 0; return true; }
+    return false;
+  }
+
+  private journalKey(ev: KeyboardEvent, k: string): boolean {
+    const n = Math.max(1, journalQuests(this.app.st).length);
+    if (k === 'j' || ev.key === 'Escape') { if (!ev.repeat) this.journalOpen = false; return true; }
+    if (k === 'arrowup') { this.journalSel = (this.journalSel + n - 1) % n; return true; }
+    if (k === 'arrowdown') { this.journalSel = (this.journalSel + 1) % n; return true; }
+    return false;
+  }
+
   /** Keys while Grimble's shop is open. Returns true when the key was used by the panel. */
   private shopKey(ev: KeyboardEvent, k: string): boolean {
     const st = this.app.st, net = this.app.net;
     if (ev.key === 'Escape') { this.shopOpen = false; return true; }
-    if (ev.key === 'Tab') { this.shopSide = this.shopSide === 0 ? 1 : 0; this.shopSel = 0; return true; }
+    if (ev.key === 'Tab') { this.shopSide = ((this.shopSide + 1) % 3) as 0 | 1 | 2; this.shopSel = 0; return true; }
     const n = this.shopSide === 0 ? SHOP.length : Math.min(10, sellSlots(st).length);
     if (k === 'arrowup') { this.shopSel = (this.shopSel + n - 1) % Math.max(1, n); return true; }
     if (k === 'arrowdown') { this.shopSel = (this.shopSel + 1) % Math.max(1, n); return true; }
@@ -341,8 +381,15 @@ export class GameScreen implements Screen {
       // walking away from Grimble closes the shop
       const near = you && ents.some((e) => e.k === 'n' && e.trader && Math.max(Math.abs(e.x - (yp?.x ?? you.x)), Math.abs(e.y - (yp?.y ?? you.y))) <= 1);
       if (!near) this.shopOpen = false;
+      else if (this.shopSide === 2) questBoardPanel(fb, st, 'grimble', this.shopSel);
       else shopPanel(fb, st, this.shopSide, this.shopSel);
     }
+    if (this.boardOpen) {
+      const near = you && ents.some((e) => e.k === 'n' && e.board && Math.max(Math.abs(e.x - (yp?.x ?? you.x)), Math.abs(e.y - (yp?.y ?? you.y))) <= 1);
+      if (!near) this.boardOpen = false;
+      else questBoardPanel(fb, st, 'board', this.boardSel);
+    }
+    if (this.journalOpen) journalPanel(fb, st, this.journalSel);
     depthBanner(fb, st, now);
     if (st.overlay) overlayBox(fb, st.overlay, st, now);
     void H; void SKILL_BY_ID;

@@ -391,6 +391,7 @@ type ItemDef struct {
 	Radius, Range  float64
 	Value          int     // gold value (for trading later)
 	DropChance     float64 // rolled per player on every kill; elites always drop potions
+	Quest          bool    // a quest item: can't be sold or dropped
 }
 
 var Items = map[string]*ItemDef{
@@ -400,6 +401,10 @@ var Items = map[string]*ItemDef{
 	"torch":        {ID: "torch", Name: "Torch", Desc: "burns for 2 minutes; you see in the dark", Glyph: 't', MaxStack: 5, Use: "torch", DropChance: 0.06},
 	"lightorb":     {ID: "lightorb", Name: "Scroll of Light", Desc: "lights the spot at the cursor for a minute", Glyph: '?', MaxStack: 5, Use: "orb", Range: 14, DropChance: 0.04},
 	"returnscroll": {ID: "returnscroll", Name: "Scroll of Return", Desc: "opens a portal back to the gnome village", Glyph: '%', MaxStack: 3, Use: "portal"}, // sold only, never dropped
+	"ledger":       {ID: "ledger", Name: "The Tallow King's Ledger", Desc: "a list of every soul he melted; for Grimble", Glyph: '=', MaxStack: 1, Quest: true},
+	"spoon":        {ID: "spoon", Name: "Grimble's Lucky Spoon", Desc: "it is, admittedly, a very nice spoon", Glyph: '/', MaxStack: 1, Quest: true},
+	"antegg":       {ID: "antegg", Name: "Ant Egg", Desc: "warm and faintly ticking; for Grimble", Glyph: 'o', MaxStack: 9, Quest: true},
+	"embershard":   {ID: "embershard", Name: "Ember Shard", Desc: "too hot to hold for long; for Grimble", Glyph: '*', MaxStack: 9, Quest: true},
 	"gem":          {ID: "gem", Name: "Garnet", Desc: "worth 40 gold to a trader", Glyph: 'g', MaxStack: 20, Value: 40, DropChance: 0.05},
 }
 

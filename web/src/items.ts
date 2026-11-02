@@ -11,6 +11,10 @@ export const ITEMS: Record<string, ItemInfo> = {
   lightorb: { name: 'Scroll of Light', ch: '?', col: [230, 230, 170], desc: 'lights the spot at the cursor for a minute', thrown: true, usable: true },
   returnscroll: { name: 'Scroll of Return', ch: '%', col: [150, 230, 255], desc: 'opens a portal back to the gnome village', usable: true },
   satchel: { name: 'Gnome Satchel', ch: '▣', col: [190, 150, 90], desc: '+4 rucksack slots (one per hero)', usable: false },
+  ledger: { name: "The Tallow King's Ledger", ch: '=', col: [230, 200, 150], desc: 'a list of every soul he melted; for Grimble', usable: false },
+  spoon: { name: "Grimble's Lucky Spoon", ch: '/', col: [220, 220, 240], desc: 'it is, admittedly, a very nice spoon', usable: false },
+  antegg: { name: 'Ant Egg', ch: 'o', col: [240, 230, 200], desc: 'warm and faintly ticking; for Grimble', usable: false },
+  embershard: { name: 'Ember Shard', ch: '*', col: [255, 110, 40], desc: 'too hot to hold for long; for Grimble', usable: false },
   gem: { name: 'Garnet', ch: '♦', col: [230, 60, 90], desc: 'worth 40 gold to a trader', usable: false },
 };
 
