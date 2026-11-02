@@ -161,6 +161,27 @@ export class GameScreen implements Screen {
       else { const d = DIRS[this.pred.face]; tx = px + d[0] * 4; ty = py + d[1] * 4; }
     }
     if (!meta.targeted && w === null) { const d = DIRS[this.pred.face]; tx = px + d[0]; ty = py + d[1]; }
+    if (!meta.targeted) {
+      const rec = st.recs[st.recs.length - 1];
+      const adj = (rec?.ents ?? []).filter((e) => e.k === 'm' && Math.max(Math.abs(e.x - px), Math.abs(e.y - py)) === 1);
+      if (adj.length) {
+        const aimed = w !== null && adj.some((e) => e.x === w[0] && e.y === w[1]);
+        if (!aimed) {
+          let pick = adj.find((e) => e.id === st.lastTarget);
+          if (!pick) {
+            const ax = tx - px, ay = ty - py;
+            const al = Math.hypot(ax, ay) || 1;
+            let bs = -2;
+            for (const e of adj) {
+              const ex = e.x - px, ey = e.y - py;
+              const sc = (ex * ax + ey * ay) / (Math.hypot(ex, ey) * al);
+              if (sc > bs) { bs = sc; pick = e; }
+            }
+          }
+          if (pick) { tx = pick.x; ty = pick.y; }
+        }
+      }
+    }
     this.app.net.send({ t: 'cast', slot, x: tx, y: ty, seq: this.pred.nextSeq() });
   }
 

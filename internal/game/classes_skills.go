@@ -17,11 +17,41 @@ func (g *Game) monsterAt(x, y int) *Monster {
 	return nil
 }
 
+// meleeDir returns the aimed direction, or turns toward an adjacent monster when the aimed
+// cell(s) are empty, preferring the one angularly closest to the aim.
+func (g *Game) meleeDir(h *Hero, tx, ty int, arc bool) int {
+	d := h.facingDir(tx, ty)
+	ks := []int{0}
+	if arc {
+		ks = []int{0, 1, -1}
+	}
+	for _, k := range ks {
+		v := dirs8[(d+k+8)%8]
+		if g.monsterAt(h.X+v.X, h.Y+v.Y) != nil {
+			return d
+		}
+	}
+	best, bd := d, 99
+	for i, v := range dirs8 {
+		if g.monsterAt(h.X+v.X, h.Y+v.Y) == nil {
+			continue
+		}
+		c := (i - d + 8) % 8
+		if c > 4 {
+			c = 8 - c
+		}
+		if c < bd {
+			best, bd = i, c
+		}
+	}
+	return best
+}
+
 // ---- Warrior ----
 
 // Cleave hits the three cells of a 45-degree arc in front of the hero (adjacent only).
 func (g *Game) castCleave(h *Hero, sk SkillDef, tx, ty int) error {
-	d := h.facingDir(tx, ty)
+	d := g.meleeDir(h, tx, ty, true)
 	h.Facing = d
 	front := dirs8[d]
 	g.emit(Event{K: "cast", Actor: h.ID, X: h.X, Y: h.Y, TX: h.X + front.X, TY: h.Y + front.Y, FX: sk.ID})
@@ -70,7 +100,7 @@ func behind(m *Monster, ax, ay int) bool {
 }
 
 func (g *Game) castStab(h *Hero, sk SkillDef, tx, ty int) error {
-	d := h.facingDir(tx, ty)
+	d := g.meleeDir(h, tx, ty, false)
 	h.Facing = d
 	v := dirs8[d]
 	g.emit(Event{K: "cast", Actor: h.ID, X: h.X, Y: h.Y, TX: h.X + v.X, TY: h.Y + v.Y, FX: sk.ID})
@@ -116,7 +146,7 @@ func (g *Game) tickPatches() {
 
 // Palm Strike hits the adjacent enemy and knocks it back Aux cells, stopping at walls and other bodies.
 func (g *Game) castPalm(h *Hero, sk SkillDef, tx, ty int) error {
-	d := h.facingDir(tx, ty)
+	d := g.meleeDir(h, tx, ty, false)
 	h.Facing = d
 	v := dirs8[d]
 	g.emit(Event{K: "cast", Actor: h.ID, X: h.X, Y: h.Y, TX: h.X + v.X, TY: h.Y + v.Y, FX: sk.ID})

@@ -308,3 +308,35 @@ func TestFriendlyFire(t *testing.T) {
 		}
 	}
 }
+
+func TestMeleeAutoAimsAdjacent(t *testing.T) {
+	for _, c := range []struct {
+		cls  ClassID
+		slot int
+	}{{Warrior, 0}, {Rogue, 0}, {Monk, 0}} {
+		g := arena(1)
+		h := hero(g, 1, c.cls, 40, 25)
+		m := g.spawnMon('z', 40, 24)
+		m.HP, m.HPMax = 1000, 1000
+		if err := cast(g, h, c.slot, 45, 25); err != nil {
+			t.Fatal(err)
+		}
+		if m.HP >= 1000 {
+			t.Fatalf("class %v: adjacent monster should be auto-targeted", c.cls)
+		}
+	}
+}
+
+func TestMeleePrefersAimedTarget(t *testing.T) {
+	g := arena(1)
+	h := hero(g, 1, Rogue, 40, 25)
+	e := g.spawnMon('z', 41, 25)
+	w := g.spawnMon('z', 39, 25)
+	e.HP, e.HPMax, w.HP, w.HPMax = 1000, 1000, 1000, 1000
+	if err := cast(g, h, 0, 45, 25); err != nil {
+		t.Fatal(err)
+	}
+	if e.HP >= 1000 || w.HP != 1000 {
+		t.Fatalf("only the aimed (east) monster should be hit: e=%d w=%d", e.HP, w.HP)
+	}
+}
