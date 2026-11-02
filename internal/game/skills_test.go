@@ -45,6 +45,9 @@ func hero(g *Game, id int, cls ClassID, x, y int) *Hero {
 	h := g.AddHero(id, "h"+string(rune('a'+id)), cls)
 	g.place(h, x, y)
 	h.Res = h.ResMax
+	// the original three skills at rank 1 on keys 1-3 (tests of the tree itself start from scratch)
+	h.Ranks = [TreeSize]int{1, 1, 1}
+	h.Binds = [3]int{0, 1, 2}
 	return h
 }
 

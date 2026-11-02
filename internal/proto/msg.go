@@ -20,6 +20,7 @@ type ClientMsg struct {
 	N      int    `json:"n,omitempty"`
 	Cell   [2]int `json:"cell,omitempty"`
 	Key    string `json:"key,omitempty"`
+	Skill  string `json:"skill,omitempty"` // learn / bind: skill id
 }
 
 // Client message types.
@@ -32,8 +33,11 @@ const (
 	CMove     = "move"
 	CCast     = "cast"
 	CPotion   = "potion"
-	CUse      = "use"  // use the rucksack item in slot (x, y: where to throw it)
-	CDrop     = "drop" // drop the stack in slot
+	CUse      = "use"    // use the rucksack item in slot (x, y: where to throw it)
+	CDrop     = "drop"   // drop the stack in slot
+	CLearn    = "learn"  // spend a point on skill
+	CBind     = "bind"   // put skill on key slot (0-2)
+	CRespec   = "respec" // reset the skill tree (at the stairs)
 	CRevive   = "revive"
 	CChat     = "chat"
 	CPing     = "ping"
@@ -164,24 +168,33 @@ type Objectives struct {
 	Kills       int  `json:"kills"`
 }
 
+type TreeSkill struct {
+	ID   string `json:"id"`
+	Rank int    `json:"rank"`
+}
+
 type PackSlot struct {
 	Item string `json:"item"`
 	N    int    `json:"n"`
 }
 
 type Me struct {
-	Res     int        `json:"res"`
-	ResMax  int        `json:"resMax"`
-	CD      []int      `json:"cd"`    // remaining ticks
-	CDMax   []int      `json:"cdMax"` // total ticks
-	Cost    []int      `json:"cost"`
-	Potions int        `json:"potions"` // healing potions in the rucksack (the Q key)
-	PotCD   int        `json:"potCd"`   // shared cooldown of potions and draughts
-	Pack    []PackSlot `json:"pack"`    // always PackSlots entries; empty ones are {"", 0}
-	Gold    int        `json:"gold"`
-	XP      int        `json:"xp"`
-	XPNeed  int        `json:"xpNeed"`
-	Lvl     int        `json:"lvl"`
+	Res     int         `json:"res"`
+	ResMax  int         `json:"resMax"`
+	CD      []int       `json:"cd"`    // remaining ticks
+	CDMax   []int       `json:"cdMax"` // total ticks
+	Cost    []int       `json:"cost"`
+	Potions int         `json:"potions"` // healing potions in the rucksack (the Q key)
+	PotCD   int         `json:"potCd"`   // shared cooldown of potions and draughts
+	Pack    []PackSlot  `json:"pack"`    // always PackSlots entries; empty ones are {"", 0}
+	Binds   []string    `json:"binds"`   // skill id on keys 1-3 ("" = empty)
+	Tree    []TreeSkill `json:"tree"`    // the class's 6 skills in tree order
+	Points  int         `json:"points"`  // unspent skill points
+	Respec  bool        `json:"respec"`  // at the stairs: the tree can be reset
+	Gold    int         `json:"gold"`
+	XP      int         `json:"xp"`
+	XPNeed  int         `json:"xpNeed"`
+	Lvl     int         `json:"lvl"`
 }
 
 // SnapShared is the part of a snapshot identical for every client of a room.

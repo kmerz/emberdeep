@@ -13,6 +13,8 @@ import (
 
 	"github.com/coder/websocket"
 
+	"emberdeep/internal/game"
+
 	"emberdeep/internal/proto"
 )
 
@@ -26,6 +28,7 @@ type Client struct {
 	URL, Room, Name, Cls string
 	Origin               string
 	Leader               bool
+	learn                string // skill to spend the next point on (guarded by mu)
 
 	Snaps, Events, Explores atomic.Int64
 	Errors                  atomic.Int64
@@ -115,6 +118,7 @@ func (c *Client) Run(ctx context.Context) error {
 		}
 	}()
 	tk := time.NewTicker(150 * time.Millisecond)
+	var lastLearn time.Time
 	defer tk.Stop()
 	for {
 		select {
@@ -131,11 +135,18 @@ func (c *Client) Run(ctx context.Context) error {
 			}
 			c.mu.Lock()
 			v := c.view
+			learn := c.learn
 			v.Walkable = c.walkable
 			v.Unknown = c.unknown
 			c.mu.Unlock()
 			if v.Me == 0 {
 				continue
+			}
+			if learn != "" && time.Since(lastLearn) > 500*time.Millisecond {
+				lastLearn = time.Now()
+				if err := send(proto.ClientMsg{T: proto.CLearn, Skill: learn}); err != nil {
+					return err
+				}
 			}
 			for _, m := range brain.Think(&v) {
 				if err := send(m); err != nil {
@@ -183,6 +194,16 @@ func (c *Client) onSnap(data []byte) {
 	}
 	if s.Me != nil {
 		v.CD, v.Cost, v.Res, v.Potions, v.PotCD = s.Me.CD, s.Me.Cost, s.Me.Res, s.Me.Potions, s.Me.PotCD
+		c.learn = ""
+		if s.Me.Points > 0 && len(s.Me.Tree) == game.TreeSize {
+			var ranks [game.TreeSize]int
+			for i, t := range s.Me.Tree {
+				ranks[i] = t.Rank
+			}
+			if idx := game.NextSkill(ranks, s.Me.Lvl); idx >= 0 {
+				c.learn = s.Me.Tree[idx].ID
+			}
+		}
 	}
 	c.view = v
 }

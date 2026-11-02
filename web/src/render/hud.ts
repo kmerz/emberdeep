@@ -1,7 +1,7 @@
 // HUD: a port of design/Main.dc.html lines 285-396 driven by real state.
 import { Fb, RGB, DIM, TX, WH, PINK, GOLD, MINT, PAN, W, mul, mix, ramp, c01 } from '../term/fb';
 import { GameState, LW, LH, clock } from '../state';
-import { CLS } from '../classes';
+import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, PartyEntry } from '../proto';
 import type { Cam } from './fx';
 import { VW, VH } from './map';
@@ -37,6 +37,9 @@ function statusSegs(p: PartyEntry): [string, RGB, (RGB | null)?, number?][] {
     else if (s.k === 'bell') out.push(['◆ Bell of Warding', GOLD], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'slow') out.push(['▼ Slowed', [150, 196, 106]], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'torch') out.push(['/ Torch', [255, 170, 70]], [' ' + s.t + 's', DIM], ['   ', DIM]);
+    else if (s.k === 'cry') out.push(['! War Cry', [255, 138, 61]], [' ' + s.t + 's', DIM], ['   ', DIM]);
+    else if (s.k === 'hidden') out.push(['░ Hidden', [199, 146, 255]], [' ' + s.t + 's', DIM], ['   ', DIM]);
+    else if (s.k === 'poison') out.push(['~ Poison', [126, 240, 178]], [' ×' + s.t, DIM], ['   ', DIM]);
   }
   if (!out.length) out.push(['◇ steady', DIM]);
   return out;
@@ -178,14 +181,16 @@ export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null) {
   fb.box(65, 35, 47, 12, (me?.name ?? '').toUpperCase() + ' · ' + c.name, c.col);
   const wall = !!me?.st?.some((s) => s.k === 'wall');
   type Slot = { k: string; ic: string; n: string; st: number; sub: string };
-  const slots: Slot[] = c.skills.map((s, i) => {
+  const slots: Slot[] = [0, 1, 2].map((i) => {
+    const s = SKILL_BY_ID[m.binds?.[i] ?? '']?.meta;
+    if (!s) return { k: String(i + 1), ic: ' · ', n: 'EMPTY', st: 2, sub: 'T: tree' };
     const cd = m.cd[i] ?? 0;
     let state = 0, sub = 'ready';
     if (s.id === 'ironwall' && wall) { state = 1; sub = (me!.st!.find((q) => q.k === 'wall')!.t) + 's'; }
     else if (cd > 0) { state = 2; sub = (cd / 20).toFixed(1) + 's'; }
     else if (m.res < (m.cost[i] ?? 0)) { state = 2; sub = 'no ' + c.rl; }
     else if ((m.cost[i] ?? 0) > 0) sub = m.cost[i] + ' ' + c.rl;
-    return { k: s.key, ic: s.icon, n: s.short, st: state, sub };
+    return { k: String(i + 1), ic: s.icon, n: s.short, st: state, sub };
   });
   slots.push({ k: 'Q', ic: ' ! ', n: 'POTION', st: m.potCd > 0 || m.potions <= 0 ? 2 : 0, sub: m.potCd > 0 ? (m.potCd / 20).toFixed(1) + 's' : '×' + m.potions });
   slots.forEach((s, i) => {
@@ -210,6 +215,7 @@ export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null) {
   fb.txt(67, 43, 'XP', DIM);
   fb.bar(70, 43, 34, m.xp / Math.max(1, m.xpNeed), [177, 120, 255], [30, 22, 48]);
   fb.txt(106, 43, (Math.round((100 * m.xp) / Math.max(1, m.xpNeed)) + '%').padStart(4), TX);
+  if ((m.points ?? 0) > 0) fb.segs(67, 45, [[String(m.points), GOLD, null, 1], [m.points === 1 ? ' skill point' : ' skill points', GOLD], [' to spend (T)', DIM]]);
   fb.segs(67, 44, [['LV ' + m.lvl, TX, null, 1], ['   gold ', DIM], [String(m.gold), GOLD, null, 1], ['   rucksack ', DIM], [(m.pack ?? []).filter((s) => s.n > 0).length + '/12', TX, null, 1], [' (I)', DIM]]);
 }
 

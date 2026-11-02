@@ -38,10 +38,30 @@ func heroStatuses(g *game.Game, h *game.Hero) []proto.Status {
 	if g.Now < h.SlowUntil {
 		st = append(st, proto.Status{K: "slow", T: ceilSec(h.SlowUntil - g.Now)})
 	}
+	if g.Now < h.CryUntil {
+		st = append(st, proto.Status{K: "cry", T: ceilSec(h.CryUntil - g.Now)})
+	}
+	if g.Now < h.HiddenUntil {
+		st = append(st, proto.Status{K: "hidden", T: ceilSec(h.HiddenUntil - g.Now)})
+	}
+	if h.PoisonCharges > 0 {
+		st = append(st, proto.Status{K: "poison", T: h.PoisonCharges})
+	}
 	if g.Now < h.TorchUntil {
 		st = append(st, proto.Status{K: "torch", T: ceilSec(h.TorchUntil - g.Now)})
 	}
 	return st
+}
+
+// keyInfo is the cooldown left, full cooldown and cost of the skill on a key. An empty key reports a cost
+// nobody can pay, so the bot brain never presses it.
+func keyInfo(g *game.Game, h *game.Hero, key int) (cd, cdMax, cost int) {
+	b := h.Binds[key]
+	if b < 0 || h.Ranks[b] == 0 {
+		return 0, 0, 1 << 20
+	}
+	sk := h.Def().Skills[b].Ranked(h.Ranks[b])
+	return max(0, h.CDReady[b]-g.Now), sk.CD, sk.Cost
 }
 
 func LevelMsg(g *game.Game) []byte {
@@ -182,11 +202,18 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 	for i, s := range h.Pack {
 		me.Pack[i] = proto.PackSlot{Item: s.Item, N: s.N}
 	}
+	me.Binds = make([]string, 3)
 	for i := 0; i < 3; i++ {
-		me.CD[i] = max(0, h.CDReady[i]-g.Now)
-		me.CDMax[i] = def.Skills[i].CD
-		me.Cost[i] = def.Skills[i].Cost
+		me.CD[i], me.CDMax[i], me.Cost[i] = keyInfo(g, h, i)
+		if b := h.Binds[i]; b >= 0 {
+			me.Binds[i] = def.Skills[b].ID
+		}
 	}
+	me.Tree = make([]proto.TreeSkill, game.TreeSize)
+	for i, s := range def.Skills {
+		me.Tree[i] = proto.TreeSkill{ID: s.ID, Rank: h.Ranks[i]}
+	}
+	me.Points, me.Respec = h.Points, g.AtStairs(h)
 	out = append(out, `,"ackSeq":`...)
 	out = strconv.AppendInt(out, int64(h.LastSeq), 10)
 	out = append(out, `,"me":`...)

@@ -3,15 +3,23 @@ package game
 import "math"
 
 func (h *Hero) dmgScale(base int) int {
-	return int(math.Round(float64(base) * (1 + 0.1*float64(h.Lvl-1))))
+	b := h.buff
+	if b == 0 {
+		b = 1
+	}
+	return int(math.Round(float64(base) * (1 + 0.1*float64(h.Lvl-1)) * b))
 }
 
 func (g *Game) applyCast(h *Hero, in Intent) error {
 	if in.Slot < 0 || in.Slot > 2 {
 		return ErrBadIntent
 	}
-	sk := h.Def().Skills[in.Slot]
-	if g.Now < h.CDReady[in.Slot] {
+	idx := h.Binds[in.Slot]
+	if idx < 0 || h.Ranks[idx] == 0 {
+		return ErrLocked
+	}
+	sk := h.Def().Skills[idx].Ranked(h.Ranks[idx])
+	if g.Now < h.CDReady[idx] {
 		return ErrCooldown
 	}
 	if h.Res < sk.Cost {
@@ -31,11 +39,17 @@ func (g *Game) applyCast(h *Hero, in Intent) error {
 			return ErrBlocked
 		}
 	}
-	if err := g.castSkill(h, sk, in.X, in.Y); err != nil {
+	h.buff = 1
+	if g.Now < h.CryUntil {
+		h.buff = 1 + CryBuffPct/100.0
+	}
+	err := g.castSkill(h, sk, in.X, in.Y)
+	h.buff = 1
+	if err != nil {
 		return err
 	}
 	h.Res -= sk.Cost
-	h.CDReady[in.Slot] = g.Now + sk.CD
+	h.CDReady[idx] = g.Now + sk.CD
 	h.ReviveTarget, h.ReviveProg = 0, 0
 	return nil
 }
@@ -66,6 +80,30 @@ func (g *Game) castSkill(h *Hero, sk SkillDef, tx, ty int) error {
 		return g.castDash(h, sk, tx, ty)
 	case "bell":
 		return g.castBell(h, sk)
+	case "shieldbash":
+		return g.castShieldBash(h, sk, tx, ty)
+	case "warcry":
+		return g.castWarCry(h, sk)
+	case "whirlwind":
+		return g.castWhirlwind(h, sk)
+	case "poisonblade":
+		return g.castPoisonBlade(h, sk)
+	case "smokestep":
+		return g.castSmokeStep(h, sk)
+	case "knives":
+		return g.castKnives(h, sk, tx, ty)
+	case "frostring":
+		return g.castFrostRing(h, sk)
+	case "light":
+		return g.castLight(h, sk, tx, ty)
+	case "chainspark":
+		return g.castChainSpark(h, sk, tx, ty)
+	case "staffsweep":
+		return g.castStaffSweep(h, sk, tx, ty)
+	case "healbreath":
+		return g.castHealBreath(h, sk)
+	case "fists":
+		return g.castFists(h, sk, tx, ty)
 	}
 	return ErrBadIntent
 }
@@ -97,7 +135,7 @@ func (g *Game) castSpark(h *Hero, sk SkillDef, tx, ty int) error {
 func (g *Game) castDelayed(h *Hero, sk SkillDef, tx, ty int) error {
 	h.Facing = dirIndex(tx-h.X, ty-h.Y, h.Facing)
 	g.emit(Event{K: "cast", Actor: h.ID, X: h.X, Y: h.Y, TX: tx, TY: ty, FX: sk.ID, R: sk.Radius, Amount: sk.Delay})
-	g.pend = append(g.pend, pending{at: g.Now + sk.Delay, skill: sk.ID, caster: h.ID, x: tx, y: ty})
+	g.pend = append(g.pend, pending{at: g.Now + sk.Delay, skill: sk.ID, caster: h.ID, x: tx, y: ty, dmg: h.dmgScale(sk.Dmg), radius: sk.Radius})
 	return nil
 }
 
@@ -124,14 +162,15 @@ func (g *Game) impact(p pending) {
 		g.areaDamage(h, p.x, p.y, def.Radius, h.dmgScale(int(def.Amount)))
 		return
 	}
-	var sk SkillDef
-	for _, s := range h.Def().Skills {
-		if s.ID == p.skill {
-			sk = s
+	if p.skill == "fists" { // one blow of Hundred Fists on whatever stands there now
+		if m := g.monsterAt(p.x, p.y); m != nil {
+			g.emit(Event{K: "cast", Actor: h.ID, X: h.X, Y: h.Y, TX: p.x, TY: p.y, FX: "fist"})
+			g.damageMonster(m, p.dmg, h.ID, false)
 		}
+		return
 	}
-	g.emit(Event{K: "impact", Actor: h.ID, X: p.x, Y: p.y, FX: sk.ID, R: sk.Radius})
-	g.areaDamage(h, p.x, p.y, sk.Radius, h.dmgScale(sk.Dmg))
+	g.emit(Event{K: "impact", Actor: h.ID, X: p.x, Y: p.y, FX: p.skill, R: p.radius})
+	g.areaDamage(h, p.x, p.y, p.radius, p.dmg)
 }
 
 // areaDamage hits every monster within radius (aspect metric) and, with friendly fire on, other heroes.

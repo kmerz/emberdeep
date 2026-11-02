@@ -19,10 +19,20 @@ type Hero struct {
 	Pack       [PackSlots]Stack
 	packFullAt int // last tick a "rucksack full" message was sent
 
-	CDReady     [3]int
-	PotionReady int
-	NextMove    int
-	LastSeq     int
+	CDReady [TreeSize]int // per skill, so moving a skill to another key doesn't reset it
+	Ranks   [TreeSize]int // 0 = not learned
+	Binds   [3]int        // skill index on keys 1-3, -1 = empty
+	Points  int           // unspent skill points
+
+	CryUntil      int // War Cry damage buff
+	HiddenUntil   int // Smoke Step: monsters can't target this hero
+	PoisonCharges int // Poison Blade: stabs left that poison
+	PoisonDmg     int
+	PoisonDur     int
+	buff          float64 // damage multiplier while a skill is being cast (War Cry)
+	PotionReady   int
+	NextMove      int
+	LastSeq       int
 
 	Connected bool
 	Dead      bool
@@ -49,12 +59,56 @@ type Hero struct {
 func (h *Hero) Def() *ClassDef { return Classes[h.Cls] }
 
 func (h *Hero) save() heroSave {
-	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Pack: h.Pack}
+	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Pack: h.Pack,
+		Ranks: h.Ranks, Binds: h.Binds, Points: h.Points}
 }
 
 func (h *Hero) restore(s heroSave) {
 	h.Lvl, h.XP, h.HP, h.HPMax, h.Res, h.ResMax, h.Gold, h.Pack = s.Lvl, s.XP, s.HP, s.HPMax, s.Res, s.ResMax, s.Gold, s.Pack
+	h.Ranks, h.Binds, h.Points = s.Ranks, s.Binds, s.Points
 	h.Dead, h.Downed = false, false
+}
+
+// resetTree puts a hero back to the starting tree: the first skill at rank 1 on key 1, every other point unspent.
+func (h *Hero) resetTree() {
+	spent := 0
+	for _, r := range h.Ranks {
+		spent += r
+	}
+	h.Ranks = [TreeSize]int{1}
+	h.Binds = [3]int{0, -1, -1}
+	h.Points += max(0, spent-1)
+}
+
+// canLearn reports why a skill can't be learned or ranked up (nil = it can).
+func (h *Hero) canLearn(idx int) error {
+	if idx < 0 || idx >= TreeSize {
+		return ErrBadIntent
+	}
+	if h.Points <= 0 {
+		return ErrNoPoints
+	}
+	if h.Ranks[idx] >= MaxRank {
+		return ErrMaxRank
+	}
+	tier := SkillTier(idx)
+	if h.Lvl < SkillTiers[tier-1] {
+		return ErrLocked
+	}
+	if tier > 1 && h.Ranks[idx] == 0 && h.Ranks[tier-2] == 0 && h.Ranks[tier-2+3] == 0 {
+		return ErrLocked // needs a skill of the tier above
+	}
+	return nil
+}
+
+// SkillIndex finds a skill of the hero's class by id (-1 = none).
+func (h *Hero) SkillIndex(id string) int {
+	for i, s := range h.Def().Skills {
+		if s.ID == id {
+			return i
+		}
+	}
+	return -1
 }
 
 // Stack is one rucksack slot.
@@ -136,7 +190,8 @@ func (h *Hero) PackUsed() int {
 func (h *Hero) freshOnFloor() {
 	h.DownedUntil, h.ReviveTarget, h.ReviveProg = 0, 0, 0
 	h.WallUntil, h.WallAbsorb, h.BellUntil, h.SlowUntil, h.BleedUntil = 0, 0, 0, 0, 0
-	h.CDReady = [3]int{}
+	h.CDReady = [TreeSize]int{}
+	h.CryUntil, h.HiddenUntil, h.PoisonCharges = 0, 0, 0
 	h.TorchUntil = 0 // a torch doesn't make it down the stairs
 	h.PotionReady = 0
 	h.fovValid = false
@@ -163,6 +218,7 @@ func (g *Game) gainXP(amount int) {
 		for h.XP >= XPNeed(h.Lvl) {
 			h.XP -= XPNeed(h.Lvl)
 			h.Lvl++
+			h.Points++
 			inc := HPPerLevel(h.Def().HP)
 			h.HPMax += inc
 			if !h.Downed {

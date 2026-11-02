@@ -18,10 +18,10 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 ## 3. Foundation: items
 - [x] [L] Rucksack with an inventory UI (12 slots; potions, draughts, firebombs, garnets)
 - [x] [M] Chests with loot, and mimics (chests that bite)
-- [x] [M] Torch item and light spell (a Scroll of Light for now; could become a Sorcerer skill with the skill tree)
+- [x] [M] Torch item and light spell (Scroll of Light for everyone; Light is a Sorcerer skill too)
 
 ## 4. Progression
-- [ ] [XL] Skill tree on level-up (Diablo 2 style): skill points, unlockable nodes, any learned skill can go on 1/2/3
+- [x] [XL] Skill tree (Diablo 2 style): 6 skills per class in 3 tiers, ranks 1-5, any 3 on keys 1-3, free reset at the stairs
 
 ## 5. Classes (added to Warrior, Rogue, Sorcerer, Monk; 7 in total)
 - [ ] [M] Male and female variant for every class (cosmetic)

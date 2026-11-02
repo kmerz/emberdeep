@@ -20,6 +20,10 @@ export interface Me {
   res: number; resMax: number; cd: number[]; cdMax: number[]; cost: number[]; potions: number; potCd: number;
   gold: number; xp: number; xpNeed: number; lvl: number;
   pack: PackSlot[]; // always 12 entries; empty ones are { item: '', n: 0 }
+  binds: string[];  // skill id on keys 1-3 ('' = empty)
+  tree: { id: string; rank: number }[]; // the class's 6 skills in tree order
+  points: number;   // unspent skill points
+  respec: boolean;  // at the stairs: the tree can be reset
 }
 export interface PackSlot { item: string; n: number }
 export interface Snap {

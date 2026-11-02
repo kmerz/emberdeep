@@ -99,7 +99,15 @@ export class Fx {
           case 'blink': push('blink', 420); break;
           case 'leap': push('trail', 260); break;
           case 'dash': push('trail', 240); break;
-          case 'cleave': case 'stab': case 'palm': push('slash', 180, { text: ev.fx }); break;
+          case 'cleave': case 'stab': case 'palm': case 'shieldbash': case 'staffsweep': case 'fist': case 'whirlwind':
+            push('slash', 180, { text: ev.fx }); break;
+          case 'knives': case 'chainspark': push('bolt', 150); break;
+          case 'warcry': push('flare', 800, { pal: 'wall' }); push('leap', 400); break;
+          case 'frostring': push('flare', 700, { pal: 'frost' }); break;
+          case 'healbreath': push('flare', 900, { pal: 'revive' }); break;
+          case 'smokestep': push('flare', 600, { pal: 'smoke' }); break;
+          case 'poisonblade': push('flare', 400, { pal: 'revive' }); break;
+          case 'light': push('bolt', 200); break;
           case 'ironwall': push('flare', 600, { pal: 'wall' }); break;
           case 'caltrops': push('flare', 400, { pal: 'caltrops' }); break;
           case 'bell': push('bell', 1900); break;
@@ -173,7 +181,7 @@ export class Fx {
         }
         case 'blink': out.push({ x: f.tx, y: f.ty, r: 7, c: nr([95, 215, 255]), i: 0.8 * (1 - e / 0.42) }); break;
         case 'flare': {
-          const c = f.pal === 'wall' ? WARM : f.pal === 'revive' ? nr([126, 240, 178]) : nr([199, 146, 255]);
+          const c = nr(flareCol(f.pal));
           out.push({ x: f.tx, y: f.ty, r: 7, c, i: 0.8 * (1 - e / (f.dur / 1000)) });
           break;
         }
@@ -256,8 +264,8 @@ export class Fx {
         }
         case 'flare': {
           const a = c01(1 - e / (f.dur / 1000));
-          const col: RGB = f.pal === 'wall' ? [255, 212, 92] : f.pal === 'revive' ? [126, 240, 178] : [199, 146, 255];
-          const rr = 1 + e * 5;
+          const col: RGB = flareCol(f.pal);
+          const rr = 1 + e * (f.r > 0 ? f.r * 1.4 : 5); // skills with a radius ring out to it
           for (let k = 0; k < 12; k++) {
             const ang = (k / 12) * Math.PI * 2;
             const x = Math.round(tx + Math.cos(ang) * rr), y = Math.round(ty + Math.sin(ang) * rr / 2);
@@ -327,7 +335,9 @@ export class Fx {
     const dx = Math.sign(tx - sx), dy = Math.sign(ty - sy);
     const glyph = dx === 0 ? '─' : dy === 0 ? '│' : dx * dy > 0 ? '╱' : '╲';
     const cells: [number, number][] = [[sx + dx, sy + dy]];
-    if (f.text === 'cleave') {
+    if (f.text === 'whirlwind') for (const [ddx, ddy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) cells.push([sx + ddx, sy + ddy]);
+    if (f.text === 'staffsweep') cells.push([sx + dx * 2, sy + dy * 2]);
+    if (f.text === 'cleave' || f.text === 'staffsweep') {
       if (dx === 0 || dy === 0) cells.push([sx + dx + dy, sy + dy + dx], [sx + dx - dy, sy + dy - dx]);
       else cells.push([sx + dx, sy], [sx, sy + dy]);
     }
@@ -378,5 +388,15 @@ export class Fx {
       }
     }
     void st; void DIM; void CLS;
+  }
+}
+
+function flareCol(pal: string): RGB {
+  switch (pal) {
+    case 'wall': return [255, 212, 92];
+    case 'revive': return [126, 240, 178];
+    case 'frost': return [140, 210, 255];
+    case 'smoke': return [150, 146, 160];
+    default: return [199, 146, 255];
   }
 }

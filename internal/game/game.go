@@ -26,8 +26,11 @@ const (
 	IntCast
 	IntPotion // drink the first healing potion (the Q key)
 	IntRevive
-	IntUse  // use the item in Slot (thrown items land at X, Y)
-	IntDrop // drop the stack in Slot
+	IntUse    // use the item in Slot (thrown items land at X, Y)
+	IntDrop   // drop the stack in Slot
+	IntLearn  // spend a point on Skill (learn it or raise its rank)
+	IntBind   // put Skill on key Slot
+	IntRespec // reset the tree (only at the stairs)
 )
 
 type Intent struct {
@@ -38,6 +41,7 @@ type Intent struct {
 	Target int
 	Hold   bool
 	Seq    int
+	Skill  string // learn / bind: skill id
 }
 
 var (
@@ -53,6 +57,10 @@ var (
 	ErrBadIntent = errors.New("bad intent")
 	ErrNoPotion  = errors.New("no potions")
 	ErrNoItem    = errors.New("no such item")
+	ErrNoPoints  = errors.New("no skill points")
+	ErrMaxRank   = errors.New("skill at max rank")
+	ErrLocked    = errors.New("skill locked")
+	ErrNotHere   = errors.New("not here")
 	ErrPhase     = errors.New("run is over")
 )
 
@@ -94,6 +102,7 @@ type Patch struct {
 	X, Y  int
 	Until int
 	Owner int
+	Dmg   int // bleed per second
 }
 
 type pending struct {
@@ -101,6 +110,8 @@ type pending struct {
 	skill  string
 	caster int
 	x, y   int
+	dmg    int // final damage, fixed at cast time (rank and buffs included)
+	radius float64
 }
 
 type Game struct {
@@ -152,6 +163,9 @@ type Game struct {
 type heroSave struct {
 	Lvl, XP, HP, HPMax, Res, ResMax, Gold int
 	Pack                                  [PackSlots]Stack
+	Ranks                                 [TreeSize]int
+	Binds                                 [3]int
+	Points                                int
 }
 
 const monIDBase = 10000
@@ -332,6 +346,8 @@ func newHero(id int, name string, cls ClassID, connected bool) *Hero {
 		Connected: connected, Facing: 2}
 	h.AddItem("potion", StartPotions)
 	h.AddItem("torch", StartTorches)
+	h.resetTree() // the first skill on key 1
+	h.Points = 1  // and one point to spend
 	return h
 }
 
@@ -399,6 +415,42 @@ func (g *Game) Apply(pid int, in Intent) error {
 		return g.applyUse(h, in)
 	case IntDrop:
 		return g.applyDrop(h, in)
+	case IntLearn:
+		idx := h.SkillIndex(in.Skill)
+		if err := h.canLearn(idx); err != nil {
+			return err
+		}
+		h.Points--
+		h.Ranks[idx]++
+		if h.Ranks[idx] == 1 { // a new skill goes on the first free key
+			for k, b := range h.Binds {
+				if b < 0 {
+					h.Binds[k] = idx
+					break
+				}
+			}
+		}
+		g.emit(Event{K: "learn", Actor: h.ID, X: h.X, Y: h.Y, FX: h.Def().Skills[idx].ID, Amount: h.Ranks[idx]})
+		return nil
+	case IntBind:
+		idx := h.SkillIndex(in.Skill)
+		if in.Slot < 0 || in.Slot > 2 || idx < 0 || idx >= TreeSize || h.Ranks[idx] == 0 {
+			return ErrBadIntent
+		}
+		for k, b := range h.Binds { // already on another key: swap
+			if b == idx {
+				h.Binds[k] = h.Binds[in.Slot]
+			}
+		}
+		h.Binds[in.Slot] = idx
+		return nil
+	case IntRespec:
+		if !g.AtStairs(h) {
+			return ErrNotHere
+		}
+		h.resetTree()
+		g.emit(Event{K: "respec", Actor: h.ID, X: h.X, Y: h.Y})
+		return nil
 	case IntRevive:
 		return g.applyRevive(h, in)
 	}
@@ -622,7 +674,14 @@ func (g *Game) pickup(h *Hero) {
 
 // ---- helpers shared by skills / AI ----
 
-func (g *Game) eligibleHero(h *Hero) bool { return !h.Dead && !h.Downed && h.Connected }
+func (g *Game) eligibleHero(h *Hero) bool {
+	return !h.Dead && !h.Downed && h.Connected && g.Now >= h.HiddenUntil
+}
+
+// AtStairs reports whether the hero stands on or next to the stairs (where the tree can be reset).
+func (g *Game) AtStairs(h *Hero) bool {
+	return cheb(h.X, h.Y, g.Level.Stairs.X, g.Level.Stairs.Y) <= StairsReach
+}
 
 func (g *Game) nearestHero(x, y int, maxD float64) *Hero {
 	var best *Hero

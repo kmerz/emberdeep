@@ -162,41 +162,77 @@ type ClassDef struct {
 	ResShort  string
 	ResMax    int
 	ResStart  int
-	Regen     float64 // per second
-	GainDeal  int     // resource per hit dealt
-	GainTaken int     // resource per hit taken
-	Skills    [3]SkillDef
+	Regen     float64            // per second
+	GainDeal  int                // resource per hit dealt
+	GainTaken int                // resource per hit taken
+	Skills    [TreeSize]SkillDef // index 0-2 the original skills, 3-5 the newer ones; tier = index%3 + 1
+}
+
+// Skill tree
+const (
+	TreeSize   = 6
+	MaxRank    = 5
+	RankDmg    = 0.15 // +15% damage per rank above 1
+	RankDur    = 0.10 // +10% duration
+	RankCD     = 0.05 // -5% cooldown
+	CryBuffPct = 20   // War Cry: +20% damage for heroes in range
+)
+
+// SkillTiers is the hero level that unlocks each tier.
+var SkillTiers = [3]int{1, 3, 8}
+
+func SkillTier(idx int) int { return idx%3 + 1 }
+
+// Ranked returns the skill as it works at the given rank.
+func (s SkillDef) Ranked(rank int) SkillDef {
+	r := float64(max(rank, 1) - 1)
+	s.Dmg = int(math.Round(float64(s.Dmg) * (1 + RankDmg*r)))
+	s.Dur = int(math.Round(float64(s.Dur) * (1 + RankDur*r)))
+	s.CD = int(math.Round(float64(s.CD) * (1 - RankCD*r)))
+	return s
 }
 
 var Classes = map[ClassID]*ClassDef{
 	Warrior: {ID: Warrior, Name: "WARRIOR", HP: 160, ResName: "Rage", ResShort: "RG", ResMax: 100, ResStart: 0, Regen: -1.5, GainDeal: 8, GainTaken: 6,
-		Skills: [3]SkillDef{
+		Skills: [TreeSize]SkillDef{
 			{ID: "cleave", Name: "CLEAVE", Cost: 0, CD: Sec(0.8), Range: 1.5, Dmg: 16, Melee: true},
 			{ID: "ironwall", Name: "IRON WALL", Cost: 25, CD: Sec(12), Dmg: 0, Dur: Sec(5), Aux: 60},
 			{ID: "leap", Name: "LEAP", Cost: 20, CD: Sec(8), Range: 14, Radius: 3.5, Dmg: 14},
+			{ID: "shieldbash", Name: "SHIELD BASH", Cost: 10, CD: Sec(4), Range: 1.5, Dmg: 8, Dur: Sec(2), Melee: true},
+			{ID: "warcry", Name: "WAR CRY", Cost: 20, CD: Sec(15), Radius: 8, Dur: Sec(8), Aux: CryBuffPct},
+			{ID: "whirlwind", Name: "WHIRLWIND", Cost: 25, CD: Sec(3), Range: 1.5, Dmg: 14, Melee: true},
 		}},
 	Rogue: {ID: Rogue, Name: "ROGUE", HP: 100, ResName: "Energy", ResShort: "EN", ResMax: 100, ResStart: 100, Regen: 14, GainDeal: 0, GainTaken: 0,
-		Skills: [3]SkillDef{
+		Skills: [TreeSize]SkillDef{
 			{ID: "stab", Name: "STAB", Cost: 15, CD: Sec(0.5), Range: 1.5, Dmg: 14, Melee: true},
 			{ID: "caltrops", Name: "CALTROPS", Cost: 30, CD: Sec(10), Range: 12, Radius: 1, Dmg: 2, Dur: Sec(6)},
 			{ID: "shadowbomb", Name: "SHADOW BOMB", Cost: 40, CD: Sec(9), Range: 16, Radius: 5, Dmg: 18, Delay: 8},
+			{ID: "poisonblade", Name: "POISON BLADE", Cost: 25, CD: Sec(10), Dmg: 3, Dur: Sec(5), Aux: 3},
+			{ID: "smokestep", Name: "SMOKE STEP", Cost: 35, CD: Sec(14), Dur: Sec(3)},
+			{ID: "knives", Name: "FAN OF KNIVES", Cost: 30, CD: Sec(4), Range: 6, Dmg: 10, Aux: 5, Melee: true}, // the cursor only sets the direction
 		}},
 	Sorcerer: {ID: Sorcerer, Name: "SORCERER", HP: 80, ResName: "Mana", ResShort: "MP", ResMax: 100, ResStart: 100, Regen: 6, GainDeal: 0, GainTaken: 0,
-		Skills: [3]SkillDef{
+		Skills: [TreeSize]SkillDef{
 			{ID: "spark", Name: "SPARK", Cost: 5, CD: Sec(0.6), Range: 16, Dmg: 12},
 			{ID: "nova", Name: "EMBER NOVA", Cost: 40, CD: Sec(8), Range: 18, Radius: 9, Dmg: 26, Delay: 9},
 			{ID: "blink", Name: "BLINK", Cost: 20, CD: Sec(6), Range: 14},
+			{ID: "frostring", Name: "FROST RING", Cost: 25, CD: Sec(8), Radius: 7, Dmg: 4, Dur: Sec(4)},
+			{ID: "light", Name: "LIGHT", Cost: 15, CD: Sec(10), Range: 16, Dur: Sec(45)},
+			{ID: "chainspark", Name: "CHAIN SPARK", Cost: 30, CD: Sec(3), Range: 16, Radius: 6, Dmg: 14, Aux: 3},
 		}},
 	Monk: {ID: Monk, Name: "MONK", HP: 130, ResName: "Ki", ResShort: "KI", ResMax: 100, ResStart: 40, Regen: -1, GainDeal: 10, GainTaken: 0,
-		Skills: [3]SkillDef{
+		Skills: [TreeSize]SkillDef{
 			{ID: "palm", Name: "PALM STRIKE", Cost: 10, CD: Sec(1.5), Range: 1.5, Dmg: 16, Aux: 2, Melee: true},
 			{ID: "dash", Name: "DASH", Cost: 15, CD: Sec(5), Range: 5, Dmg: 6, Aux: 4, Melee: true},
 			{ID: "bell", Name: "BELL OF WARDING", Cost: 40, CD: Sec(20), Radius: 6, Dur: Sec(12), Aux: 30},
+			{ID: "staffsweep", Name: "STAFF SWEEP", Cost: 10, CD: Sec(1.2), Range: 2.5, Dmg: 12, Melee: true},
+			{ID: "healbreath", Name: "HEALING BREATH", Cost: 35, CD: Sec(15), Radius: 6, Dmg: 25}, // Dmg = % of max HP healed
+			{ID: "fists", Name: "HUNDRED FISTS", Cost: 30, CD: Sec(6), Range: 1.5, Dmg: 7, Aux: 5, Delay: 2, Melee: true},
 		}},
 }
 
 func HPPerLevel(base int) int { return base / 8 }
-func XPNeed(lvl int) int      { return 40 * lvl }
+func XPNeed(lvl int) int      { return 300 + 20*lvl } // floor 1 ends near level 3, a full run near 20
 
 type MonDef struct {
 	Name      string

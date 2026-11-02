@@ -1,11 +1,12 @@
 import type { App, Screen } from '../app';
-import { Fb, W, H, DIM, PINK } from '../term/fb';
+import { Fb, W, H, DIM, PINK, WH } from '../term/fb';
 import { LW, LH } from '../state';
 import { Fx } from '../render/fx';
 import { VW, VH, buildLights, drawEnts, drawMap } from '../render/map';
 import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
 import { inventoryPanel, slotAt, INV } from '../render/inventory';
+import { treePanel, PANEL_ORDER } from '../render/tree';
 import { itemInfo, PACK_SLOTS } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
@@ -22,6 +23,8 @@ export class GameScreen implements Screen {
   private lastRevSend = 0;
   private invOpen = false;
   private invSel = 0;
+  private treeOpen = false;
+  private treeSel = 0;
   private levelSeen = 0;
 
   constructor(private app: App) {
@@ -34,6 +37,7 @@ export class GameScreen implements Screen {
     this.pred.reset();
     this.held.clear();
     this.invOpen = false;
+    this.treeOpen = false;
     st.onSnap = () => this.pred.onSnap();
     st.onEvents = (evs: GameEvent[], now: number) => { for (const e of evs) this.fx.add(e, now, st.youId); };
   }
@@ -50,8 +54,10 @@ export class GameScreen implements Screen {
     }
     if (st.overlay === 'wipe' && ev.key === 'Enter') { if (st.isHost) net.send({ t: 'start' }); ev.preventDefault(); return; }
     const k = ev.key.toLowerCase();
+    if (this.treeOpen && this.treeKey(ev, k)) { ev.preventDefault(); return; }
     if (this.invOpen && this.invKey(ev, k)) { ev.preventDefault(); return; }
-    if (k === 'i' && !ev.repeat) { this.invOpen = true; this.held.clear(); ev.preventDefault(); return; }
+    if (k === 'i' && !ev.repeat) { this.invOpen = true; this.treeOpen = false; this.held.clear(); ev.preventDefault(); return; }
+    if (k === 't' && !ev.repeat) { this.treeOpen = true; this.invOpen = false; this.held.clear(); ev.preventDefault(); return; }
     if (ev.key === 'Enter') { this.ui.chatActive = true; this.ui.chatText = ''; this.held.clear(); ev.preventDefault(); return; }
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) { this.held.add(k); ev.preventDefault(); return; }
     if (ev.repeat) return;
@@ -81,6 +87,22 @@ export class GameScreen implements Screen {
     if (!w) return;
     if (ev.altKey || ev.button === 1) { this.app.net.send({ t: 'ping', cell: w }); ev.preventDefault(); return; }
     if (ev.button === 0 && !this.ui.chatActive) this.cast(0);
+  }
+
+  /** Keys while the skill tree is open. Returns true when the key was used by the panel. */
+  private treeKey(ev: KeyboardEvent, k: string): boolean {
+    const net = this.app.net, me = this.app.st.me;
+    if (k === 't' || ev.key === 'Escape') { if (!ev.repeat) this.treeOpen = false; return true; }
+    if (k === 'arrowleft' || k === 'arrowright') { this.treeSel = this.treeSel ^ 1; return true; } // the other skill of the tier
+    if (k === 'arrowup') { this.treeSel = (this.treeSel + 4) % 6; return true; }
+    if (k === 'arrowdown') { this.treeSel = (this.treeSel + 2) % 6; return true; }
+    if (ev.repeat) return false;
+    const id = me?.tree?.[PANEL_ORDER[this.treeSel]]?.id;
+    if (!id) return false;
+    if (ev.key === 'Enter' || k === 'u') { net.send({ t: 'learn', skill: id, seq: this.pred.nextSeq() }); return true; }
+    if (k === '1' || k === '2' || k === '3') { net.send({ t: 'bind', slot: parseInt(k) - 1, skill: id, seq: this.pred.nextSeq() }); return true; }
+    if (k === 'r' && me?.respec) { net.send({ t: 'respec', seq: this.pred.nextSeq() }); return true; }
+    return false;
   }
 
   /** Keys while the rucksack is open. Returns true when the key was used by the panel. */
@@ -150,7 +172,8 @@ export class GameScreen implements Screen {
     const st = this.app.st;
     const me = this.youEnt();
     if (!me || !st.party.length) return;
-    const meta = CLS[me.cls!].skills[slot];
+    const meta = SKILL_BY_ID[st.me?.binds?.[slot] ?? '']?.meta;
+    if (!meta) { st.pushLog([['Key ' + (slot + 1) + ' is empty: open the skill tree with ', DIM], ['T', WH, 1]]); return; }
     const px = this.pred.ready ? this.pred.x : me.x, py = this.pred.ready ? this.pred.y : me.y;
     let tx: number, ty: number;
     const w = this.cellToWorld(this.mouse);
@@ -285,6 +308,7 @@ export class GameScreen implements Screen {
     hotbar(fb, st, you?.cls ?? null);
     commandLine(fb, this.ui, now);
     if (this.invOpen) inventoryPanel(fb, st, this.invSel);
+    if (this.treeOpen) treePanel(fb, st, this.treeSel, you?.cls ?? null);
     depthBanner(fb, st, now);
     if (st.overlay) overlayBox(fb, st.overlay, st, now);
     void H; void SKILL_BY_ID;

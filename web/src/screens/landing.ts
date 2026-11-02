@@ -109,7 +109,7 @@ export class LandingScreen implements Screen {
     const c = CLS[this.cls], onC = foc('class');
     fb.txt(x + 3, row, 'CLASS', DIM, null, 1);
     fb.segs(x + 13, row, [['◂ ', onC ? PINK : DIM], ['@ ', c.col, null, 1], [c.name.padEnd(9), c.col, null, 1], [' ▸', onC ? PINK : DIM]]);
-    fb.txt(x + 13, row + 1, c.skills.map((s) => s.short).join(' · ') + ' · potion', DIM);
+    fb.txt(x + 13, row + 1, [c.skills[0], c.skills[3]].map((s) => s.short).join(' · ') + ' · +4 more in the tree', DIM);
     row += 3;
     const button = (r: number, key: string, label: string, f: Field) => {
       const on = foc(f);

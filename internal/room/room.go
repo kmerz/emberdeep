@@ -718,6 +718,12 @@ func (r *Room) botThink() {
 		if h == nil {
 			continue
 		}
+		// spend skill points (new skills land on the first free key, so keys 1-3 hold skills 0-2)
+		if h.Points > 0 {
+			if idx := game.NextSkill(h.Ranks, h.Lvl); idx >= 0 {
+				r.applyIntent(p.ID, game.Intent{Kind: game.IntLearn, Skill: h.Def().Skills[idx].ID})
+			}
+		}
 		// in the dark a bot lights a torch when it has one
 		if r.g.Level.Theme.Dark && r.g.Now >= h.TorchUntil && !h.Downed && !h.Dead {
 			for i, s := range h.Pack {
@@ -741,8 +747,7 @@ func (r *Room) botView(h *game.Hero, humans map[int]bool) *bot.View {
 	v := &bot.View{Me: h.ID, Cls: string(h.Cls), Res: h.Res, Potions: h.Count("potion"), HP: h.HP, HPMax: h.HPMax, Humans: humans,
 		PotCD: max(0, h.PotionReady-g.Now), CD: make([]int, 3), Cost: make([]int, 3)}
 	for i := 0; i < 3; i++ {
-		v.CD[i] = max(0, h.CDReady[i]-g.Now)
-		v.Cost[i] = h.Def().Skills[i].Cost
+		v.CD[i], _, v.Cost[i] = keyInfo(g, h, i)
 	}
 	for _, o := range g.Heroes {
 		v.Ents = append(v.Ents, bot.Ent{ID: o.ID, K: "h", X: o.X, Y: o.Y, Downed: o.Downed, Dead: o.Dead})

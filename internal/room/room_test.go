@@ -944,3 +944,52 @@ func TestBotsLightTorchesInTheDark(t *testing.T) {
 		return lit
 	})
 }
+
+func TestSkillTreeOverTheRoom(t *testing.T) {
+	h := fastHub(t, func(c *Config) { c.Bots = 1 })
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	waitFor(t, "level", func() bool { return hasType(a, "level") })
+	r.Submit(a, proto.ClientMsg{T: "learn", Skill: "shieldbash", Seq: 1})
+	r.Submit(a, proto.ClientMsg{T: "bind", Slot: 0, Skill: "shieldbash", Seq: 2})
+	waitFor(t, "learned and bound", func() bool {
+		ok := false
+		r.Inspect(func(g *game.Game, _ int) {
+			var hh *game.Hero
+			for _, x := range g.Heroes {
+				if x.Name == "kmerz" {
+					hh = x
+				}
+			}
+			ok = hh.Ranks[hh.SkillIndex("shieldbash")] == 1 && hh.Binds[0] == hh.SkillIndex("shieldbash") && hh.Points == 0
+		})
+		return ok
+	})
+	// the bot spends its starting point too
+	waitFor(t, "bot learns", func() bool {
+		spent := false
+		r.Inspect(func(g *game.Game, _ int) {
+			for _, hh := range g.Heroes {
+				if strings.HasPrefix(hh.Name, "bot-") && hh.Points == 0 {
+					spent = true
+				}
+			}
+		})
+		return spent
+	})
+	// the private snapshot carries the tree and the key bindings
+	waitFor(t, "tree in snapshot", func() bool {
+		_, raws := drain(a)
+		for _, b := range raws {
+			var s struct {
+				T  string    `json:"t"`
+				Me *proto.Me `json:"me"`
+			}
+			if json.Unmarshal(b, &s) == nil && s.Me != nil && len(s.Me.Tree) == game.TreeSize && s.Me.Binds[0] == "shieldbash" && s.Me.Binds[1] == "cleave" {
+				return true
+			}
+		}
+		return false
+	})
+}

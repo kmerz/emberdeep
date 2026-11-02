@@ -132,7 +132,17 @@ export class GameState {
         case 'down': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is DOWN!', PINK, 1]], now); break;
         case 'revive': this.pushLog([[an, ac], [' revives ', DIM], [this.nameOf(e.target || 0), this.colOf(e.target || 0)]], now); break;
         case 'dead': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' has fallen', PINK]], now); break;
-        case 'levelup': this.pushLog([[an, ac], [' reaches level ', DIM], [String(e.amount), GOLD, 1]], now); break;
+        case 'levelup':
+          this.pushLog([[an, ac], [' reaches level ', DIM], [String(e.amount), GOLD, 1]], now);
+          if (you) this.pushLog([['+1 skill point · open the skill tree with ', DIM], ['T', TX, 1]], now);
+          break;
+        case 'learn':
+          if (you && e.fx) {
+            const sk = SKILL_BY_ID[e.fx];
+            if (sk) this.pushLog([[(e.amount ?? 1) > 1 ? 'You raise ' : 'You learn ', DIM], [sk.meta.name, CLS[sk.cls].col, 1], [(e.amount ?? 1) > 1 ? ' to rank ' + e.amount : '', DIM]], now);
+          }
+          break;
+        case 'respec': if (you) this.pushLog([['Your skill points are back · spend them with ', DIM], ['T', TX, 1]], now); break;
         case 'absorb': break;
         case 'msg': this.pushLog([[e.text || '', TX]], now); break;
         case 'descend': this.pushLog([['The party descends to ', DIM], ['depth ' + (e.amount || 0), GOLD, 1]], now); break;

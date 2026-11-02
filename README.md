@@ -21,6 +21,7 @@ Open the page, **create a game** (or join with a code such as `ASH-7Q2`, or open
 | `1` `2` `3` | class skills, aimed at the mouse cursor (or the nearest enemy / facing) |
 | left click | skill 1 |
 | `Q` | drink a healing potion |
+| `T` | open the skill tree (arrows pick, `ENTER` learn or rank up, `1` `2` `3` put the skill on that key, `R` reset at the stairs) |
 | `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use, `X` drop, `I`/`Esc` close) |
 | hold `E` | revive an adjacent downed ally (3 s) |
 | `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/leave` or `/quit` leave the game, `/help`) |
@@ -29,12 +30,18 @@ Open the page, **create a game** (or join with a code such as `ASH-7Q2`, or open
 
 ### Classes
 
-| Class | Resource | Skills |
-|---|---|---|
-| Warrior | Rage | Cleave, Iron Wall (absorb + threat), Leap (shock ring, shake) |
-| Rogue | Energy | Stab (x2 from behind), Caltrops (slow + bleed), Shadow Bomb (Void Rift) |
-| Sorcerer | Mana | Spark, Ember Nova, Blink |
-| Monk | Ki | Palm Strike (knockback), Dash, Bell of Warding (-30% damage, 12 s) |
+Each class has a skill tree of 6 skills in 3 tiers. Tier 1 is open from level 1, tier 2 from level 3, tier 3
+from level 8, and a skill of a lower tier needs a skill of the tier above it first. Each level gives 1 point to
+learn a skill or raise its rank (up to 5: +15% damage, +10% duration, -5% cooldown per rank). Any 3 learned
+skills go on keys 1-3. You start with the first skill and 1 point; the tree resets every run, and standing at
+the stairs lets you reset it for free.
+
+| Class | Resource | Tier 1 | Tier 2 | Tier 3 |
+|---|---|---|---|---|
+| Warrior | Rage | Cleave · Shield Bash (stun) | Iron Wall (absorb + threat) · War Cry (taunt, party +20% damage) | Leap (shock ring) · Whirlwind |
+| Rogue | Energy | Stab (x2 from behind) · Poison Blade | Caltrops (slow + bleed) · Smoke Step (vanish) | Shadow Bomb · Fan of Knives |
+| Sorcerer | Mana | Spark · Frost Ring (slow) | Ember Nova · Light (orb at the cursor) | Blink · Chain Spark |
+| Monk | Ki | Palm Strike (knockback) · Staff Sweep (reach 2) | Dash · Healing Breath | Bell of Warding · Hundred Fists |
 
 All numbers live in `internal/game/balance.go`.
 
