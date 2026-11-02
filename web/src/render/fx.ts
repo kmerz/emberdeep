@@ -118,6 +118,12 @@ export class Fx {
       case 'potion': push('dmg', 1300, { text: '+' + ev.amount, pal: 'heal' }); break;
       case 'revive': push('flare', 900, { pal: 'revive', x: ev.x, y: ev.y }); break;
       case 'levelup': push('dmg', 1800, { text: 'LEVEL UP', pal: 'level' }); break;
+      case 'chest': push('flare', 700, { pal: 'wall' }); break;
+      case 'mimic':
+        if (ev.target) this.flashes.set(ev.target, t0);
+        push('dmg', 1600, { text: 'MIMIC!', crit: true });
+        push('leap', 500); // a jolt of light and a small shake
+        break;
       case 'absorb': push('dmg', 900, { text: '(' + ev.amount + ')', pal: 'absorb' }); break;
     }
     if (this.list.length > 160) this.list.splice(0, this.list.length - 120);

@@ -18,6 +18,7 @@ type Monster struct {
 	NextMove  int
 	NextAtk   int
 	Awake     bool
+	Disguised bool // a mimic still pretending to be a chest
 	Threat    []ThreatEntry
 
 	SlowUntil  int
@@ -33,6 +34,10 @@ func (m *Monster) Def() MonDef { return MonDefs[m.Kind] }
 func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 	if m.HP <= 0 || dmg <= 0 {
 		return
+	}
+	if m.Disguised { // hitting a "chest" gives the mimic away
+		m.Disguised = false
+		g.emit(Event{K: "mimic", Actor: actor, Target: m.ID, X: m.X, Y: m.Y})
 	}
 	m.HP -= dmg
 	m.Awake = true
@@ -70,6 +75,9 @@ func (g *Game) killMonster(m *Monster, killer int) {
 	if m.Elite {
 		g.KingKilled = true
 	}
+	if m.Kind == 'M' { // a mimic keeps the chest's treasure inside
+		g.chestLoot(m.X, m.Y)
+	}
 	xp := int(math.Round(float64(def.XP) * DepthXPMult(g.Depth)))
 	g.gainXP(xp)
 	// gold is shared; potions are personal drops rolled per player
@@ -93,7 +101,21 @@ func (g *Game) killMonster(m *Monster, killer int) {
 	}
 }
 
+// revealMimic wakes a mimic that a hero bumped: it bites at once.
+func (g *Game) revealMimic(m *Monster, h *Hero) {
+	m.Disguised, m.Awake = false, true
+	g.addThreat(m, h.ID, 1)
+	g.emit(Event{K: "mimic", Actor: h.ID, Target: m.ID, X: m.X, Y: m.Y})
+	dmg := int(math.Round(float64(m.Def().Dmg) * MimicBite * Difficulties[g.Settings.Difficulty].DmgMult * DepthDmgMult(g.Depth)))
+	m.Facing = dirIndex(h.X-m.X, h.Y-m.Y, m.Facing)
+	m.NextAtk = g.Now + m.Def().AtkTicks
+	g.damageHero(h, dmg, m.ID)
+}
+
 func (g *Game) monsterAI(m *Monster) {
+	if m.Disguised {
+		return
+	}
 	if g.Now < m.BleedUntil && g.Now%TickHz == 0 {
 		g.damageMonster(m, m.BleedDmg, m.BleedOwner, false)
 		if m.HP <= 0 {

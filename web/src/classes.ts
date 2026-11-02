@@ -45,5 +45,5 @@ export const SKILL_BY_ID: Record<string, { cls: ClassId; meta: SkillMeta }> = {}
 for (const c of CLASS_LIST) for (const s of CLS[c].skills) SKILL_BY_ID[s.id] = { cls: c, meta: s };
 
 export const MC: Record<string, RGB> = {
-  z: [150, 196, 106], s: [232, 226, 208], f: [255, 106, 77], b: [160, 140, 255], K: [255, 61, 110],
+  z: [150, 196, 106], s: [232, 226, 208], f: [255, 106, 77], b: [160, 140, 255], K: [255, 61, 110], M: [214, 150, 80],
 };

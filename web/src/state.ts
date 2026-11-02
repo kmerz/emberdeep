@@ -109,12 +109,15 @@ export class GameState {
         }
         case 'kill':
           if (e.fx === 'K') this.pushLog([['The Tallow King', PINK, 1], [' falls to ', DIM], [an || 'the party', ac]], now);
+          else if (e.fx === 'M') this.pushLog([['The mimic', PINK, 1], [' falls and spills its treasure', DIM]], now);
           break;
         case 'pickup':
           if (e.fx === 'gold') this.pushLog([[you ? 'You' : an, you ? TX : ac], [' pick' + (you ? '' : 's') + ' up ', DIM], [(e.amount || 0) + ' gold', GOLD, 1]], now);
           else if (you && e.fx) { const it = itemInfo(e.fx); this.pushLog([['You pick up ', DIM], [(e.amount || 1) > 1 ? e.amount + '× ' + it.name : it.name, it.col, 1]], now); }
           break;
         case 'packfull': if (you) this.pushLog([['Your rucksack is full', PINK]], now); break;
+        case 'chest': this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' open a ' : ' opens a ', DIM], ['chest', GOLD, 1]], now); break;
+        case 'mimic': this.pushLog([['The chest was a ', DIM], ['MIMIC', PINK, 1], ['!', DIM]], now); break;
         case 'use': if (e.fx) { const it = itemInfo(e.fx); this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' drink a ' : ' drinks a ', DIM], [it.name, it.col]], now); } break;
         case 'drop': if (e.fx) { const it = itemInfo(e.fx); this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' drop ' : ' drops ', DIM], [(e.amount || 1) + '× ' + it.name, it.col]], now); } break;
         case 'down': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is DOWN!', PINK, 1]], now); break;

@@ -17,7 +17,7 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 
 ## 3. Foundation: items
 - [x] [L] Rucksack with an inventory UI (12 slots; potions, draughts, firebombs, garnets)
-- [ ] [M] Chests with loot, and mimics (chests that bite)
+- [x] [M] Chests with loot, and mimics (chests that bite)
 - [ ] [M] Torch item and light spell (needed for the pitch-black floor)
 
 ## 4. Progression

@@ -120,8 +120,17 @@ func BuildShared(g *game.Game) []byte {
 			s.Party[len(s.Party)-1].DownT = 0
 		}
 	}
+	for _, c := range g.Chests {
+		if g.IsVisible(c.X, c.Y) {
+			s.Ents = append(s.Ents, proto.Ent{ID: c.ID, K: "i", G: "C", X: c.X, Y: c.Y})
+		}
+	}
 	for _, m := range g.Mons {
 		if !g.IsVisible(m.X, m.Y) {
+			continue
+		}
+		if m.Disguised { // looks exactly like a chest
+			s.Ents = append(s.Ents, proto.Ent{ID: m.ID, K: "i", G: "C", X: m.X, Y: m.Y})
 			continue
 		}
 		e := proto.Ent{ID: m.ID, K: "m", G: string(rune(m.Kind)), X: m.X, Y: m.Y, HP: m.HP, HPMax: m.HPMax, Elite: m.Elite, Face: m.Facing,

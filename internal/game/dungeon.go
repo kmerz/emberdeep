@@ -48,6 +48,12 @@ type Level struct {
 	Golds    []GoldSpawn
 	Theme    *Theme
 	Glows    []Pt // decor tiles that give off light
+	Chests   []ChestSpawn
+}
+
+type ChestSpawn struct {
+	X, Y  int
+	Mimic bool
 }
 
 func (l *Level) At(x, y int) byte {
@@ -275,6 +281,7 @@ func Generate(seed uint32, depth, n int) *Level {
 			l.Mons = append(l.Mons, MonSpawn{Kind: kinds[rg.Intn(len(kinds))], X: p.X, Y: p.Y})
 		}
 	}
+	l.placeChests(seed, depth, taken)
 	for i, r := range l.Rooms {
 		rg := NewRNG(uint64(seed)*131 + uint64(i) + 5000)
 		if rg.Chance(0.6) {
@@ -292,6 +299,57 @@ func abs(a int) int {
 		return -a
 	}
 	return a
+}
+
+// placeChests puts a chest against a wall in some rooms. A chest never sits next to a door or the stairs and
+// leaves at least 5 open neighbours, so it can't block a passage. It uses its own generator, so adding
+// chests doesn't move anything else.
+func (l *Level) placeChests(seed uint32, depth int, taken map[Pt]bool) {
+	rng := NewRNG(uint64(seed)*977 + 31337)
+	for i, r := range l.Rooms {
+		if i == l.StartRm || !rng.Chance(ChestRoomChance) {
+			continue
+		}
+		var cand []Pt
+		for y := r.Y0; y <= r.Y1; y++ {
+			for x := r.X0; x <= r.X1; x++ {
+				if l.chestSpot(x, y) && !taken[Pt{x, y}] {
+					cand = append(cand, Pt{x, y})
+				}
+			}
+		}
+		if len(cand) == 0 {
+			continue
+		}
+		p := cand[rng.Intn(len(cand))]
+		taken[p] = true
+		l.Chests = append(l.Chests, ChestSpawn{X: p.X, Y: p.Y, Mimic: rng.Chance(MimicChance(depth))})
+	}
+}
+
+func (l *Level) chestSpot(x, y int) bool {
+	if l.At(x, y) != TFloor {
+		return false
+	}
+	wall, open := false, 0
+	for i, d := range dirs8 {
+		t := l.At(x+d.X, y+d.Y)
+		if t == TDoor || t == TStairs {
+			return false
+		}
+		if Solid(t) {
+			wall = wall || i%2 == 0 // a wall straight up, down, left or right
+		} else {
+			open++
+		}
+	}
+	// two cells out must not be a door either (keeps door mouths clear)
+	for _, d := range dirs8 {
+		if l.At(x+2*d.X, y+2*d.Y) == TDoor {
+			return false
+		}
+	}
+	return wall && open >= 5
 }
 
 // carveCave carves an irregular blob inside r: a random walk from the centre fills about 55% of the

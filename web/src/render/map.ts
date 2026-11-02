@@ -21,6 +21,7 @@ const GLY: Record<string, Glyph> = {
   '&': { ch: '&', fg: [110, 190, 255], b: true }, // resource draught
   '*': { ch: '*', fg: [255, 140, 50], b: true },  // firebomb
   'g': { ch: '♦', fg: [230, 60, 90], b: true },   // garnet
+  'C': { ch: '■', fg: [214, 150, 80], b: true },   // closed chest (or a mimic pretending)
   '>': { ch: '>', fg: [120, 240, 255], b: true },
   '=': { ch: '≈', fg: [70, 140, 170], lit: true },
   '"': { ch: '♣', fg: [120, 230, 140], b: true },

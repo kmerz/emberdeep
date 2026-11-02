@@ -84,6 +84,12 @@ type Item struct {
 	Owner  int // 0 = shared
 }
 
+// Chest is a closed chest. It blocks its cell until a hero bumps it open. Mimics are monsters, not chests.
+type Chest struct {
+	ID   int
+	X, Y int
+}
+
 type Patch struct {
 	X, Y  int
 	Until int
@@ -110,6 +116,7 @@ type Game struct {
 	Mons    []*Monster
 	Items   []*Item
 	Patches []*Patch
+	Chests  []*Chest
 
 	Explored []bool
 	Visible  []bool
@@ -123,17 +130,18 @@ type Game struct {
 	ClearedTick int
 	WipedTick   int
 
-	rng      *RNG
-	nextID   int
-	occ      []int32
-	heroByID map[int]*Hero
-	monByID  map[int]*Monster
-	events   []Event
-	explNew  []TileUpdate
-	pend     []pending
-	bfsStamp []int32
-	bfsPar   []int32
-	stamp    int32
+	rng       *RNG
+	nextID    int
+	occ       []int32
+	heroByID  map[int]*Hero
+	monByID   map[int]*Monster
+	chestByID map[int]*Chest
+	events    []Event
+	explNew   []TileUpdate
+	pend      []pending
+	bfsStamp  []int32
+	bfsPar    []int32
+	stamp     int32
 
 	arrival      map[int]heroSave // each hero as they arrived on this floor (a wipe retries from here)
 	levelChanged bool
@@ -165,7 +173,7 @@ func (g *Game) loadFloor(depth int) {
 	g.Depth = depth
 	g.Level = Generate(g.Seed, depth, n)
 	g.rng = NewRNG(uint64(FloorSeed(g.Seed, depth))*31 + 5)
-	g.Mons, g.Items, g.Patches, g.pend = nil, nil, nil, nil
+	g.Mons, g.Items, g.Patches, g.pend, g.Chests = nil, nil, nil, nil, nil
 	g.KingKilled = false
 	g.stairsSince, g.StairsLeft, g.StairsAt, g.StairsNeed = -1, 0, 0, 0
 	g.explNew = nil
@@ -190,6 +198,22 @@ func (g *Game) loadFloor(depth int) {
 	}
 	for _, gs := range g.Level.Golds {
 		g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '$', X: gs.X, Y: gs.Y, Amount: gs.Amount})
+	}
+	g.chestByID = map[int]*Chest{}
+	for _, cs := range g.Level.Chests {
+		if cs.Mimic {
+			def := MonDefs['M']
+			hp := int(math.Round(float64(def.HP) * EnemyHPMult(n) * DepthHPMult(depth)))
+			m := &Monster{ID: g.newID(), Kind: 'M', X: cs.X, Y: cs.Y, HP: hp, HPMax: hp, Facing: 6, Disguised: true}
+			g.Mons = append(g.Mons, m)
+			g.monByID[m.ID] = m
+			g.occ[m.Y*LW+m.X] = int32(m.ID)
+			continue
+		}
+		c := &Chest{ID: g.newID(), X: cs.X, Y: cs.Y}
+		g.Chests = append(g.Chests, c)
+		g.chestByID[c.ID] = c
+		g.occ[c.Y*LW+c.X] = int32(c.ID)
 	}
 	g.arrival = map[int]heroSave{}
 	for _, h := range g.Heroes {
@@ -391,10 +415,21 @@ func (g *Game) applyMove(h *Hero, in Intent) error {
 	h.Facing = in.Dir
 	// moving cancels any revive in progress
 	h.ReviveTarget, h.ReviveProg = 0, 0
+	// bumping a chest opens it (or wakes the mimic); it costs a step
+	if g.bumpChest(h, nx, ny) {
+		g.spendStep(h)
+		return nil
+	}
 	if !g.cellFree(nx, ny) {
 		return ErrBlocked
 	}
 	g.moveEntity(int32(h.ID), &h.X, &h.Y, nx, ny)
+	g.spendStep(h)
+	g.pickup(h)
+	return nil
+}
+
+func (g *Game) spendStep(h *Hero) {
 	cost := MoveTicks
 	if g.Now < h.SlowUntil {
 		cost = MoveTicks * 2
@@ -404,8 +439,60 @@ func (g *Game) applyMove(h *Hero, in Intent) error {
 		base = g.Now
 	}
 	h.NextMove = base + cost
-	g.pickup(h)
-	return nil
+}
+
+// bumpChest opens the chest at x, y or reveals a mimic there. It reports whether there was one.
+func (g *Game) bumpChest(h *Hero, x, y int) bool {
+	id := int(g.occ[y*LW+x])
+	if c := g.chestByID[id]; c != nil {
+		g.openChest(h, c)
+		return true
+	}
+	if m := g.monByID[id]; m != nil && m.Disguised {
+		g.revealMimic(m, h)
+		return true
+	}
+	return false
+}
+
+func (g *Game) openChest(h *Hero, c *Chest) {
+	delete(g.chestByID, c.ID)
+	for i, o := range g.Chests {
+		if o == c {
+			g.Chests = append(g.Chests[:i], g.Chests[i+1:]...)
+			break
+		}
+	}
+	if g.occ[c.Y*LW+c.X] == int32(c.ID) {
+		g.occ[c.Y*LW+c.X] = 0
+	}
+	g.emit(Event{K: "chest", Actor: h.ID, Target: c.ID, X: c.X, Y: c.Y})
+	g.chestLoot(c.X, c.Y)
+}
+
+// chestLoot spills a chest's treasure on a cell: shared gold, and ChestRolls personal item rolls per hero
+// (weighted by each item's drop chance).
+func (g *Game) chestLoot(x, y int) {
+	g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '$', X: x, Y: y, Amount: ChestGold + g.rng.Intn(ChestGold+1)})
+	total := 0.0
+	for _, id := range ItemOrder {
+		total += Items[id].DropChance
+	}
+	for _, h := range g.Heroes {
+		if h.Dead || !h.Connected {
+			continue
+		}
+		for k := 0; k < ChestRolls; k++ {
+			r := g.rng.Float() * total
+			for _, id := range ItemOrder {
+				def := Items[id]
+				if r -= def.DropChance; r < 0 {
+					g.Items = append(g.Items, &Item{ID: g.newID(), Kind: def.Glyph, Def: id, X: x, Y: y, Amount: 1, Owner: h.ID})
+					break
+				}
+			}
+		}
+	}
 }
 
 func (g *Game) moveEntity(id int32, px, py *int, nx, ny int) {

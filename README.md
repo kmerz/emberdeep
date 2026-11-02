@@ -45,6 +45,9 @@ All numbers live in `internal/game/balance.go`.
 - Gold is split between connected heroes. Item drops (healing potions, resource draughts, firebombs, garnets) are
   personal: only their owner sees and picks them up. Each hero has a 12-slot rucksack (items stack); an item
   dropped from the rucksack can be picked up by anyone, which is how you hand things to a teammate.
+- About a third of the rooms hold a chest `■`: walk into it to open it. It spills gold for the party and two
+  item rolls for every hero. From floor 2 on, some chests are mimics (8% rising to 38% at floor 10): they bite
+  when bumped, and hitting a chest gives a mimic away. A dead mimic drops the treasure it was guarding.
 - At 0 HP a hero is downed for 20 s; if nobody revives them they die and spectate. The party wipes when no
   connected hero is standing (heroes held for a reconnect are idle and invulnerable, so they don't count).
 - Descend by having every living, connected hero on or next to `>` for 3 s. A run is 10 floors deep (`MaxDepth`);

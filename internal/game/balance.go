@@ -200,6 +200,7 @@ var MonDefs = map[byte]MonDef{
 	'f': {Name: "Fiend", HP: 16, Dmg: 5, MoveTicks: 3, AtkTicks: 10, XP: 6},
 	'b': {Name: "Bat", HP: 10, Dmg: 4, MoveTicks: 3, AtkTicks: 10, XP: 4},
 	'K': {Name: "The Tallow King", HP: 260, Dmg: 16, MoveTicks: 5, AtkTicks: 14, XP: 120},
+	'M': {Name: "Mimic", HP: 70, Dmg: 11, MoveTicks: 6, AtkTicks: 12, XP: 30},
 }
 
 type Difficulty struct {
@@ -211,6 +212,22 @@ var Difficulties = []Difficulty{{"NORMAL", 1.0}, {"NIGHTMARE", 1.5}}
 
 // Loot
 const GoldDropChance = 0.5
+
+// Chests
+const (
+	ChestRoomChance = 0.35 // chance a room (not the start room) holds a chest
+	ChestRolls      = 2    // item rolls per connected hero when a chest opens (or a mimic dies)
+	ChestGold       = 25   // base gold in a chest, plus up to the same again
+	MimicBite       = 1.5  // the surprise bite does this much of a normal hit
+)
+
+// MimicChance is the share of chests that are mimics on a floor (none on floor 1).
+func MimicChance(depth int) float64 {
+	if depth <= 1 {
+		return 0
+	}
+	return min(0.4, 0.08+0.03*float64(depth))
+}
 
 // Rucksack
 const (
