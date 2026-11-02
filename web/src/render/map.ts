@@ -4,6 +4,7 @@ import { GameState, LW, LH } from '../state';
 import { MC, CLS } from '../classes';
 import type { Ent } from '../proto';
 import type { Cam, Light } from './fx';
+import { palette } from './themes';
 
 export const VW = 112;
 export const VH = 34;
@@ -18,6 +19,9 @@ const GLY: Record<string, Glyph> = {
   '$': { ch: '$', fg: [255, 212, 92], b: true },
   '!': { ch: '!', fg: [255, 92, 122], b: true },
   '>': { ch: '>', fg: [120, 240, 255], b: true },
+  '=': { ch: '≈', fg: [70, 140, 170], lit: true },
+  '"': { ch: '♣', fg: [120, 230, 140], b: true },
+  '^': { ch: '^', fg: [255, 120, 50], b: true },
 };
 
 export function buildLights(st: GameState, cam: Cam, t: number, heroes: { x: number; y: number }[], extra: Light[]): Light[] {
@@ -25,21 +29,30 @@ export function buildLights(st: GameState, cam: Cam, t: number, heroes: { x: num
   const inView = (x: number, y: number, r: number) =>
     x + r >= cam.x && x - r <= cam.x + VW && y + r / 2 >= cam.y && y - r / 2 <= cam.y + VH;
   const lv = st.level;
+  const pal = palette(lv?.theme);
   if (lv) {
     lv.torches.forEach((p, i) => {
-      if (!inView(p[0], p[1], 15) || st.tileAt(p[0], p[1]) === 0) return;
-      out.push({ x: p[0], y: p[1], r: 15, c: [1, 0.62, 0.28], i: 0.95 * (0.8 + 0.2 * Math.sin(t * 8.3 + i * 1.7) * Math.cos(t * 5.1 + i * 0.9)) });
+      if (!inView(p[0], p[1], pal.torchR) || st.tileAt(p[0], p[1]) === 0) return;
+      out.push({ x: p[0], y: p[1], r: pal.torchR, c: pal.torch, i: 0.95 * (0.8 + 0.2 * Math.sin(t * 8.3 + i * 1.7) * Math.cos(t * 5.1 + i * 0.9)) });
+    });
+    const gl = pal.glow;
+    if (gl) (lv.glows ?? []).forEach((p, i) => {
+      if (!inView(p[0], p[1], gl.r) || st.tileAt(p[0], p[1]) === 0) return;
+      out.push({ x: p[0], y: p[1], r: gl.r, c: gl.c, i: gl.i * (1 - gl.flicker + gl.flicker * Math.sin(t * 6.1 + i * 2.3)) });
     });
     const s = lv.stairs;
     if (st.tileAt(s[0], s[1]) !== 0 && inView(s[0], s[1], 9)) out.push({ x: s[0], y: s[1], r: 9, c: [0.27, 0.86, 1], i: 0.7 });
   }
-  for (const h of heroes) if (inView(h.x, h.y, 16)) out.push({ x: h.x, y: h.y, r: 16, c: [1, 0.9, 0.78], i: 0.5 });
+  for (const h of heroes) if (inView(h.x, h.y, 16)) out.push({ x: h.x, y: h.y, r: 16, c: pal.hero, i: 0.5 });
   for (const l of extra) if (inView(l.x, l.y, l.r)) out.push(l);
   return out;
 }
 
 export function drawMap(mb: Fb, st: GameState, cam: Cam, t: number, lights: Light[], heat: { x: number; y: number; k: number; rad: number }[]) {
   const fr7 = Math.floor(t * 7);
+  const pal = palette(st.level?.theme);
+  const floorG: Glyph = { ...GLY['.'], fg: pal.floorFg };
+  const glyph = (c: string) => (c === '.' ? floorG : GLY[c] || floorG);
   for (let y = 0; y < VH; y++) {
     const wy = y + cam.y;
     if (wy < 0 || wy >= LH) continue;
@@ -52,14 +65,14 @@ export function drawMap(mb: Fb, st: GameState, cam: Cam, t: number, lights: Ligh
       const solid = c === '#' || c === 'T' || c === 'O';
       const i = y * VW + x;
       if (!st.vis[wy * LW + wx]) {
-        if (solid) mb.put(x, y, '▀', [44, 46, 66], [26, 28, 40], 0);
+        if (solid) mb.put(x, y, '▀', pal.memWallTop, pal.memWallFace, 0);
         else {
-          const g = GLY[c] || GLY['.'];
-          mb.put(x, y, g.ch, mix(g.fg, [40, 44, 64], 0.72), [10, 11, 17], 0);
+          const g = glyph(c);
+          mb.put(x, y, g.ch, mix(g.fg, pal.memFloorFg, 0.72), pal.memFloorBg, 0);
         }
         continue;
       }
-      let Lr = 0.07, Lg = 0.07, Lb = 0.1;
+      let Lr = pal.ambient[0], Lg = pal.ambient[1], Lb = pal.ambient[2];
       for (let li = 0; li < lights.length; li++) {
         const s = lights[li];
         const d = dist(wx, wy, s.x, s.y);
@@ -70,17 +83,19 @@ export function drawMap(mb: Fb, st: GameState, cam: Cam, t: number, lights: Ligh
       }
       Lr = Math.round(Lr * 14) / 14; Lg = Math.round(Lg * 14) / 14; Lb = Math.round(Lb * 14) / 14;
       if (solid) {
-        const top = c === 'O' ? [128, 116, 160] : [100, 90, 134], face = c === 'O' ? [72, 64, 98] : [48, 42, 70];
+        const top = c === 'O' ? pal.pillarTop : pal.wallTop, face = c === 'O' ? pal.pillarFace : pal.wallFace;
         mb.put(x, y, '▀',
           [top[0] * (0.2 + Lr * 1.1), top[1] * (0.2 + Lg * 1.1), top[2] * (0.2 + Lb * 1.1)],
           [face[0] * (0.2 + Lr * 1.1), face[1] * (0.2 + Lg * 1.1), face[2] * (0.2 + Lb * 1.1)], 0);
-        if (c === 'T') mb.put(x, y, 'Ψ', mix([255, 196, 96], [255, 110, 40], 0.5 + 0.5 * Math.sin(t * 13 + x)), null, 1);
+        if (c === 'T') mb.put(x, y, 'Ψ', mix(pal.torchGlyph[0], pal.torchGlyph[1], 0.5 + 0.5 * Math.sin(t * 13 + x)), null, 1);
         continue;
       }
-      const g = GLY[c] || GLY['.'];
-      let bg: RGB = [13 + Lr * 50, 12 + Lg * 38, 20 + Lb * 34];
+      const g = glyph(c);
+      let bg: RGB = [pal.bgBase[0] + Lr * pal.bgLight[0], pal.bgBase[1] + Lg * pal.bgLight[1], pal.bgBase[2] + Lb * pal.bgLight[2]];
       let fg: RGB = g.lit ? [g.fg[0] * (0.25 + Lr), g.fg[1] * (0.25 + Lg), g.fg[2] * (0.25 + Lb)] : g.fg;
       if (c === '~') bg = add(bg, [26, 0, 6]);
+      if (c === '=') bg = add(bg, [0, 10, 18]);
+      if (c === '^') bg = add(bg, [40 + 20 * Math.sin(t * 3 + wx * 0.7), 8, 0]);
       if (c === '>') bg = [10, 44, 58];
       let scorched = false;
       for (const hh of heat) {

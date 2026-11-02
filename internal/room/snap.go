@@ -47,8 +47,13 @@ func LevelMsg(g *game.Game) []byte {
 	for i, t := range l.Torches {
 		tor[i] = [2]int{t.X, t.Y}
 	}
+	glows := make([][2]int, len(l.Glows))
+	for i, p := range l.Glows {
+		glows[i] = [2]int{p.X, p.Y}
+	}
 	return mustJSON(proto.Level{T: "level", W: l.W, H: l.H, Seed: SeedString(g.Seed), Torches: tor,
-		Stairs: [2]int{l.Stairs.X, l.Stairs.Y}, Start: [2]int{l.Start.X, l.Start.Y}, Depth: g.Depth, MaxDepth: game.MaxDepth})
+		Stairs: [2]int{l.Stairs.X, l.Stairs.Y}, Start: [2]int{l.Start.X, l.Start.Y}, Depth: g.Depth, MaxDepth: game.MaxDepth,
+		Theme: l.Theme.ID, Glows: glows})
 }
 
 func ExploreMsg(tiles []game.TileUpdate) []byte {

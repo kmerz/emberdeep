@@ -12,7 +12,8 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 ## 2. Foundation: depth
 - [x] [L] Multi-floor runs: `>` takes the party down. 10 floors first, data-driven so it can grow to 30.
       Gold, XP and items carry over.
-- [ ] [M] Per-floor themes: palette, ambient (light level, tile glyphs, maybe sound), which monsters spawn
+- [x] [M] Per-floor themes: palette, light level, tile glyphs, which monsters spawn, cave layouts for the caverns
+- [ ] [M] Ambient sound per theme (needs a small audio system first)
 
 ## 3. Foundation: items
 - [ ] [L] Rucksack with an inventory UI (pick up, use, drop; personal per hero)

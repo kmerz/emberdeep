@@ -2,6 +2,7 @@ package game
 
 import (
 	"bytes"
+	"hash/fnv"
 	"testing"
 )
 
@@ -64,8 +65,17 @@ func TestDescendKeepsProgressAndLoadsNewFloor(t *testing.T) {
 }
 
 func TestFloorsAreDeterministicAndBossesEveryFifth(t *testing.T) {
-	for d := 1; d <= MaxDepth; d++ {
-		a, b := Generate(7, d, 2), Generate(7, d, 2)
+	for _, seed := range []uint32{1, 7, 42, 99, 1234} {
+		for d := 1; d <= MaxDepth; d++ {
+			checkFloor(t, seed, d)
+		}
+	}
+}
+
+func checkFloor(t *testing.T, seed uint32, d int) {
+	t.Helper()
+	{
+		a, b := Generate(seed, d, 2), Generate(seed, d, 2)
 		if !bytes.Equal(a.Tiles, b.Tiles) {
 			t.Fatalf("depth %d is not deterministic", d)
 		}
@@ -78,6 +88,100 @@ func TestFloorsAreDeterministicAndBossesEveryFifth(t *testing.T) {
 		}
 		if want := d%BossEvery == 0; boss != want {
 			t.Errorf("depth %d: boss=%v, want %v", d, boss, want)
+		}
+	}
+}
+
+func TestThemeBands(t *testing.T) {
+	want := map[int]string{1: "cathedral", 2: "cathedral", 3: "crypt", 5: "crypt", 6: "caverns", 8: "caverns", 9: "ember", 10: "ember"}
+	for d, id := range want {
+		if got := Floor(d).Theme.ID; got != id {
+			t.Errorf("depth %d: theme %s, want %s", d, got, id)
+		}
+	}
+	for id, th := range Themes {
+		if th.ID != id || th.Name == "" || th.Kinds == "" || th.Decor == "" {
+			t.Errorf("theme %s is incomplete: %+v", id, th)
+		}
+		for i := 0; i < len(th.Kinds); i++ {
+			if _, ok := MonDefs[th.Kinds[i]]; !ok {
+				t.Errorf("theme %s: unknown monster kind %q", id, th.Kinds[i])
+			}
+		}
+	}
+}
+
+// Floors 1-2 (Cathedral) must keep the exact layouts they had before themes existed.
+func TestCathedralLayoutUnchanged(t *testing.T) {
+	for _, c := range []struct {
+		seed  uint32
+		depth int
+		hash  uint64
+		mons  int
+	}{
+		{1, 1, 0x6a6434a99685e218, 90}, {1, 2, 0xb1351cb354c1de60, 98},
+		{7, 1, 0xb32a2bd04d332d20, 93}, {7, 2, 0x66e8e29525baaf37, 96},
+		{42, 1, 0xdd1294b8a0559549, 91}, {42, 2, 0x476e4d91ecd37642, 95},
+		{99, 1, 0x79a52f7311be919, 95}, {99, 2, 0x924ea70243cdaa7f, 97},
+		{1234, 1, 0xc90aafc1b84204a3, 83}, {1234, 2, 0xc071255b0f7e4f10, 86},
+	} {
+		l := Generate(c.seed, c.depth, 2)
+		h := fnv.New64a()
+		h.Write(l.Tiles)
+		if h.Sum64() != c.hash || len(l.Mons) != c.mons {
+			t.Errorf("seed %d depth %d changed: hash %#x mons %d", c.seed, c.depth, h.Sum64(), len(l.Mons))
+		}
+	}
+}
+
+func TestCaveFloors(t *testing.T) {
+	for _, seed := range []uint32{1, 7, 42, 99, 1234} {
+		l := Generate(seed, 6, 2)
+		if !l.Theme.Caves {
+			t.Fatal("depth 6 should be caverns")
+		}
+		for _, tl := range l.Tiles {
+			if tl == TDoor || tl == TPillar {
+				t.Fatalf("seed %d: caves have no doors or pillars", seed)
+			}
+		}
+		br := l.Rooms[l.BossRoom]
+		st := l.Stairs
+		if st.X < br.X0 || st.X > br.X1 || st.Y < br.Y0 || st.Y > br.Y1 {
+			t.Errorf("seed %d: stairs %v outside the boss room %v", seed, st, br)
+		}
+		if !l.Walkable(l.Start.X, l.Start.Y) {
+			t.Errorf("seed %d: start not walkable", seed)
+		}
+		// a cave room is not a full rectangle
+		r := l.Rooms[0]
+		open := 0
+		for y := r.Y0; y <= r.Y1; y++ {
+			for x := r.X0; x <= r.X1; x++ {
+				if l.Walkable(x, y) {
+					open++
+				}
+			}
+		}
+		if open == r.W()*r.H() {
+			t.Errorf("seed %d: cave room is a plain rectangle", seed)
+		}
+	}
+}
+
+func TestGlowsOnlyWhereThemed(t *testing.T) {
+	for d := 1; d <= MaxDepth; d++ {
+		l := Generate(42, d, 2)
+		if len(l.Glows) > MaxGlows {
+			t.Errorf("depth %d: %d glows over the cap", d, len(l.Glows))
+		}
+		if (l.Theme.Glow == 0) != (len(l.Glows) == 0) {
+			t.Errorf("depth %d (%s): %d glows", d, l.Theme.ID, len(l.Glows))
+		}
+		for _, g := range l.Glows {
+			if l.At(g.X, g.Y) != l.Theme.Glow {
+				t.Errorf("depth %d: glow at %v is %q", d, g, l.At(g.X, g.Y))
+			}
 		}
 	}
 }

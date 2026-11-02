@@ -16,12 +16,13 @@ import (
 )
 
 type Config struct {
-	MaxRooms  int
-	PublicURL string
-	Origin    OriginPolicy
-	Lag       time.Duration
-	Jitter    time.Duration
-	Bots      int
+	MaxRooms   int
+	PublicURL  string
+	Origin     OriginPolicy
+	Lag        time.Duration
+	Jitter     time.Duration
+	Bots       int
+	StartDepth int // runs start on this floor (dev: look at deeper floors); 0 or 1 = the top
 
 	TickEvery       time.Duration // default 50 ms (20 Hz)
 	HbEvery         time.Duration // default 2 s

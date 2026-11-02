@@ -5,6 +5,7 @@ import { CLS } from '../classes';
 import type { Ent, PartyEntry } from '../proto';
 import type { Cam } from './fx';
 import { VW, VH } from './map';
+import { palette } from './themes';
 
 export interface UiState { chatActive: boolean; chatText: string; }
 
@@ -12,7 +13,7 @@ export function statusBar(fb: Fb, st: GameState) {
   fb.fill(0, 0, W, 1, [17, 16, 27]);
   fb.segs(0, 0, [
     [' ◆ EMBERDEEP ', [22, 6, 20], PINK, 1],
-    [' Cathedral of Ash ', [236, 228, 255], [44, 36, 68], 1],
+    [' ' + palette(st.level?.theme).name + ' ', [236, 228, 255], [44, 36, 68], 1],
     [' Depth ' + String(st.level?.depth ?? 1).padStart(2, '0') + ' ', [196, 186, 230], [32, 28, 50]],
     [' seed ' + (st.level?.seed ?? '----') + ' ', [130, 124, 160], [22, 21, 34]],
   ]);
@@ -241,6 +242,8 @@ export function depthBanner(fb: Fb, st: GameState, now: number) {
   const fade = age < 2000 ? 1 : 1 - (age - 2000) / 500;
   const x = Math.floor((VW - txt.length) / 2);
   fb.txt(x, 8, txt, mul([24, 6, 20], fade), mul(GOLD, fade), 1);
+  const name = palette(st.level.theme).name;
+  fb.txt(Math.floor((VW - name.length) / 2), 10, name, mul(TX, fade), null, 0);
 }
 
 export function overlayBox(fb: Fb, kind: 'wipe' | 'cleared', st: GameState, now: number) {

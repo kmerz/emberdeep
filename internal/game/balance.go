@@ -50,13 +50,52 @@ const (
 )
 
 type FloorDef struct {
+	Theme     *Theme
 	Kinds     string // monster kinds rolled for packs
 	Boss      byte   // 0 = no boss on this floor
 	PackBonus int    // extra monsters per room
 }
 
+// Theme is the look and population of a band of floors. The client has a matching palette per ID.
+type Theme struct {
+	ID, Name    string
+	Kinds       string  // monster mix
+	Caves       bool    // irregular cave rooms instead of rectangles
+	TorchRate   float64 // share of torches kept (1 = all)
+	Decor       string  // decor tiles rolled on floor cells
+	DecorChance float64
+	Glow        byte // decor tile that gives off light (0 = none)
+}
+
+var Themes = map[string]*Theme{
+	"cathedral": {ID: "cathedral", Name: "Cathedral of Ash", Kinds: "zzzssfb", TorchRate: 1, Decor: "~:%", DecorChance: 0.03},
+	"crypt":     {ID: "crypt", Name: "Flooded Crypt", Kinds: "zzzzzssb", TorchRate: 0.6, Decor: "==:=%", DecorChance: 0.06},
+	"caverns":   {ID: "caverns", Name: "Fungal Caverns", Kinds: "bbbbfzs", Caves: true, Decor: "\":\"%", DecorChance: 0.04, Glow: '"'},
+	"ember":     {ID: "ember", Name: "Ember Depths", Kinds: "fffsszb", TorchRate: 0.4, Decor: "^^:%~", DecorChance: 0.04, Glow: '^'},
+}
+
+// ThemeBands: a theme covers floors from From until the next band starts.
+var ThemeBands = []struct {
+	From  int
+	Theme string
+}{{1, "cathedral"}, {3, "crypt"}, {6, "caverns"}, {9, "ember"}}
+
+func ThemeAt(depth int) *Theme {
+	t := Themes[ThemeBands[0].Theme]
+	for _, b := range ThemeBands {
+		if depth >= b.From {
+			t = Themes[b.Theme]
+		}
+	}
+	return t
+}
+
+// MaxGlows caps the light-giving decor per floor (each one is a light on the client).
+const MaxGlows = 120
+
 func Floor(depth int) FloorDef {
-	f := FloorDef{Kinds: "zzzssfb", PackBonus: (depth - 1) / 3}
+	th := ThemeAt(depth)
+	f := FloorDef{Theme: th, Kinds: th.Kinds, PackBonus: (depth - 1) / 3}
 	if depth%BossEvery == 0 {
 		f.Boss = 'K'
 	}

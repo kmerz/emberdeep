@@ -91,6 +91,8 @@ type Level struct {
 	Start    [2]int   `json:"start"`
 	Depth    int      `json:"depth"`
 	MaxDepth int      `json:"maxDepth"`
+	Theme    string   `json:"theme"` // palette id on the client
+	Glows    [][2]int `json:"glows"` // decor tiles that give off light
 }
 
 // Explore carries newly explored tiles. It is delivered as an event (never dropped).

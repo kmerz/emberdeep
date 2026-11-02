@@ -35,7 +35,7 @@ export interface LobbyMsg {
   t: 'lobby'; code: string; players: LobbyPlayer[]; inGame: boolean;
   settings: { difficulty: string; seed: string; loot: string; friendlyFire: boolean };
 }
-export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number]; depth: number; maxDepth: number }
+export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][] }
 export type ServerMsg =
   | { t: 'welcome'; you: number; token: string; code: string; inviteUrl: string; isHost: boolean }
   | LobbyMsg

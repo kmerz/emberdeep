@@ -1,6 +1,7 @@
 import type { Ent, GameEvent, LevelMsg, LobbyMsg, Me, Objectives, PartyEntry, ServerMsg, Snap, ClassId } from './proto';
 import { CLS, SKILL_BY_ID } from './classes';
 import { DIM, GOLD, PINK, RGB, TX } from './term/fb';
+import { palette } from './render/themes';
 
 export const LW = 176;
 export const LH = 62;
@@ -151,6 +152,9 @@ export class GameState {
         break;
       case 'level':
         // a new floor (or a retry): forget everything about the old map
+        if (m.theme !== this.level?.theme) {
+          this.pushLog([['You enter the ', DIM], [palette(m.theme).name, TX], [' · Depth ' + String(m.depth).padStart(2, '0'), DIM]], now);
+        }
         this.level = m; this.tiles.fill(0); this.vis.fill(0);
         this.recs = []; this.latest = null; this.pings = []; this.overlay = null; this.lastTarget = 0;
         this.levelAt = now;

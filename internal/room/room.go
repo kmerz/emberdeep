@@ -537,7 +537,7 @@ func (r *Room) applyIntent(pid int, it game.Intent) {
 
 func (r *Room) startGame() {
 	r.overlay = ""
-	r.g = game.New(r.seed, r.settings, len(r.players))
+	r.g = game.NewAt(r.seed, r.settings, len(r.players), r.cfg.StartDepth)
 	for _, p := range r.players {
 		h := r.g.AddHero(p.ID, p.Name, p.Cls)
 		h.Connected = p.connected()

@@ -48,6 +48,9 @@ All numbers live in `internal/game/balance.go`.
   level, XP, gold and potions carry over, and dead or downed heroes stand up on the next floor at 50% HP. Enemies get
   tougher with depth, and a boss guards every 5th floor. The stairs on floor 10 end the run ("DEPTH CLEARED") and
   the room returns to the lobby with a new seed.
+- Floors come in four themes, each with its own look, light and monster mix: Cathedral of Ash (1-2), Flooded
+  Crypt (3-5), Fungal Caverns (6-8, cave-shaped rooms, glowing fungus) and Ember Depths (9-10). The bands live in
+  `ThemeBands` in `balance.go`; the client palettes in `web/src/render/themes.ts`.
 - After a wipe the host's `ENTER` retries the same floor, with every hero as they arrived on it.
 - A disconnected hero stays for 60 s; reconnecting with the same browser (token in `localStorage`) resumes it.
   Rooms that stay empty for 5 minutes are closed.
@@ -59,6 +62,7 @@ All numbers live in `internal/game/balance.go`.
 | `-addr` / `ADDR` | listen address (default `:8080`) |
 | `MAX_ROOMS` | maximum concurrent rooms (default 200) |
 | `PUBLIC_URL` | public origin, used for invite links and the websocket Origin check |
+| `-depth N` | dev: start every run on floor N (to look at deeper floors and themes) |
 | `-bots N` | fill N slots of each new room with AI teammates (1-3); joining players replace them |
 | `-lag ms`, `-jitter ms` | artificial one-way latency in both directions (never reorders messages) |
 | `-dev` | also accept the Vite dev origin `http://localhost:5173` |

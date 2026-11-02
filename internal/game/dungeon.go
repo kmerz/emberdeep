@@ -20,6 +20,9 @@ const (
 	TBlood  = '~'
 	TRubble = ':'
 	TBones  = '%'
+	TWater  = '=' // shallow water (crypt)
+	TFungus = '"' // glowing fungus (caverns)
+	TEmbers = '^' // ember cracks (ember depths)
 )
 
 func Solid(t byte) bool { return t == TWall || t == TTorch || t == TPillar || t == ' ' || t == 0 }
@@ -43,6 +46,8 @@ type Level struct {
 	Torches  []Pt
 	Mons     []MonSpawn
 	Golds    []GoldSpawn
+	Theme    *Theme
+	Glows    []Pt // decor tiles that give off light
 }
 
 func (l *Level) At(x, y int) byte {
@@ -74,9 +79,12 @@ func Generate(seed uint32, depth, n int) *Level {
 		n = 1
 	}
 	fl := Floor(depth)
+	th := fl.Theme
 	seed = FloorSeed(seed, depth)
+	// extra randomness for themes comes from its own generator, so floors 1-2 keep their exact old layout
+	trng := NewRNG(uint64(seed)*7 + 4242)
 	rng := NewRNG(uint64(seed) + 77)
-	l := &Level{W: LW, H: LH, Tiles: make([]byte, LW*LH)}
+	l := &Level{W: LW, H: LH, Tiles: make([]byte, LW*LH), Theme: th}
 	for i := range l.Tiles {
 		l.Tiles[i] = ' '
 	}
@@ -101,6 +109,10 @@ func Generate(seed uint32, depth, n int) *Level {
 		}
 	}
 	for _, r := range l.Rooms {
+		if th.Caves {
+			l.carveCave(r, trng, isRoom)
+			continue
+		}
 		for y := r.Y0; y <= r.Y1; y++ {
 			for x := r.X0; x <= r.X1; x++ {
 				l.set(x, y, TFloor)
@@ -143,8 +155,8 @@ func Generate(seed uint32, depth, n int) *Level {
 			}
 		}
 	}
-	// doors where a corridor enters a room
-	for y := 1; y < LH-1; y++ {
+	// doors where a corridor enters a room (caves have none)
+	for y := 1; y < LH-1 && !th.Caves; y++ {
 		for x := 1; x < LW-1; x++ {
 			if l.At(x, y) != TFloor || isRoom[y*LW+x] {
 				continue
@@ -177,7 +189,7 @@ func Generate(seed uint32, depth, n int) *Level {
 	}
 	// pillars in big rooms (never adjacent to each other, always fully surrounded by floor)
 	for i, r := range l.Rooms {
-		if i == l.StartRm || r.W() < 10 || r.H() < 7 {
+		if th.Caves || i == l.StartRm || r.W() < 10 || r.H() < 7 {
 			continue
 		}
 		c := r.Center()
@@ -193,16 +205,26 @@ func Generate(seed uint32, depth, n int) *Level {
 	// stairs
 	br := l.Rooms[l.BossRoom]
 	l.Stairs = Pt{br.X1 - 1, br.Y1 - 1}
+	if th.Caves { // the carved cell of the boss room farthest from the start
+		bd := -1
+		for y := br.Y0; y <= br.Y1; y++ {
+			for x := br.X0; x <= br.X1; x++ {
+				if d := dists[y*LW+x]; isRoom[y*LW+x] && d > bd && (Pt{x, y} != br.Center()) {
+					bd, l.Stairs = d, Pt{x, y}
+				}
+			}
+		}
+	}
 	l.set(l.Stairs.X, l.Stairs.Y, TStairs)
 	// torches on top walls
 	for _, r := range l.Rooms {
 		for x := r.X0 + 2; x <= r.X1-2; x += 6 + rng.Intn(3) {
-			if l.At(x, r.Y0-1) == TWall {
+			if l.At(x, r.Y0-1) == TWall && (th.TorchRate >= 1 || trng.Chance(th.TorchRate)) {
 				l.set(x, r.Y0-1, TTorch)
 				l.Torches = append(l.Torches, Pt{x, r.Y0 - 1})
 			}
 		}
-		if rng.Chance(0.6) && l.At(r.X0-1, r.Y1-1) == TWall {
+		if rng.Chance(0.6) && l.At(r.X0-1, r.Y1-1) == TWall && (th.TorchRate >= 1 || trng.Chance(th.TorchRate)) {
 			l.set(r.X0-1, r.Y1-1, TTorch)
 			l.Torches = append(l.Torches, Pt{r.X0 - 1, r.Y1 - 1})
 		}
@@ -210,8 +232,15 @@ func Generate(seed uint32, depth, n int) *Level {
 	// decor
 	for y := 0; y < LH; y++ {
 		for x := 0; x < LW; x++ {
-			if l.At(x, y) == TFloor && rng.Chance(0.03) {
-				l.set(x, y, []byte{TBlood, TRubble, TBones}[rng.Intn(3)])
+			if l.At(x, y) == TFloor && rng.Chance(th.DecorChance) {
+				t := th.Decor[rng.Intn(len(th.Decor))]
+				if t == th.Glow && len(l.Glows) >= MaxGlows {
+					t = TRubble
+				}
+				l.set(x, y, t)
+				if t == th.Glow {
+					l.Glows = append(l.Glows, Pt{x, y})
+				}
 			}
 		}
 	}
@@ -263,6 +292,51 @@ func abs(a int) int {
 		return -a
 	}
 	return a
+}
+
+// carveCave carves an irregular blob inside r: a random walk from the centre fills about 55% of the
+// rectangle, then one smoothing pass rounds it off. The centre is always floor, so corridors still connect.
+func (l *Level) carveCave(r Rect, rng *RNG, isRoom []bool) {
+	in := func(x, y int) bool { return x >= r.X0 && x <= r.X1 && y >= r.Y0 && y <= r.Y1 }
+	cave := map[Pt]bool{}
+	c := r.Center()
+	p := c
+	want := r.W() * r.H() * 55 / 100
+	for steps := 0; len(cave) < want && steps < want*30; steps++ {
+		cave[p] = true
+		d := dirs8[rng.Intn(4)*2] // orthogonal steps keep the blob 4-connected
+		if q := (Pt{p.X + d.X, p.Y + d.Y}); in(q.X, q.Y) {
+			p = q
+		}
+		if rng.Chance(0.02) {
+			p = c // return to the centre now and then so the blob stays round
+		}
+	}
+	// smoothing: fill cells with at least 5 cave neighbours
+	add := []Pt{}
+	for y := r.Y0; y <= r.Y1; y++ {
+		for x := r.X0; x <= r.X1; x++ {
+			if cave[Pt{x, y}] {
+				continue
+			}
+			n := 0
+			for _, d := range dirs8 {
+				if cave[Pt{x + d.X, y + d.Y}] {
+					n++
+				}
+			}
+			if n >= 5 {
+				add = append(add, Pt{x, y})
+			}
+		}
+	}
+	for _, q := range add {
+		cave[q] = true
+	}
+	for q := range cave {
+		l.set(q.X, q.Y, TFloor)
+		isRoom[q.Y*LW+q.X] = true
+	}
 }
 
 func (l *Level) hcorr(x0, x1, y int) {

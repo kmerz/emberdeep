@@ -142,11 +142,14 @@ type heroSave struct {
 
 const monIDBase = 10000
 
-func New(seed uint32, st Settings, n int) *Game {
+func New(seed uint32, st Settings, n int) *Game { return NewAt(seed, st, n, 1) }
+
+// NewAt starts a run on the given floor (the -depth dev flag uses it to look at deeper floors).
+func NewAt(seed uint32, st Settings, n, depth int) *Game {
 	g := &Game{Seed: seed, Settings: st, N: n, stairsSince: -1}
 	g.nextID = monIDBase
 	g.heroByID = map[int]*Hero{}
-	g.loadFloor(1)
+	g.loadFloor(min(max(depth, 1), MaxDepth))
 	return g
 }
 
