@@ -3,6 +3,7 @@ import { Fb, W, DIM, TX, WH, PINK, MINT, AMB, mul } from '../term/fb';
 import { CLS, CLASS_LIST } from '../classes';
 import { drawTitle, keyChips } from '../render/title';
 import { STORY, STORY_TITLE, wrap } from '../story';
+import type { PadContext } from '../gamepad';
 
 const STORY_BOX = { x: 22, y: 39, w: 116, h: 7 };
 const TYPE_CPS = 70;      // story letters per second
@@ -39,6 +40,8 @@ export class LobbyScreen implements Screen {
     const hint = ' ← → turn the page ';
     fb.txt(b.x + b.w - hint.length - 2, b.y + b.h - 1, hint, DIM);
   }
+
+  padContext(): PadContext { return 'lobby'; }
 
   private say(msg: string) { this.toast = msg; this.toastAt = performance.now(); }
 

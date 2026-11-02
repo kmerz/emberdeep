@@ -7,6 +7,7 @@ import { GameScreen } from './screens/game';
 import { LandingScreen, store } from './screens/landing';
 import { LobbyScreen } from './screens/lobby';
 import type { ClassId } from './proto';
+import { GamepadInput, fakeKey } from './gamepad';
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
 const term = new TermCanvas(canvas);
@@ -118,11 +119,19 @@ canvas.addEventListener('mousemove', (e) => current.onMouseMove?.(e, term.cellAt
 canvas.addEventListener('auxclick', (e) => e.preventDefault());
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
+const pad = new GamepadInput();
+const padSink = {
+  down: (key: string, repeat: boolean) => current.onKey?.(fakeKey(key, repeat)),
+  up: (key: string) => current.onKeyUp?.(fakeKey(key)),
+};
+window.addEventListener('gamepaddisconnected', () => pad.releaseAll(padSink));
+
 let last = 0;
 function frame(now: number) {
   requestAnimationFrame(frame);
   if (now - last < 30) return;
   last = now;
+  pad.poll(now, current.padContext?.() ?? 'menu', padSink);
   current.render(fb, now);
   if (reconnectUntil) {
     const left = Math.max(0, Math.ceil((reconnectUntil - now) / 1000));

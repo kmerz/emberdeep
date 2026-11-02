@@ -13,6 +13,7 @@ import { itemInfo, packCap, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
+import type { PadContext } from '../gamepad';
 
 export class GameScreen implements Screen {
   fx = new Fx();
@@ -57,6 +58,14 @@ export class GameScreen implements Screen {
         if (e.k === 'questboard' && e.actor === st.youId) { this.closePanels(); this.boardOpen = true; this.boardSel = 0; }
       }
     };
+  }
+
+  /** Gamepad button map to use: panels and the wipe overlay get menu-style buttons; chat gets none. */
+  padContext(): PadContext {
+    if (this.ui.chatActive) return 'chat';
+    if (this.invOpen || this.treeOpen || this.shopOpen || this.boardOpen || this.journalOpen) return 'panel';
+    if (this.app.st.overlay === 'wipe') return 'overlay';
+    return 'world';
   }
 
   // ---- input ----
@@ -217,6 +226,7 @@ export class GameScreen implements Screen {
       else if (cmd === '/help') {
         st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['/help', [214, 208, 234]]]);
         st.pushLog([['keys: WASD move · 1-3 skills · Q potion · E revive · Alt+click ping', DIM]]);
+        st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · LB potion · LT revive · Select pack · Start journal · R3 skills · A/B in panels', DIM]]);
         return;
       } else { st.pushLog([['unknown command ' + cmd + ' (try /help)', PINK]]); return; }
       if (!text) return;

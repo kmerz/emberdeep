@@ -7,6 +7,7 @@ import type { Ent, Snap } from '../src/proto';
 import { Fx } from '../src/render/fx';
 import { Fb } from '../src/term/fb';
 import { VW, VH } from '../src/render/map';
+import { GamepadInput, type PadLike, type PadContext } from '../src/gamepad';
 
 let failed = 0;
 function eq(a: unknown, b: unknown, msg: string) {
@@ -131,6 +132,77 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   fxd.add({ k: 'impact', fx: 'nova', x: 1, y: 1, actor: 2 }, 1000, 1);
   fxd.add({ k: 'impact', fx: 'nova', x: 1, y: 1, actor: 1 }, 1000, 1);
   eq(fxd.list.map((f) => f.t0), [1100, 1000], 'remote FX start 100 ms later than our own');
+}
+
+// --- gamepad: pad input becomes key events for the current screen
+{
+  const mk = (pressed: number[] = [], axes: number[] = [0, 0]): PadLike => ({
+    connected: true, axes,
+    buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: pressed.includes(i) })),
+  });
+  let cur: PadLike | null = mk();
+  const gp = new GamepadInput(() => [cur]);
+  let log: string[] = [];
+  const sink = { down: (k: string, r: boolean) => log.push('d:' + k + (r ? '*' : '')), up: (k: string) => log.push('u:' + k) };
+  const step = (now: number, ctx: PadContext) => { log = []; gp.poll(now, ctx, sink); return log; };
+
+  eq(step(0, 'world'), [], 'idle pad emits nothing');
+  cur = mk([], [0.2, -0.2]);
+  eq(step(30, 'world'), [], 'stick inside the deadzone is ignored');
+  cur = mk([], [0.9, -0.9]);
+  eq(step(60, 'world'), ['d:ArrowUp', 'd:ArrowRight'], 'stick pushes held arrow keys (diagonal)');
+  eq(step(90, 'world'), ['d:ArrowUp*', 'd:ArrowRight*'], 'world movement re-asserts held keys every poll');
+  cur = mk();
+  eq(step(120, 'world'), ['u:ArrowUp', 'u:ArrowRight'], 'releasing the stick releases the keys');
+
+  cur = mk([2]);
+  eq(step(150, 'world'), ['d:1'], 'X casts skill 1 in the world');
+  eq(step(180, 'world'), [], 'a held button does not repeat');
+  cur = mk();
+  eq(step(210, 'world'), ['u:1'], 'releasing the button sends keyup');
+  cur = mk([0]);
+  eq(step(240, 'world'), [], 'A is unbound in the world (Enter would open chat)');
+  cur = mk([6]);
+  eq(step(270, 'world'), ['d:e'], 'LT starts a revive');
+  cur = mk();
+  eq(step(300, 'world'), ['u:e'], 'releasing LT ends the revive hold');
+
+  eq(step(330, 'panel'), [], 'switching context emits nothing by itself');
+  cur = mk([0]);
+  eq(step(360, 'panel'), ['d:Enter'], 'A confirms in a panel');
+  cur = mk([1]);
+  eq(step(390, 'panel'), ['u:Enter', 'd:Escape'], 'B closes a panel');
+  cur = mk();
+  step(420, 'panel');
+
+  cur = mk([0]);
+  step(450, 'world');
+  eq(step(480, 'panel'), [], 'a button held across a context change is ignored until released');
+  cur = mk();
+  step(510, 'panel');
+  cur = mk([0]);
+  eq(step(540, 'panel'), ['d:Enter'], '...then works again');
+  cur = mk();
+  step(570, 'panel');
+
+  cur = mk([], [0, 1]);
+  eq(step(600, 'panel'), ['d:ArrowDown'], 'menu: first step is immediate');
+  eq(step(660, 'panel'), [], 'menu: no repeat before the delay');
+  eq(step(760, 'panel'), ['d:ArrowDown'], 'menu: repeats while held');
+  eq(step(800, 'world'), ['u:ArrowDown'], 'context change releases held keys');
+  cur = mk();
+  step(830, 'world');
+
+  cur = mk([0]);
+  eq(step(860, 'chat'), [], 'no buttons act while chatting');
+  cur = mk();
+  step(890, 'chat');
+
+  cur = mk([], [1, 0]);
+  step(920, 'world');
+  cur = null;
+  eq(step(950, 'world'), ['u:ArrowRight'], 'unplugging the pad releases held keys');
+  eq(step(980, 'lobby'), [], 'no pad, no events');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

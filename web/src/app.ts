@@ -2,6 +2,7 @@ import { Net } from './net';
 import { GameState } from './state';
 import type { Fb } from './term/fb';
 import type { TermCanvas } from './term/canvas';
+import type { PadContext } from './gamepad';
 
 export interface Screen {
   render(fb: Fb, now: number): void;
@@ -11,6 +12,8 @@ export interface Screen {
   onMouseMove?(ev: MouseEvent, cell: [number, number]): void;
   onEnter?(): void;
   onLeave?(): void;
+  /** Which gamepad button map applies right now (default: 'menu'). */
+  padContext?(): PadContext;
 }
 
 export interface App {
