@@ -119,6 +119,8 @@ export class Fx {
       case 'revive': push('flare', 900, { pal: 'revive', x: ev.x, y: ev.y }); break;
       case 'levelup': push('dmg', 1800, { text: 'LEVEL UP', pal: 'level' }); break;
       case 'chest': push('flare', 700, { pal: 'wall' }); break;
+      case 'summon': push('flare', 600, { pal: 'cast' }); break;
+      case 'split': push('flare', 500, { pal: 'revive' }); break;
       case 'mimic':
         if (ev.target) this.flashes.set(ev.target, t0);
         push('dmg', 1600, { text: 'MIMIC!', crit: true });

@@ -68,11 +68,11 @@ type Theme struct {
 }
 
 var Themes = map[string]*Theme{
-	"cathedral": {ID: "cathedral", Name: "Cathedral of Ash", Kinds: "zzzssfb", TorchRate: 1, Decor: "~:%", DecorChance: 0.03},
-	"crypt":     {ID: "crypt", Name: "Flooded Crypt", Kinds: "zzzzzssb", TorchRate: 0.6, Decor: "==:=%", DecorChance: 0.06},
-	"caverns":   {ID: "caverns", Name: "Fungal Caverns", Kinds: "bbbbfzs", Caves: true, Decor: "\":\"%", DecorChance: 0.04, Glow: '"'},
-	"dark":      {ID: "dark", Name: "The Black Hollow", Kinds: "bbbzzs", Caves: true, Decor: ":%~", DecorChance: 0.03, Dark: true},
-	"ember":     {ID: "ember", Name: "Ember Depths", Kinds: "fffsszb", TorchRate: 0.4, Decor: "^^:%~", DecorChance: 0.04, Glow: '^'},
+	"cathedral": {ID: "cathedral", Name: "Cathedral of Ash", Kinds: "zzzssfbr", TorchRate: 1, Decor: "~:%", DecorChance: 0.03},
+	"crypt":     {ID: "crypt", Name: "Flooded Crypt", Kinds: "zzzzsssbohn", TorchRate: 0.6, Decor: "==:=%", DecorChance: 0.06},
+	"caverns":   {ID: "caverns", Name: "Fungal Caverns", Kinds: "bbbbfzsoor", Caves: true, Decor: "\":\"%", DecorChance: 0.04, Glow: '"'},
+	"dark":      {ID: "dark", Name: "The Black Hollow", Kinds: "bbbzzsorr", Caves: true, Decor: ":%~", DecorChance: 0.03, Dark: true},
+	"ember":     {ID: "ember", Name: "Ember Depths", Kinds: "fffsszbhnn", TorchRate: 0.4, Decor: "^^:%~", DecorChance: 0.04, Glow: '^'},
 }
 
 // ThemeBands: a theme covers floors from From until the next band starts.
@@ -205,7 +205,19 @@ type MonDef struct {
 	MoveTicks int
 	AtkTicks  int
 	XP        int
+	Role      string // "" chaser, "caller" keeps away and summons, "splitter" splits when killed
+	Summon    byte   // what a caller raises
 }
+
+// Monster roles
+const (
+	CallerEvery   = 5 * TickHz // a caller raises one minion this often while it sees a hero
+	CallerMax     = 3          // minions alive per caller
+	CallerRange   = 14.0       // it summons while a hero is this close
+	CallerKeepOff = 3          // it backs away from heroes this close (cells)
+	CallerHold    = 9.0        // and doesn't approach closer than this
+	SplitInto     = 2          // a blob splits into this many bloblings
+)
 
 var MonDefs = map[byte]MonDef{
 	'z': {Name: "Zombie", HP: 34, Dmg: 6, MoveTicks: 7, AtkTicks: 14, XP: 8},
@@ -214,6 +226,10 @@ var MonDefs = map[byte]MonDef{
 	'b': {Name: "Bat", HP: 10, Dmg: 4, MoveTicks: 3, AtkTicks: 10, XP: 4},
 	'K': {Name: "The Tallow King", HP: 260, Dmg: 16, MoveTicks: 5, AtkTicks: 14, XP: 120},
 	'M': {Name: "Mimic", HP: 70, Dmg: 11, MoveTicks: 6, AtkTicks: 12, XP: 30},
+	'r': {Name: "Bone Rat", HP: 8, Dmg: 3, MoveTicks: 2, AtkTicks: 8, XP: 2},                                    // fast and fragile
+	'h': {Name: "Bone Hulk", HP: 90, Dmg: 16, MoveTicks: 9, AtkTicks: 20, XP: 22},                               // slow, hits hard
+	'n': {Name: "Bone Caller", HP: 30, Dmg: 4, MoveTicks: 5, AtkTicks: 14, XP: 18, Role: "caller", Summon: 'r'}, // raises bone rats
+	'o': {Name: "Blob", HP: 44, Dmg: 6, MoveTicks: 8, AtkTicks: 14, XP: 10, Role: "splitter"},                   // splits when killed
 }
 
 type Difficulty struct {

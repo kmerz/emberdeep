@@ -138,6 +138,9 @@ func BuildShared(g *game.Game) []byte {
 		}
 		e := proto.Ent{ID: m.ID, K: "m", G: string(rune(m.Kind)), X: m.X, Y: m.Y, HP: m.HP, HPMax: m.HPMax, Elite: m.Elite, Face: m.Facing,
 			Name: m.Def().Name}
+		if m.Gen > 0 {
+			e.Name = "Blobling"
+		}
 		if g.Now < m.SlowUntil {
 			e.St = append(e.St, proto.Status{K: "slow", T: ceilSec(m.SlowUntil - g.Now)})
 		}

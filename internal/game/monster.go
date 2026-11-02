@@ -26,6 +26,11 @@ type Monster struct {
 	BleedDmg   int
 	BleedOwner int
 	StunUntil  int
+
+	Gen       int  // blobs: 0 = whole, 1 = a blobling (doesn't split again)
+	Parent    int  // the caller that raised this minion (0 = none)
+	Summoned  bool // minions give little XP and no loot
+	NextSpawn int  // callers: tick of the next summon
 }
 
 func (m *Monster) Def() MonDef { return MonDefs[m.Kind] }
@@ -71,6 +76,14 @@ func (g *Game) killMonster(m *Monster, killer int) {
 	}
 	g.Kills++
 	def := m.Def()
+	if def.Role == "splitter" && m.Gen == 0 {
+		g.split(m)
+	}
+	if m.Summoned { // no loot, a little XP
+		g.emit(Event{K: "kill", Actor: killer, Target: m.ID, X: m.X, Y: m.Y, Text: def.Name, FX: string(rune(m.Kind))})
+		g.gainXP(1)
+		return
+	}
 	g.emit(Event{K: "kill", Actor: killer, Target: m.ID, X: m.X, Y: m.Y, Text: def.Name, FX: string(rune(m.Kind))})
 	if m.Elite {
 		g.KingKilled = true
@@ -99,6 +112,85 @@ func (g *Game) killMonster(m *Monster, killer int) {
 			}
 		}
 	}
+}
+
+// addMon puts a new monster on the floor at x, y (scaled for the party and depth).
+func (g *Game) addMon(kind byte, x, y int, hpScale float64) *Monster {
+	def := MonDefs[kind]
+	hp := max(1, int(math.Round(float64(def.HP)*EnemyHPMult(g.N)*DepthHPMult(g.Depth)*hpScale)))
+	m := &Monster{ID: g.newID(), Kind: kind, X: x, Y: y, HP: hp, HPMax: hp, Facing: 6, Awake: true}
+	g.Mons = append(g.Mons, m)
+	g.monByID[m.ID] = m
+	g.occ[y*LW+x] = int32(m.ID)
+	return m
+}
+
+// freeNear finds a free cell next to x, y, or reports false.
+func (g *Game) freeNear(x, y int) (Pt, bool) {
+	start := g.rng.Intn(8)
+	for k := 0; k < 8; k++ {
+		d := dirs8[(start+k)%8]
+		if g.cellFree(x+d.X, y+d.Y) {
+			return Pt{x + d.X, y + d.Y}, true
+		}
+	}
+	return Pt{}, false
+}
+
+// split turns a dying blob into bloblings with half its strength each.
+func (g *Game) split(m *Monster) {
+	for k := 0; k < SplitInto; k++ {
+		p, ok := g.freeNear(m.X, m.Y)
+		if !ok {
+			break
+		}
+		b := g.addMon(m.Kind, p.X, p.Y, 0.5)
+		b.Gen = 1
+		b.Threat = append([]ThreatEntry(nil), m.Threat...)
+	}
+	g.emit(Event{K: "split", Target: m.ID, X: m.X, Y: m.Y})
+}
+
+// callerAct runs a caller's turn: summon when it can, back away from heroes that get close, and hold its
+// distance. It reports whether it used the turn (false = act like any other monster).
+func (g *Game) callerAct(m *Monster, tgt *Hero) bool {
+	def := m.Def()
+	d := dist(m.X, m.Y, tgt.X, tgt.Y)
+	if d <= CallerRange && g.Now >= m.NextSpawn && g.Level.LineClear(m.X, m.Y, tgt.X, tgt.Y) {
+		alive := 0
+		for _, o := range g.Mons {
+			if o.Parent == m.ID && o.HP > 0 {
+				alive++
+			}
+		}
+		if alive < CallerMax {
+			if p, ok := g.freeNear(m.X, m.Y); ok {
+				r := g.addMon(def.Summon, p.X, p.Y, 1)
+				r.Parent, r.Summoned = m.ID, true
+				m.NextSpawn = g.Now + CallerEvery
+				g.emit(Event{K: "summon", Actor: m.ID, Target: r.ID, X: p.X, Y: p.Y, Text: MonDefs[def.Summon].Name})
+				return true
+			}
+		}
+	}
+	if cheb(m.X, m.Y, tgt.X, tgt.Y) <= CallerKeepOff {
+		if g.Now >= m.NextMove { // back off to the free neighbour farthest from the hero
+			best, bd := Pt{}, d
+			for _, v := range dirs8 {
+				n := Pt{m.X + v.X, m.Y + v.Y}
+				if nd := dist(n.X, n.Y, tgt.X, tgt.Y); nd > bd && g.cellFree(n.X, n.Y) {
+					best, bd = n, nd
+				}
+			}
+			if bd > d {
+				m.NextMove = g.Now + def.MoveTicks
+				g.moveEntity(int32(m.ID), &m.X, &m.Y, best.X, best.Y)
+				return true
+			}
+		}
+		return false // cornered: fight
+	}
+	return d <= CallerHold
 }
 
 // revealMimic wakes a mimic that a hero bumped: it bites at once.
@@ -138,6 +230,9 @@ func (g *Game) monsterAI(m *Monster) {
 	}
 	if dist(m.X, m.Y, tgt.X, tgt.Y) > LeashRange {
 		m.Awake = false
+		return
+	}
+	if m.Def().Role == "caller" && g.callerAct(m, tgt) {
 		return
 	}
 	if cheb(m.X, m.Y, tgt.X, tgt.Y) <= 1 {

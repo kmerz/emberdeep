@@ -117,6 +117,8 @@ export class GameState {
           break;
         case 'packfull': if (you) this.pushLog([['Your rucksack is full', PINK]], now); break;
         case 'chest': this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' open a ' : ' opens a ', DIM], ['chest', GOLD, 1]], now); break;
+        case 'summon': this.pushLog([['A Bone Caller', [180, 120, 255]], [' raises a ', DIM], [e.text || 'minion', TX]], now); break;
+        case 'split': this.pushLog([['The blob', [120, 230, 110]], [' splits!', DIM]], now); break;
         case 'mimic': this.pushLog([['The chest was a ', DIM], ['MIMIC', PINK, 1], ['!', DIM]], now); break;
         case 'use': {
           if (!e.fx) break;

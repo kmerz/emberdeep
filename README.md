@@ -48,6 +48,9 @@ All numbers live in `internal/game/balance.go`.
 - Floor 7, The Black Hollow, is pitch black: you see only what a light reaches. Everyone starts with 2 torches
   (`I`, then use one: it burns for 2 minutes and doesn't survive the stairs), and a Scroll of Light lights the
   spot at the cursor for a minute, for the whole party. Torches and scrolls also drop from monsters and chests.
+- Monsters differ: bone rats are faster than you but fragile, bone hulks are slow and hit hard, a Bone Caller
+  hangs back and raises bone rats (up to 3 at a time, no loot from them), and a blob splits into two
+  bloblings when it dies. Each theme has its own mix.
 - About a third of the rooms hold a chest `■`: walk into it to open it. It spills gold for the party and two
   item rolls for every hero. From floor 2 on, some chests are mimics (8% rising to 38% at floor 10): they bite
   when bumped, and hitting a chest gives a mimic away. A dead mimic drops the treasure it was guarding.

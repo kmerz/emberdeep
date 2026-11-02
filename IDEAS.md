@@ -31,8 +31,8 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [ ] [XL] Druid: shapeshifts (bear to fight, mole to dig, unlocked by levelling), tames animals
 
 ## 6. Monsters
-- [ ] [M] Monster roles: some slower, some faster, a few that spawn others
-- [ ] [S] Blob (maybe splits when hit)
+- [x] [M] Monster roles: bone rats (fast), bone hulks (slow, heavy), Bone Callers (summon rats)
+- [x] [S] Blob (splits into two bloblings when it dies)
 - [ ] [L] Ant hive floor: workers ignore you unless attacked, warriors, a queen
 - [ ] [L] Deep floors: dragons, incubus, succubus
 
