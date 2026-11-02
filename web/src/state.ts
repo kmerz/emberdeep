@@ -117,7 +117,21 @@ export class GameState {
           break;
         case 'packfull': if (you) this.pushLog([['Your rucksack is full', PINK]], now); break;
         case 'chest': this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' open a ' : ' opens a ', DIM], ['chest', GOLD, 1]], now); break;
-        case 'summon': this.pushLog([['A Bone Caller', [180, 120, 255]], [' raises a ', DIM], [e.text || 'minion', TX]], now); break;
+        case 'summon':
+          this.pushLog(e.fx === 'Q' ? [['The Ant Queen', [255, 170, 60]], [' lays a ', DIM], [e.text || 'soldier', TX]]
+            : [['A Bone Caller', [180, 120, 255]], [' raises a ', DIM], [e.text || 'minion', TX]], now);
+          break;
+        case 'alarm': this.pushLog([['The hive is alarmed!', [255, 170, 60], 1], [' ' + (e.amount ?? 0) + ' ants turn on you', DIM]], now); break;
+        case 'say': if (you && e.text) this.pushLog([[e.text, [140, 220, 120]]], now); break;
+        case 'shop': if (you) this.pushLog([['Grimble', [255, 212, 92], 1], [': Have a look, have a look!', [140, 220, 120]]], now); break;
+        case 'trade': if (you && e.fx) {
+          const it = itemInfo(e.fx), amt = e.amount ?? 0;
+          this.pushLog([[amt < 0 ? 'You buy a ' : 'You sell a ', DIM], [it.name, it.col], [' (' + (amt < 0 ? '' : '+') + amt + ' gold)', GOLD]], now);
+          break;
+        }
+          break;
+        case 'portal': this.pushLog([['A portal opens', [150, 230, 255], 1], [': gather in it to return to the village', DIM]], now); break;
+        case 'village': this.pushLog([['You reach the ', DIM], ['Gnome Village', [140, 220, 120], 1], [': safe at last', DIM]], now); break;
         case 'split': this.pushLog([['The blob', [120, 230, 110]], [' splits!', DIM]], now); break;
         case 'mimic': this.pushLog([['The chest was a ', DIM], ['MIMIC', PINK, 1], ['!', DIM]], now); break;
         case 'use': {

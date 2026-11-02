@@ -58,6 +58,14 @@ All numbers live in `internal/game/balance.go`.
 - Monsters differ: bone rats are faster than you but fragile, bone hulks are slow and hit hard, a Bone Caller
   hangs back and raises bone rats (up to 3 at a time, no loot from them), and a blob splits into two
   bloblings when it dies. Each theme has its own mix.
+- Floor 4 is The Hive. Worker ants go about their business and leave you alone, but hitting any ant alarms
+  every ant within 12 cells. Soldier ants are always hostile, and the Ant Queen in the deepest chamber lays a
+  soldier every 6 s (up to 4 at a time) while she sees you.
+- After floor 5 the stairs lead to the Gnome Village, a safe extra floor between 5 and 6. Walk into Grimble to
+  trade: he sells potions, draughts, torches, Scrolls of Light, firebombs and Scrolls of Return, and buys
+  anything (garnets for 40 gold, everything else for half its price). Everyone shops with their own gold.
+- A Scroll of Return, read anywhere below the village, opens a portal for 30 s. When the whole party stands in it
+  for 3 s you go back to the village; its stairs then lead back down to a fresh copy of the floor you left.
 - About a third of the rooms hold a chest `■`: walk into it to open it. It spills gold for the party and two
   item rolls for every hero. From floor 2 on, some chests are mimics (8% rising to 38% at floor 10): they bite
   when bumped, and hitting a chest gives a mimic away. A dead mimic drops the treasure it was guarding.

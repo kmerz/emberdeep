@@ -49,6 +49,7 @@ type Level struct {
 	Theme    *Theme
 	Glows    []Pt // decor tiles that give off light
 	Chests   []ChestSpawn
+	Npcs     []NpcSpawn
 }
 
 type ChestSpawn struct {

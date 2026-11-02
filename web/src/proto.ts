@@ -3,10 +3,11 @@ export type ClassId = 'warrior' | 'rogue' | 'sorcerer' | 'monk';
 
 export interface Status { k: string; t: number }
 export interface Ent {
-  id: number; k: 'h' | 'm' | 'i'; g: string; x: number; y: number;
+  id: number; k: 'h' | 'm' | 'i' | 'n'; g: string; x: number; y: number; // n = a friendly gnome
   hp?: number; hpMax?: number; cls?: ClassId; name?: string;
   downed?: boolean; dead?: boolean; downT?: number; rev?: number; el?: boolean; face: number; st?: Status[];
   it?: string; // rucksack item id for items on the floor
+  trader?: boolean; // gnomes: this one trades
 }
 export interface PartyEntry {
   id: number; name: string; cls: ClassId; lvl: number; hp: number; hpMax: number; res: number; resMax: number;
@@ -14,7 +15,7 @@ export interface PartyEntry {
 }
 export interface Vis { x0: number; y0: number; w: number; h: number; b: string }
 export interface Objectives {
-  boss: boolean; kingAlive: boolean; stairsAt: number; stairsNeed: number; stairsLeft: number; stairsFound: boolean; gold: number; kills: number;
+  boss: boolean; bossName?: string; village?: boolean; portalAt?: number; portalNeed?: number; kingAlive: boolean; stairsAt: number; stairsNeed: number; stairsLeft: number; stairsFound: boolean; gold: number; kills: number;
 }
 export interface Me {
   res: number; resMax: number; cd: number[]; cdMax: number[]; cost: number[]; potions: number; potCd: number;
@@ -28,7 +29,7 @@ export interface Me {
 export interface PackSlot { item: string; n: number }
 export interface Snap {
   t: 'snap'; tick: number; ackSeq?: number; vis: Vis; ents: Ent[]; party: PartyEntry[]; obj: Objectives;
-  patches?: [number, number][]; orbs?: [number, number, number][]; me?: Me; drops?: Ent[];
+  patches?: [number, number][]; orbs?: [number, number, number][]; portal?: [number, number, number]; me?: Me; drops?: Ent[];
 }
 export interface GameEvent {
   k: string; actor?: number; target?: number; x: number; y: number; tx?: number; ty?: number;
@@ -42,7 +43,7 @@ export interface LobbyMsg {
   t: 'lobby'; code: string; players: LobbyPlayer[]; inGame: boolean;
   settings: { difficulty: string; seed: string; loot: string; friendlyFire: boolean };
 }
-export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][]; dark?: boolean }
+export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][]; dark?: boolean; village?: boolean }
 export type ServerMsg =
   | { t: 'welcome'; you: number; token: string; code: string; inviteUrl: string; isHost: boolean }
   | LobbyMsg

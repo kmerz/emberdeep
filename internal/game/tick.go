@@ -7,6 +7,7 @@ func (g *Game) Tick() []Event {
 	if g.Phase == PhasePlaying {
 		g.runPending()
 		g.tickPatches()
+		g.tickNpcs()
 		for _, h := range g.Heroes {
 			g.tickHero(h)
 			g.tickReviver(h)
@@ -21,6 +22,9 @@ func (g *Game) Tick() []Event {
 	g.updateVision()
 	if g.Phase == PhasePlaying {
 		g.checkStairs()
+		if g.Phase == PhasePlaying {
+			g.checkPortal()
+		}
 		g.checkWipe()
 	}
 	out := g.events

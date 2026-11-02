@@ -65,6 +65,7 @@ type Theme struct {
 	DecorChance float64
 	Glow        byte // decor tile that gives off light (0 = none)
 	Dark        bool // pitch black: heroes only see what a light reaches
+	Boss        byte // this theme's own boss (0 = the usual one on every 5th floor)
 }
 
 var Themes = map[string]*Theme{
@@ -72,6 +73,8 @@ var Themes = map[string]*Theme{
 	"crypt":     {ID: "crypt", Name: "Flooded Crypt", Kinds: "zzzzsssbohn", TorchRate: 0.6, Decor: "==:=%", DecorChance: 0.06},
 	"caverns":   {ID: "caverns", Name: "Fungal Caverns", Kinds: "bbbbfzsoor", Caves: true, Decor: "\":\"%", DecorChance: 0.04, Glow: '"'},
 	"dark":      {ID: "dark", Name: "The Black Hollow", Kinds: "bbbzzsorr", Caves: true, Decor: ":%~", DecorChance: 0.03, Dark: true},
+	"hive":      {ID: "hive", Name: "The Hive", Kinds: "aaaaaaAA", Caves: true, TorchRate: 0.2, Decor: ":%%", DecorChance: 0.05, Boss: 'Q'},
+	"village":   {ID: "village", Name: "Gnome Village", TorchRate: 1, Decor: ":", DecorChance: 0.01},
 	"ember":     {ID: "ember", Name: "Ember Depths", Kinds: "fffsszbhnn", TorchRate: 0.4, Decor: "^^:%~", DecorChance: 0.04, Glow: '^'},
 }
 
@@ -79,7 +82,7 @@ var Themes = map[string]*Theme{
 var ThemeBands = []struct {
 	From  int
 	Theme string
-}{{1, "cathedral"}, {3, "crypt"}, {6, "caverns"}, {7, "dark"}, {8, "caverns"}, {9, "ember"}}
+}{{1, "cathedral"}, {3, "crypt"}, {4, "hive"}, {5, "crypt"}, {6, "caverns"}, {7, "dark"}, {8, "caverns"}, {9, "ember"}}
 
 // Light on dark floors (radii in the aspect-corrected metric, like VisionRadius).
 const (
@@ -109,6 +112,9 @@ func Floor(depth int) FloorDef {
 	f := FloorDef{Theme: th, Kinds: th.Kinds, PackBonus: (depth - 1) / 3}
 	if depth%BossEvery == 0 {
 		f.Boss = 'K'
+	}
+	if th.Boss != 0 {
+		f.Boss = th.Boss
 	}
 	return f
 }
@@ -241,8 +247,10 @@ type MonDef struct {
 	MoveTicks int
 	AtkTicks  int
 	XP        int
-	Role      string // "" chaser, "caller" keeps away and summons, "splitter" splits when killed
-	Summon    byte   // what a caller raises
+	Role      string // "" chaser, "caller" keeps away and summons, "queen" summons and never moves, "splitter" splits when killed
+	Summon    byte   // what a caller or queen raises
+	Neutral   bool   // leaves heroes alone until its faction is alarmed
+	Faction   string // hitting one alarms the others nearby ("" = none)
 }
 
 // Monster roles
@@ -253,6 +261,10 @@ const (
 	CallerKeepOff = 3          // it backs away from heroes this close (cells)
 	CallerHold    = 9.0        // and doesn't approach closer than this
 	SplitInto     = 2          // a blob splits into this many bloblings
+	AlarmRange    = 12.0       // hitting an ant alarms every ant this close
+	QueenEvery    = 6 * TickHz // the queen lays a soldier this often while she sees a hero
+	QueenMax      = 4          // soldiers alive per queen
+	QueenRange    = 16.0
 )
 
 var MonDefs = map[byte]MonDef{
@@ -265,7 +277,10 @@ var MonDefs = map[byte]MonDef{
 	'r': {Name: "Bone Rat", HP: 8, Dmg: 3, MoveTicks: 2, AtkTicks: 8, XP: 2},                                    // fast and fragile
 	'h': {Name: "Bone Hulk", HP: 90, Dmg: 16, MoveTicks: 9, AtkTicks: 20, XP: 22},                               // slow, hits hard
 	'n': {Name: "Bone Caller", HP: 30, Dmg: 4, MoveTicks: 5, AtkTicks: 14, XP: 18, Role: "caller", Summon: 'r'}, // raises bone rats
-	'o': {Name: "Blob", HP: 44, Dmg: 6, MoveTicks: 8, AtkTicks: 14, XP: 10, Role: "splitter"},                   // splits when killed
+	'a': {Name: "Worker Ant", HP: 20, Dmg: 4, MoveTicks: 6, AtkTicks: 12, XP: 4, Neutral: true, Faction: "ants"},
+	'A': {Name: "Soldier Ant", HP: 40, Dmg: 9, MoveTicks: 4, AtkTicks: 12, XP: 12, Faction: "ants"},
+	'Q': {Name: "The Ant Queen", HP: 300, Dmg: 14, MoveTicks: 99, AtkTicks: 16, XP: 140, Role: "queen", Summon: 'A', Faction: "ants"},
+	'o': {Name: "Blob", HP: 44, Dmg: 6, MoveTicks: 8, AtkTicks: 14, XP: 10, Role: "splitter"}, // splits when killed
 }
 
 type Difficulty struct {
@@ -294,6 +309,34 @@ func MimicChance(depth int) float64 {
 	return min(0.4, 0.08+0.03*float64(depth))
 }
 
+// Gnome village and the Scroll of Return
+const (
+	VillageAfter = 5           // the village is an extra floor between floor 5 and floor 6
+	PortalTicks  = 30 * TickHz // a Scroll of Return's portal stays open this long
+	PortalWindow = 3 * TickHz  // the party gathers in it this long to go through
+	NpcMoveTicks = 12
+	NpcWander    = 6 // cells a gnome strays from its spot
+)
+
+// ShopStock is what Grimble sells, and for how much gold.
+var ShopStock = []struct {
+	Item  string
+	Price int
+}{{"potion", 30}, {"draught", 30}, {"torch", 15}, {"lightorb", 40}, {"firebomb", 60}, {"returnscroll", 120}}
+
+// SellPrice is what Grimble pays for one item: its Value if it has one, else half the shop price.
+func SellPrice(id string) int {
+	if d := Items[id]; d != nil && d.Value > 0 {
+		return d.Value
+	}
+	for _, s := range ShopStock {
+		if s.Item == id {
+			return max(1, s.Price/2)
+		}
+	}
+	return 1
+}
+
 // Rucksack
 const (
 	PackSlots     = 12
@@ -313,12 +356,13 @@ type ItemDef struct {
 }
 
 var Items = map[string]*ItemDef{
-	"potion":   {ID: "potion", Name: "Healing Potion", Desc: "restores 40% HP", Glyph: '!', MaxStack: 9, Use: "heal", Amount: 0.40, DropChance: 0.18},
-	"draught":  {ID: "draught", Name: "Resource Draught", Desc: "refills half your resource", Glyph: '&', MaxStack: 9, Use: "resource", Amount: 0.50, DropChance: 0.12},
-	"firebomb": {ID: "firebomb", Name: "Firebomb", Desc: "throw at the cursor: fire blast", Glyph: '*', MaxStack: 5, Use: "throw", Amount: 22, Radius: 3, Range: 12, DropChance: 0.04},
-	"torch":    {ID: "torch", Name: "Torch", Desc: "burns for 2 minutes; you see in the dark", Glyph: 't', MaxStack: 5, Use: "torch", DropChance: 0.06},
-	"lightorb": {ID: "lightorb", Name: "Scroll of Light", Desc: "lights the spot at the cursor for a minute", Glyph: '?', MaxStack: 5, Use: "orb", Range: 14, DropChance: 0.04},
-	"gem":      {ID: "gem", Name: "Garnet", Desc: "worth 40 gold to a trader", Glyph: 'g', MaxStack: 20, Value: 40, DropChance: 0.05},
+	"potion":       {ID: "potion", Name: "Healing Potion", Desc: "restores 40% HP", Glyph: '!', MaxStack: 9, Use: "heal", Amount: 0.40, DropChance: 0.18},
+	"draught":      {ID: "draught", Name: "Resource Draught", Desc: "refills half your resource", Glyph: '&', MaxStack: 9, Use: "resource", Amount: 0.50, DropChance: 0.12},
+	"firebomb":     {ID: "firebomb", Name: "Firebomb", Desc: "throw at the cursor: fire blast", Glyph: '*', MaxStack: 5, Use: "throw", Amount: 22, Radius: 3, Range: 12, DropChance: 0.04},
+	"torch":        {ID: "torch", Name: "Torch", Desc: "burns for 2 minutes; you see in the dark", Glyph: 't', MaxStack: 5, Use: "torch", DropChance: 0.06},
+	"lightorb":     {ID: "lightorb", Name: "Scroll of Light", Desc: "lights the spot at the cursor for a minute", Glyph: '?', MaxStack: 5, Use: "orb", Range: 14, DropChance: 0.04},
+	"returnscroll": {ID: "returnscroll", Name: "Scroll of Return", Desc: "opens a portal back to the gnome village", Glyph: '%', MaxStack: 3, Use: "portal"}, // sold only, never dropped
+	"gem":          {ID: "gem", Name: "Garnet", Desc: "worth 40 gold to a trader", Glyph: 'g', MaxStack: 20, Value: 40, DropChance: 0.05},
 }
 
 // ItemOrder fixes the order drops are rolled in (map order is random, the simulation must not be).

@@ -33,12 +33,13 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 ## 6. Monsters
 - [x] [M] Monster roles: bone rats (fast), bone hulks (slow, heavy), Bone Callers (summon rats)
 - [x] [S] Blob (splits into two bloblings when it dies)
-- [ ] [L] Ant hive floor: workers ignore you unless attacked, warriors, a queen
+- [x] [L] Ant hive floor (floor 4): neutral workers, alarm within 12 cells, soldiers, a queen that lays soldiers
 - [ ] [L] Deep floors: dragons, incubus, succubus
 
 ## 7. Special floors
 - [x] [M] Pitch-black floor (floor 7, The Black Hollow)
-- [ ] [XL] Gnome village further down: friendly gnomes, trading (garnets are worth gold there), a town spell to come back later
+- [x] [XL] Gnome village after floor 5: gnomes, Grimble the trader, Scroll of Return portal
+- [ ] [S] More wares and traders in the village (a Gnome Satchel: +4 rucksack slots)
 
 ## Suggested order
 bot fix → `/leave` → multi-floor + themes → inventory + chests/mimics/torch → dark floor → monster roles + blob →

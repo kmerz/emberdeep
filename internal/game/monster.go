@@ -19,6 +19,7 @@ type Monster struct {
 	NextAtk   int
 	Awake     bool
 	Disguised bool // a mimic still pretending to be a chest
+	Neutral   bool // an ant worker that hasn't been provoked
 	Threat    []ThreatEntry
 
 	SlowUntil  int
@@ -43,6 +44,9 @@ func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 	if m.Disguised { // hitting a "chest" gives the mimic away
 		m.Disguised = false
 		g.emit(Event{K: "mimic", Actor: actor, Target: m.ID, X: m.X, Y: m.Y})
+	}
+	if m.Def().Faction != "" {
+		g.alarm(m, actor)
 	}
 	m.HP -= dmg
 	m.Awake = true
@@ -151,6 +155,51 @@ func (g *Game) split(m *Monster) {
 	g.emit(Event{K: "split", Target: m.ID, X: m.X, Y: m.Y})
 }
 
+// alarm turns every monster of m's faction within AlarmRange against the attacker.
+func (g *Game) alarm(m *Monster, actor int) {
+	fac := m.Def().Faction
+	woke := 0
+	for _, o := range g.Mons {
+		if o.HP <= 0 || o.Def().Faction != fac || dist(m.X, m.Y, o.X, o.Y) > AlarmRange {
+			continue
+		}
+		if o.Neutral {
+			woke++
+		}
+		o.Neutral, o.Awake = false, true
+		if g.heroByID[actor] != nil {
+			g.addThreat(o, actor, 1)
+		}
+	}
+	if woke > 0 {
+		g.emit(Event{K: "alarm", Actor: actor, Target: m.ID, X: m.X, Y: m.Y, Amount: woke})
+	}
+}
+
+// queenAct lays a soldier next to the queen while she sees a hero (up to QueenMax alive).
+func (g *Game) queenAct(m *Monster, tgt *Hero) {
+	def := m.Def()
+	if g.Now < m.NextSpawn || dist(m.X, m.Y, tgt.X, tgt.Y) > QueenRange || !g.Level.LineClear(m.X, m.Y, tgt.X, tgt.Y) {
+		return
+	}
+	alive := 0
+	for _, o := range g.Mons {
+		if o.Parent == m.ID && o.HP > 0 {
+			alive++
+		}
+	}
+	if alive >= QueenMax {
+		return
+	}
+	if p, ok := g.freeNear(m.X, m.Y); ok {
+		s := g.addMon(def.Summon, p.X, p.Y, 1)
+		s.Parent, s.Summoned = m.ID, true
+		g.addThreat(s, tgt.ID, 1)
+		m.NextSpawn = g.Now + QueenEvery
+		g.emit(Event{K: "summon", Actor: m.ID, Target: s.ID, X: p.X, Y: p.Y, Text: MonDefs[def.Summon].Name, FX: string(rune(m.Kind))})
+	}
+}
+
 // callerAct runs a caller's turn: summon when it can, back away from heroes that get close, and hold its
 // distance. It reports whether it used the turn (false = act like any other monster).
 func (g *Game) callerAct(m *Monster, tgt *Hero) bool {
@@ -168,7 +217,7 @@ func (g *Game) callerAct(m *Monster, tgt *Hero) bool {
 				r := g.addMon(def.Summon, p.X, p.Y, 1)
 				r.Parent, r.Summoned = m.ID, true
 				m.NextSpawn = g.Now + CallerEvery
-				g.emit(Event{K: "summon", Actor: m.ID, Target: r.ID, X: p.X, Y: p.Y, Text: MonDefs[def.Summon].Name})
+				g.emit(Event{K: "summon", Actor: m.ID, Target: r.ID, X: p.X, Y: p.Y, Text: MonDefs[def.Summon].Name, FX: string(rune(m.Kind))})
 				return true
 			}
 		}
@@ -208,6 +257,19 @@ func (g *Game) monsterAI(m *Monster) {
 	if m.Disguised {
 		return
 	}
+	if m.Neutral { // busy carrying food: an aimless step now and then
+		if g.Now >= m.NextMove && g.rng.Chance(0.3) {
+			d := dirs8[g.rng.Intn(8)]
+			if g.cellFree(m.X+d.X, m.Y+d.Y) {
+				m.Facing = dirIndex(d.X, d.Y, m.Facing)
+				g.moveEntity(int32(m.ID), &m.X, &m.Y, m.X+d.X, m.Y+d.Y)
+			}
+		}
+		if g.Now >= m.NextMove {
+			m.NextMove = g.Now + m.Def().MoveTicks*2
+		}
+		return
+	}
 	if g.Now < m.BleedUntil && g.Now%TickHz == 0 {
 		g.damageMonster(m, m.BleedDmg, m.BleedOwner, false)
 		if m.HP <= 0 {
@@ -234,6 +296,12 @@ func (g *Game) monsterAI(m *Monster) {
 	}
 	if m.Def().Role == "caller" && g.callerAct(m, tgt) {
 		return
+	}
+	if m.Def().Role == "queen" {
+		g.queenAct(m, tgt)
+		if cheb(m.X, m.Y, tgt.X, tgt.Y) > 1 { // she never walks; she bites only what comes close
+			return
+		}
 	}
 	if cheb(m.X, m.Y, tgt.X, tgt.Y) <= 1 {
 		if g.Now >= m.NextAtk {

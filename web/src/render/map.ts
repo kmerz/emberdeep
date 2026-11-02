@@ -30,6 +30,9 @@ const GLY: Record<string, Glyph> = {
   '^': { ch: '^', fg: [255, 120, 50], b: true },
 };
 
+const GNOME: RGB = [140, 220, 120];
+const GNOME_TRADER: RGB = [255, 212, 92];
+
 export function buildLights(st: GameState, cam: Cam, t: number, heroes: { x: number; y: number; torch?: boolean }[], extra: Light[]): Light[] {
   const out: Light[] = [];
   const inView = (x: number, y: number, r: number) =>
@@ -143,7 +146,7 @@ export interface DrawEntsOpts {
 /** Items, monsters, heroes and their tags. Positions in world coordinates; cam converts to viewport. */
 export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: { x: number; y: number } | null, o: DrawEntsOpts) {
   const inV = (x: number, y: number) => x >= 0 && y >= 0 && x < VW && y < VH;
-  const order = (e: Ent) => (e.k === 'i' ? 0 : e.k === 'm' ? 1 : 2);
+  const order = (e: Ent) => (e.k === 'i' ? 0 : e.k === 'm' || e.k === 'n' ? 1 : 2);
   const list = ents.slice().sort((a, b) => order(a) - order(b));
   const pos = (e: Ent): [number, number] => {
     if (e.k === 'h' && e.id === o.youId && youPos) return [youPos.x - cam.x, youPos.y - cam.y];
@@ -155,6 +158,9 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
     if (!inV(x, y)) continue;
     if (e.k === 'm') {
       if (e.el) mb.txt(x - 1, y - 1, (e.name || '').replace(/^The /, '').toUpperCase(), [255, 110, 150], null, 1);
+    } else if (e.k === 'n') {
+      const nm = e.name || '';
+      mb.txt(x - Math.floor(nm.length / 2), y - 1, nm, e.trader ? GNOME_TRADER : mul(GNOME, 0.8), null, e.trader ? 1 : 0);
     } else if (e.k === 'h') {
       const col = (e.cls && CLS[e.cls].col) || [220, 220, 220];
       const you = e.id === o.youId;
@@ -172,10 +178,17 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
       mb.txt(x - Math.floor(nm.length / 2), y - 1, nm, mul(col, e.dead ? 0.35 : 0.8), null, 0);
     }
   }
+  // the Scroll of Return's portal: a swirl on its cell
+  const pt = st.latest?.portal;
+  if (pt) {
+    const x = pt[0] - cam.x, y = pt[1] - cam.y;
+    if (inV(x, y)) mb.put(x, y, '◎', mix([90, 200, 255], [220, 250, 255], 0.5 + 0.5 * Math.sin(o.now / 120)), [20, 40, 70], 1);
+  }
   // Pass 2: glyphs, items then monsters then heroes.
   for (const e of list) {
     const [x, y] = pos(e);
     if (!inV(x, y)) continue;
+    if (e.k === 'n') { mb.put(x, y, 'g', e.trader ? GNOME_TRADER : GNOME, null, 1); continue; }
     if (e.k === 'i') {
       const g = GLY[e.g];
       if (g) mb.put(x, y, g.ch, g.fg, null, 1);

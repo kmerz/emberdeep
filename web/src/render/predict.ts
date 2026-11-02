@@ -24,7 +24,7 @@ export class Predictor {
     const t = this.st.tileAt(x, y);
     if (t === 0 || SOLID.has(t)) return true;
     const rec = this.st.recs[this.st.recs.length - 1];
-    if (rec) for (const e of rec.ents) if ((e.k === 'm' || (e.k === 'h' && e.id !== this.st.youId) || (e.k === 'i' && e.g === 'C')) && e.x === x && e.y === y) return true;
+    if (rec) for (const e of rec.ents) if ((e.k === 'm' || (e.k === 'h' && e.id !== this.st.youId) || (e.k === 'i' && e.g === 'C') || e.k === 'n') && e.x === x && e.y === y) return true;
     return false;
   }
 

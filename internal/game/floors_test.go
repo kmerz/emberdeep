@@ -87,7 +87,7 @@ func checkFloor(t *testing.T, seed uint32, d int) {
 		for _, m := range a.Mons {
 			boss = boss || m.Elite
 		}
-		if want := d%BossEvery == 0; boss != want {
+		if want := d%BossEvery == 0 || ThemeAt(d).Boss != 0; boss != want {
 			t.Errorf("depth %d: boss=%v, want %v", d, boss, want)
 		}
 	}
@@ -101,7 +101,7 @@ func TestThemeBands(t *testing.T) {
 		}
 	}
 	for id, th := range Themes {
-		if th.ID != id || th.Name == "" || th.Kinds == "" || th.Decor == "" {
+		if th.ID != id || th.Name == "" || (th.Kinds == "" && id != "village") || th.Decor == "" {
 			t.Errorf("theme %s is incomplete: %+v", id, th)
 		}
 		for i := 0; i < len(th.Kinds); i++ {

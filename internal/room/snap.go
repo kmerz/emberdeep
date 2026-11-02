@@ -76,7 +76,7 @@ func LevelMsg(g *game.Game) []byte {
 	}
 	return mustJSON(proto.Level{T: "level", W: l.W, H: l.H, Seed: SeedString(g.Seed), Torches: tor,
 		Stairs: [2]int{l.Stairs.X, l.Stairs.Y}, Start: [2]int{l.Start.X, l.Start.Y}, Depth: g.Depth, MaxDepth: game.MaxDepth,
-		Theme: l.Theme.ID, Glows: glows, Dark: l.Theme.Dark})
+		Theme: l.Theme.ID, Glows: glows, Dark: l.Theme.Dark, Village: g.InVillage})
 }
 
 func ExploreMsg(tiles []game.TileUpdate) []byte {
@@ -143,6 +143,14 @@ func BuildShared(g *game.Game) []byte {
 			s.Party[len(s.Party)-1].DownT = 0
 		}
 	}
+	for _, n := range g.Npcs {
+		if g.IsVisible(n.X, n.Y) {
+			s.Ents = append(s.Ents, proto.Ent{ID: n.ID, K: "n", G: "g", X: n.X, Y: n.Y, Name: n.Name, Trader: n.Trader})
+		}
+	}
+	if p := g.Portal; p != nil {
+		s.Portal = &[3]int{p.X, p.Y, ceilSec(p.Until - g.Now)}
+	}
 	for _, c := range g.Chests {
 		if g.IsVisible(c.X, c.Y) {
 			s.Ents = append(s.Ents, proto.Ent{ID: c.ID, K: "i", G: "C", X: c.X, Y: c.Y})
@@ -183,7 +191,11 @@ func BuildShared(g *game.Game) []byte {
 		}
 	}
 	st := g.Level.Stairs
-	s.Obj = proto.Objectives{Boss: game.Floor(g.Depth).Boss != 0, KingAlive: !g.KingKilled, StairsAt: g.StairsAt, StairsNeed: g.StairsNeed, StairsLeft: g.StairsLeft,
+	boss := game.Floor(g.Depth).Boss
+	if g.InVillage {
+		boss = 0
+	}
+	s.Obj = proto.Objectives{Boss: boss != 0, BossName: game.MonDefs[boss].Name, Village: g.InVillage, PortalAt: g.PortalAt, PortalNeed: g.PortalNeed, KingAlive: !g.KingKilled, StairsAt: g.StairsAt, StairsNeed: g.StairsNeed, StairsLeft: g.StairsLeft,
 		StairsFound: g.Explored[st.Y*game.LW+st.X], Gold: g.PartyGold(), Kills: g.Kills}
 	return mustJSON(s)
 }

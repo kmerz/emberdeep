@@ -38,6 +38,8 @@ const (
 	CLearn    = "learn"  // spend a point on skill
 	CBind     = "bind"   // put skill on key slot (0-2)
 	CRespec   = "respec" // reset the skill tree (at the stairs)
+	CBuy      = "buy"    // buy one item (skill: item id) from the trader
+	CSell     = "sell"   // sell one item from rucksack slot
 	CRevive   = "revive"
 	CChat     = "chat"
 	CPing     = "ping"
@@ -97,9 +99,10 @@ type Level struct {
 	Start    [2]int   `json:"start"`
 	Depth    int      `json:"depth"`
 	MaxDepth int      `json:"maxDepth"`
-	Theme    string   `json:"theme"`          // palette id on the client
-	Glows    [][2]int `json:"glows"`          // decor tiles that give off light
-	Dark     bool     `json:"dark,omitempty"` // pitch black: only lit cells are visible
+	Theme    string   `json:"theme"`             // palette id on the client
+	Glows    [][2]int `json:"glows"`             // decor tiles that give off light
+	Dark     bool     `json:"dark,omitempty"`    // pitch black: only lit cells are visible
+	Village  bool     `json:"village,omitempty"` // the gnome village
 }
 
 // Explore carries newly explored tiles. It is delivered as an event (never dropped).
@@ -130,7 +133,8 @@ type Ent struct {
 	Elite  bool     `json:"el,omitempty"`
 	Face   int      `json:"face"`
 	St     []Status `json:"st,omitempty"`
-	It     string   `json:"it,omitempty"` // item id for rucksack items on the floor
+	It     string   `json:"it,omitempty"`     // item id for rucksack items on the floor
+	Trader bool     `json:"trader,omitempty"` // gnomes (k "n"): this one trades
 }
 
 type PartyEntry struct {
@@ -158,14 +162,18 @@ type Vis struct {
 }
 
 type Objectives struct {
-	Boss        bool `json:"boss"` // this floor has a boss
-	KingAlive   bool `json:"kingAlive"`
-	StairsAt    int  `json:"stairsAt"`
-	StairsNeed  int  `json:"stairsNeed"`
-	StairsLeft  int  `json:"stairsLeft"` // ticks until descent, 0 when not running
-	StairsFound bool `json:"stairsFound"`
-	Gold        int  `json:"gold"`
-	Kills       int  `json:"kills"`
+	Boss        bool   `json:"boss"` // this floor has a boss
+	BossName    string `json:"bossName,omitempty"`
+	Village     bool   `json:"village,omitempty"`
+	PortalAt    int    `json:"portalAt,omitempty"`
+	PortalNeed  int    `json:"portalNeed,omitempty"`
+	KingAlive   bool   `json:"kingAlive"`
+	StairsAt    int    `json:"stairsAt"`
+	StairsNeed  int    `json:"stairsNeed"`
+	StairsLeft  int    `json:"stairsLeft"` // ticks until descent, 0 when not running
+	StairsFound bool   `json:"stairsFound"`
+	Gold        int    `json:"gold"`
+	Kills       int    `json:"kills"`
 }
 
 type TreeSkill struct {
@@ -206,7 +214,8 @@ type SnapShared struct {
 	Party   []PartyEntry `json:"party"`
 	Obj     Objectives   `json:"obj"`
 	Patches [][2]int     `json:"patches,omitempty"`
-	Orbs    [][3]int     `json:"orbs,omitempty"` // light orbs: x, y, seconds left
+	Orbs    [][3]int     `json:"orbs,omitempty"`   // light orbs: x, y, seconds left
+	Portal  *[3]int      `json:"portal,omitempty"` // Scroll of Return portal: x, y, seconds left
 }
 
 type Events struct {

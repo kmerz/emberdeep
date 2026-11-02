@@ -993,3 +993,14 @@ func TestSkillTreeOverTheRoom(t *testing.T) {
 		return false
 	})
 }
+
+func TestTradeMessagesMapToIntents(t *testing.T) {
+	in, ok := ToIntent(proto.ClientMsg{T: "buy", Skill: "torch", Seq: 3})
+	if !ok || in.Kind != game.IntBuy || in.Skill != "torch" {
+		t.Fatalf("buy: %+v", in)
+	}
+	in, ok = ToIntent(proto.ClientMsg{T: "sell", Slot: 4})
+	if !ok || in.Kind != game.IntSell || in.Slot != 4 {
+		t.Fatalf("sell: %+v", in)
+	}
+}

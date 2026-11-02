@@ -31,6 +31,8 @@ const (
 	IntLearn  // spend a point on Skill (learn it or raise its rank)
 	IntBind   // put Skill on key Slot
 	IntRespec // reset the tree (only at the stairs)
+	IntBuy    // buy one of item Skill from the trader
+	IntSell   // sell one item from rucksack Slot to the trader
 )
 
 type Intent struct {
@@ -61,6 +63,8 @@ var (
 	ErrMaxRank   = errors.New("skill at max rank")
 	ErrLocked    = errors.New("skill locked")
 	ErrNotHere   = errors.New("not here")
+	ErrNoGold    = errors.New("not enough gold")
+	ErrPackFull  = errors.New("rucksack full")
 	ErrPhase     = errors.New("run is over")
 )
 
@@ -129,6 +133,15 @@ type Game struct {
 	Patches []*Patch
 	Chests  []*Chest
 	Orbs    []Orb
+	Npcs    []*Npc
+	Portal  *Portal
+
+	InVillage   bool
+	VillageSeen bool
+	ReturnDepth int // where the village stairs lead after a Scroll of Return (0 = the floor after the village)
+	PortalAt    int
+	PortalNeed  int
+	portalSince int
 
 	Explored []bool
 	Visible  []bool
@@ -148,6 +161,7 @@ type Game struct {
 	heroByID  map[int]*Hero
 	monByID   map[int]*Monster
 	chestByID map[int]*Chest
+	npcByID   map[int]*Npc
 	events    []Event
 	explNew   []TileUpdate
 	pend      []pending
@@ -184,11 +198,24 @@ func NewAt(seed uint32, st Settings, n, depth int) *Game {
 // loadFloor builds floor depth and resets everything that belongs to a floor. Heroes are kept and placed
 // around the start; their state is saved so a wipe can retry the floor.
 func (g *Game) loadFloor(depth int) {
+	g.InVillage = false
+	g.setupFloor(depth, Generate(g.Seed, depth, g.N), FloorSeed(g.Seed, depth))
+}
+
+// loadVillage loads the gnome village (it keeps the depth number of the floor the party came from).
+func (g *Game) loadVillage() {
+	g.InVillage, g.VillageSeen = true, true
+	g.setupFloor(g.Depth, GenerateVillage(g.Seed), g.Seed^0x6E0BE)
+}
+
+func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 	n := g.N
 	g.Depth = depth
-	g.Level = Generate(g.Seed, depth, n)
-	g.rng = NewRNG(uint64(FloorSeed(g.Seed, depth))*31 + 5)
-	g.Mons, g.Items, g.Patches, g.pend, g.Chests, g.Orbs = nil, nil, nil, nil, nil, nil
+	g.Level = lvl
+	g.rng = NewRNG(uint64(seed)*31 + 5)
+	g.Mons, g.Items, g.Patches, g.pend, g.Chests, g.Orbs, g.Npcs, g.Portal = nil, nil, nil, nil, nil, nil, nil, nil
+	g.npcByID = map[int]*Npc{}
+	g.portalSince, g.PortalAt, g.PortalNeed = -1, 0, 0
 	g.KingKilled = false
 	g.stairsSince, g.StairsLeft, g.StairsAt, g.StairsNeed = -1, 0, 0, 0
 	g.explNew = nil
@@ -205,7 +232,7 @@ func (g *Game) loadFloor(depth int) {
 			hp = float64(def.HP) * EliteHPMult(n)
 		}
 		hp *= DepthHPMult(depth)
-		m := &Monster{ID: g.newID(), Kind: s.Kind, X: s.X, Y: s.Y, HP: int(math.Round(hp)), Elite: s.Elite, Facing: 6}
+		m := &Monster{ID: g.newID(), Kind: s.Kind, X: s.X, Y: s.Y, HP: int(math.Round(hp)), Elite: s.Elite, Facing: 6, Neutral: def.Neutral}
 		m.HPMax = m.HP
 		g.Mons = append(g.Mons, m)
 		g.monByID[m.ID] = m
@@ -213,6 +240,12 @@ func (g *Game) loadFloor(depth int) {
 	}
 	for _, gs := range g.Level.Golds {
 		g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '$', X: gs.X, Y: gs.Y, Amount: gs.Amount})
+	}
+	for _, ns := range lvl.Npcs {
+		c := &Npc{ID: g.newID(), X: ns.X, Y: ns.Y, Home: Pt{ns.X, ns.Y}, Name: ns.Name, Trader: ns.Trader}
+		g.Npcs = append(g.Npcs, c)
+		g.npcByID[c.ID] = c
+		g.occ[c.Y*LW+c.X] = int32(c.ID)
 	}
 	g.chestByID = map[int]*Chest{}
 	for _, cs := range g.Level.Chests {
@@ -243,14 +276,33 @@ func (g *Game) loadFloor(depth int) {
 
 // descend takes the party to the next floor. The fallen stand up with FallenHPFrac of their HP.
 func (g *Game) descend() {
+	g.standUp()
+	switch {
+	case g.InVillage: // back down: to the floor the party came from, or the one after the village
+		next := g.ReturnDepth
+		if next == 0 {
+			next = VillageAfter + 1
+		}
+		g.ReturnDepth = 0
+		g.loadFloor(next)
+	case g.Depth == VillageAfter && !g.VillageSeen:
+		g.loadVillage()
+		g.emit(Event{K: "village"})
+		return
+	default:
+		g.loadFloor(g.Depth + 1)
+	}
+	g.emit(Event{K: "descend", Amount: g.Depth})
+}
+
+// standUp brings the fallen back with FallenHPFrac of their HP (on every change of floor).
+func (g *Game) standUp() {
 	for _, h := range g.Heroes {
 		if h.Dead || h.Downed {
 			h.Dead, h.Downed = false, false
 			h.HP = max(1, int(math.Round(float64(h.HPMax)*FallenHPFrac)))
 		}
 	}
-	g.loadFloor(g.Depth + 1)
-	g.emit(Event{K: "descend", Amount: g.Depth})
 }
 
 // RetryFloor restarts the current floor after a wipe, with every hero as they arrived on it.
@@ -266,7 +318,11 @@ func (g *Game) RetryFloor() {
 	}
 	g.Phase = PhasePlaying
 	g.WipedTick = 0
-	g.loadFloor(g.Depth)
+	if g.InVillage {
+		g.loadVillage()
+	} else {
+		g.loadFloor(g.Depth)
+	}
 }
 
 // TakeLevelChanged reports whether a new floor was loaded since the last call.
@@ -444,6 +500,10 @@ func (g *Game) Apply(pid int, in Intent) error {
 		}
 		h.Binds[in.Slot] = idx
 		return nil
+	case IntBuy:
+		return g.applyBuy(h, in.Skill)
+	case IntSell:
+		return g.applySell(h, in.Slot)
 	case IntRespec:
 		if !g.AtStairs(h) {
 			return ErrNotHere
@@ -470,7 +530,7 @@ func (g *Game) applyMove(h *Hero, in Intent) error {
 	// moving cancels any revive in progress
 	h.ReviveTarget, h.ReviveProg = 0, 0
 	// bumping a chest opens it (or wakes the mimic); it costs a step
-	if g.bumpChest(h, nx, ny) {
+	if g.bumpChest(h, nx, ny) || g.bumpNpc(h, nx, ny) {
 		g.spendStep(h)
 		return nil
 	}
@@ -584,6 +644,10 @@ func (g *Game) applyUse(h *Hero, in Intent) error {
 			n := int(float64(h.ResMax) * def.Amount)
 			h.gainRes(n)
 			g.emit(Event{K: "use", Actor: h.ID, X: h.X, Y: h.Y, Amount: n, FX: def.ID})
+		}
+	case "portal":
+		if err := g.openPortal(h); err != nil {
+			return err
 		}
 	case "torch":
 		h.TorchUntil = g.Now + TorchTicks // lighting a new one replaces the old

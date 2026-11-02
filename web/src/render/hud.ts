@@ -141,8 +141,10 @@ export function objectives(fb: Fb, st: GameState) {
   fb.box(113, 38, 47, 9, 'OBJECTIVES');
   const o = st.obj;
   if (!o) return;
-  if (o.boss) {
-    fb.txt(115, 39, '◆ Slay the Tallow King', TX);
+  if (o.village) {
+    fb.txt(115, 39, '◆ Trade with Grimble (walk into him)', TX);
+  } else if (o.boss) {
+    fb.txt(115, 39, ('◆ Slay ' + (o.bossName || 'the boss')).slice(0, 40), TX);
     fb.txt(156, 39, o.kingAlive ? '0/1' : '1/1', o.kingAlive ? DIM : MINT);
   } else {
     const d = st.level?.depth ?? 1, max = st.level?.maxDepth ?? 10;
@@ -154,6 +156,7 @@ export function objectives(fb: Fb, st: GameState) {
   const need = o.stairsNeed, all = o.stairsAt >= need && need > 0;
   fb.txt(115, 41, (all ? '◆ ' : '◇ ') + o.stairsAt + '/' + need + ' at the stairs', all ? TX : DIM);
   if (o.stairsLeft > 0) fb.txt(150, 41, ('descending ' + (o.stairsLeft / 20).toFixed(1)).padStart(10), GOLD, null, 1);
+  if (o.portalNeed) fb.segs(115, 42, [['◎ ', [150, 230, 255]], [o.portalAt + '/' + o.portalNeed + ' at the portal', TX]]);
   fb.txt(115, 43, 'PARTY LOOT', DIM, null, 1);
   fb.segs(115, 44, [[String(o.gold), GOLD, null, 1], [' gold  ·  ', DIM], [String(o.kills), TX, null, 1], [' slain', DIM]]);
 }
@@ -245,7 +248,7 @@ export function depthBanner(fb: Fb, st: GameState, now: number) {
   if (!st.level || !st.levelAt) return;
   const age = now - st.levelAt;
   if (age > 2500) return;
-  const txt = ' DEPTH ' + String(st.level.depth).padStart(2, '0') + ' ';
+  const txt = st.level.village ? ' GNOME VILLAGE ' : ' DEPTH ' + String(st.level.depth).padStart(2, '0') + ' ';
   const fade = age < 2000 ? 1 : 1 - (age - 2000) / 500;
   const x = Math.floor((VW - txt.length) / 2);
   fb.txt(x, 8, txt, mul([24, 6, 20], fade), mul(GOLD, fade), 1);

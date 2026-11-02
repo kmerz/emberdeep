@@ -7,7 +7,8 @@ import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
 import { inventoryPanel, slotAt, INV } from '../render/inventory';
 import { treePanel, PANEL_ORDER } from '../render/tree';
-import { itemInfo, PACK_SLOTS } from '../items';
+import { shopPanel, sellSlots } from '../render/shop';
+import { itemInfo, PACK_SLOTS, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
@@ -25,6 +26,9 @@ export class GameScreen implements Screen {
   private invSel = 0;
   private treeOpen = false;
   private treeSel = 0;
+  private shopOpen = false;
+  private shopSide: 0 | 1 = 0;
+  private shopSel = 0;
   private levelSeen = 0;
 
   constructor(private app: App) {
@@ -38,8 +42,14 @@ export class GameScreen implements Screen {
     this.held.clear();
     this.invOpen = false;
     this.treeOpen = false;
+    this.shopOpen = false;
     st.onSnap = () => this.pred.onSnap();
-    st.onEvents = (evs: GameEvent[], now: number) => { for (const e of evs) this.fx.add(e, now, st.youId); };
+    st.onEvents = (evs: GameEvent[], now: number) => {
+      for (const e of evs) {
+        this.fx.add(e, now, st.youId);
+        if (e.k === 'shop' && e.actor === st.youId) { this.shopOpen = true; this.invOpen = this.treeOpen = false; this.shopSel = 0; }
+      }
+    };
   }
 
   // ---- input ----
@@ -54,6 +64,7 @@ export class GameScreen implements Screen {
     }
     if (st.overlay === 'wipe' && ev.key === 'Enter') { if (st.isHost) net.send({ t: 'start' }); ev.preventDefault(); return; }
     const k = ev.key.toLowerCase();
+    if (this.shopOpen && this.shopKey(ev, k)) { ev.preventDefault(); return; }
     if (this.treeOpen && this.treeKey(ev, k)) { ev.preventDefault(); return; }
     if (this.invOpen && this.invKey(ev, k)) { ev.preventDefault(); return; }
     if (k === 'i' && !ev.repeat) { this.invOpen = true; this.treeOpen = false; this.held.clear(); ev.preventDefault(); return; }
@@ -87,6 +98,23 @@ export class GameScreen implements Screen {
     if (!w) return;
     if (ev.altKey || ev.button === 1) { this.app.net.send({ t: 'ping', cell: w }); ev.preventDefault(); return; }
     if (ev.button === 0 && !this.ui.chatActive) this.cast(0);
+  }
+
+  /** Keys while Grimble's shop is open. Returns true when the key was used by the panel. */
+  private shopKey(ev: KeyboardEvent, k: string): boolean {
+    const st = this.app.st, net = this.app.net;
+    if (ev.key === 'Escape') { this.shopOpen = false; return true; }
+    if (ev.key === 'Tab') { this.shopSide = this.shopSide === 0 ? 1 : 0; this.shopSel = 0; return true; }
+    const n = this.shopSide === 0 ? SHOP.length : Math.min(10, sellSlots(st).length);
+    if (k === 'arrowup') { this.shopSel = (this.shopSel + n - 1) % Math.max(1, n); return true; }
+    if (k === 'arrowdown') { this.shopSel = (this.shopSel + 1) % Math.max(1, n); return true; }
+    if (ev.repeat) return false;
+    if (ev.key === 'Enter' || k === 'u') {
+      if (this.shopSide === 0) { const s = SHOP[this.shopSel]; if (s) net.send({ t: 'buy', skill: s.item, seq: this.pred.nextSeq() }); }
+      else { const slot = sellSlots(st)[this.shopSel]; if (slot !== undefined) net.send({ t: 'sell', slot, seq: this.pred.nextSeq() }); }
+      return true;
+    }
+    return false;
   }
 
   /** Keys while the skill tree is open. Returns true when the key was used by the panel. */
@@ -309,6 +337,12 @@ export class GameScreen implements Screen {
     commandLine(fb, this.ui, now);
     if (this.invOpen) inventoryPanel(fb, st, this.invSel);
     if (this.treeOpen) treePanel(fb, st, this.treeSel, you?.cls ?? null);
+    if (this.shopOpen) {
+      // walking away from Grimble closes the shop
+      const near = you && ents.some((e) => e.k === 'n' && e.trader && Math.max(Math.abs(e.x - (yp?.x ?? you.x)), Math.abs(e.y - (yp?.y ?? you.y))) <= 1);
+      if (!near) this.shopOpen = false;
+      else shopPanel(fb, st, this.shopSide, this.shopSel);
+    }
     depthBanner(fb, st, now);
     if (st.overlay) overlayBox(fb, st.overlay, st, now);
     void H; void SKILL_BY_ID;

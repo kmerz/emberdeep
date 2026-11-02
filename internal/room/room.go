@@ -753,7 +753,7 @@ func (r *Room) botView(h *game.Hero, humans map[int]bool) *bot.View {
 		v.Ents = append(v.Ents, bot.Ent{ID: o.ID, K: "h", X: o.X, Y: o.Y, Downed: o.Downed, Dead: o.Dead})
 	}
 	for _, m := range g.Mons {
-		if g.IsVisible(m.X, m.Y) && !m.Disguised { // bots don't get to spot mimics either
+		if g.IsVisible(m.X, m.Y) && !m.Disguised && !m.Neutral { // bots spot no mimics and leave the ant workers be
 			v.Ents = append(v.Ents, bot.Ent{ID: m.ID, K: "m", X: m.X, Y: m.Y, Elite: m.Elite, HP: m.HP, HPMax: m.HPMax})
 		}
 	}
