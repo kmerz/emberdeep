@@ -708,3 +708,74 @@ func TestHumanReplacesBotMidRun(t *testing.T) {
 		}
 	})
 }
+
+func lobbyBots(l *proto.Lobby) []string {
+	var names []string
+	for _, p := range l.Players {
+		if p.Bot {
+			names = append(names, p.Name)
+		}
+	}
+	return names
+}
+
+func TestHostAddsAndRemovesBots(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	b, _ := join(t, r, "nyx", "rogue")
+	drain(a)
+	set := func(c *Conn, key string) { r.Submit(c, proto.ClientMsg{T: "setting", Key: key}) }
+
+	set(b, "addBot") // not the host: ignored
+	set(a, "addBot")
+	set(a, "addBot")
+	set(a, "addBot") // room is full at 4
+	var l *proto.Lobby
+	waitFor(t, "two bots", func() bool {
+		if x := lastLobby(a); x != nil {
+			l = x
+		}
+		return l != nil && len(lobbyBots(l)) == 2
+	})
+	time.Sleep(20 * time.Millisecond)
+	if x := lastLobby(a); x != nil {
+		l = x
+	}
+	if len(l.Players) != 4 || len(lobbyBots(l)) != 2 {
+		t.Fatalf("expected 2 humans + 2 bots, got %+v", l.Players)
+	}
+
+	set(a, "removeBot") // removes the last bot (bot-vex)
+	set(a, "addBot")    // reuses the free name
+	waitFor(t, "bot re-added", func() bool {
+		if x := lastLobby(a); x != nil {
+			l = x
+		}
+		bots := lobbyBots(l)
+		return len(bots) == 2 && bots[1] == "bot-vex"
+	})
+	if bots := lobbyBots(l); bots[0] == bots[1] {
+		t.Fatalf("bot names must be unique, got %v", bots)
+	}
+
+	// a joining human still replaces a host-added bot
+	if _, err := r.Join(NewTestConn(), proto.ClientMsg{T: "hello", Name: "vela", Cls: "monk"}); err != nil {
+		t.Fatalf("join should replace a bot, got %v", err)
+	}
+	if x := lastLobby(a); x != nil {
+		l = x
+	}
+	if len(l.Players) != 4 || len(lobbyBots(l)) != 1 {
+		t.Fatalf("expected 3 humans + 1 bot, got %+v", l.Players)
+	}
+
+	set(a, "removeBot")
+	set(a, "removeBot") // no bots left: ignored
+	waitFor(t, "no bots", func() bool {
+		if x := lastLobby(a); x != nil {
+			l = x
+		}
+		return len(lobbyBots(l)) == 0 && len(l.Players) == 3
+	})
+}

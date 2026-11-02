@@ -464,6 +464,16 @@ func (r *Room) handleMsg(in inMsg) {
 			r.settings.FriendlyFire = !r.settings.FriendlyFire
 		case "difficulty":
 			r.settings.Difficulty = (r.settings.Difficulty + 1) % len(game.Difficulties)
+		case "addBot":
+			if !r.addBot() {
+				return
+			}
+		case "removeBot":
+			b := r.lastBot()
+			if b == nil {
+				return
+			}
+			r.removePlayer(b)
 		default:
 			return
 		}
@@ -638,11 +648,30 @@ func (r *Room) lastBot() *Player {
 
 // addBots fills n slots with AI teammates (always ready); joining humans replace them.
 func (r *Room) addBots(n int) {
-	for i := 0; i < n && i < len(botNames) && len(r.players) < game.MaxHeroes; i++ {
-		r.nextPID++
-		r.players = append(r.players, &Player{ID: r.nextPID, Name: botNames[i], Cls: botClasses[i], Bot: true, Ready: true,
-			PingMs: -1, brain: bot.NewBrain(false)})
+	for i := 0; i < n && r.addBot(); i++ {
 	}
+}
+
+// addBot adds one AI teammate with the first unused bot name. It reports false if the room is full
+// or every bot name is taken.
+func (r *Room) addBot() bool {
+	if len(r.players) >= game.MaxHeroes {
+		return false
+	}
+	for i, name := range botNames {
+		taken := false
+		for _, p := range r.players {
+			taken = taken || p.Name == name
+		}
+		if taken {
+			continue
+		}
+		r.nextPID++
+		r.players = append(r.players, &Player{ID: r.nextPID, Name: name, Cls: botClasses[i], Bot: true, Ready: true,
+			PingMs: -1, brain: bot.NewBrain(false)})
+		return true
+	}
+	return false
 }
 
 // botThink runs every third tick (the hero step interval); intents go through the normal validation path.

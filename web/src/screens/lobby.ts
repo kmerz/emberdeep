@@ -31,6 +31,8 @@ export class LobbyScreen implements Screen {
       else this.say(url);
     } else if (k === 'f' && st.isHost) net.send({ t: 'setting', key: 'friendlyFire' });
     else if (k === 'd' && st.isHost) net.send({ t: 'setting', key: 'difficulty' });
+    else if (k === 'b' && st.isHost) net.send({ t: 'setting', key: 'addBot' });
+    else if (k === 'x' && st.isHost) net.send({ t: 'setting', key: 'removeBot' });
     else if (k === 'q') { net.close(); this.app.setScreen('landing'); }
   }
 
@@ -79,7 +81,7 @@ export class LobbyScreen implements Screen {
     const me = players.find((p) => p.id === st.youId);
     const enterLabel = me?.ready ? (st.isHost ? 'start now' : 'unready') : 'ready up';
     const keys: [string, string][] = [['ENTER', enterLabel], ['C', 'change class'], ['I', 'copy invite link']];
-    if (st.isHost) keys.push(['F', 'friendly fire'], ['D', 'difficulty']);
+    if (st.isHost) keys.push(['F', 'friendly fire'], ['D', 'difficulty'], ['B', 'add bot'], ['X', 'remove bot']);
     keys.push(['Q', 'leave']);
     keyChips(fb, 36, keys, 0);
     if (this.toast && now - this.toastAt < 4000) fb.ctxt(38, this.toast, MINT);
