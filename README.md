@@ -13,6 +13,9 @@ go run ./cmd/emberdeep                            # http://localhost:8080
 Open the page, **create a game** (or join with a code such as `ASH-7Q2`, or open `/r/ASH-7Q2`), pick a name and class, press
 `ENTER` to ready up. The run starts when everyone is ready, or when the host presses `ENTER` again.
 
+While you wait in the lobby, the legend of Emberdeep is told page by page under the lobby box (`←` `→` turn the
+pages). The text lives in `web/src/story.ts`.
+
 ### Controls
 
 | Key | Action |
