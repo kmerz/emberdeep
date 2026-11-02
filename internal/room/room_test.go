@@ -1058,3 +1058,39 @@ func TestQuestsOverTheRoom(t *testing.T) {
 		return false
 	})
 }
+
+// Bots must see the notice board and gnomes as obstacles, or they path through the board and bump it forever.
+func TestBotsSeeTheNoticeBoard(t *testing.T) {
+	h := fastHub(t, func(c *Config) { c.Bots = 1 })
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	r.Submit(a, proto.ClientMsg{T: "ready"})
+	waitFor(t, "start", func() bool { return r.Metrics.Ticks.Load() > 0 })
+	r.Inspect(func(g *game.Game, _ int) {
+		var board *game.Npc
+		for _, n := range g.Npcs {
+			if n.Board {
+				board = n
+			}
+		}
+		if board == nil {
+			t.Fatal("floor 1 should have the notice board")
+		}
+		var bh *game.Hero
+		for _, hh := range g.Heroes {
+			if len(hh.Name) > 4 && hh.Name[:4] == "bot-" {
+				bh = hh
+			}
+		}
+		if bh == nil {
+			t.Fatal("no bot hero")
+		}
+		v := r.botView(bh, nil)
+		for _, e := range v.Ents {
+			if e.K == "n" && e.X == board.X && e.Y == board.Y {
+				return
+			}
+		}
+		t.Error("the bot's view has no notice board in it")
+	})
+}

@@ -303,34 +303,44 @@ const (
 )
 
 var MonDefs = map[byte]MonDef{
-	'z': {Name: "Zombie", HP: 34, Dmg: 6, MoveTicks: 7, AtkTicks: 14, XP: 8},
-	's': {Name: "Skeleton", HP: 24, Dmg: 7, MoveTicks: 5, AtkTicks: 12, XP: 8},
-	'f': {Name: "Fiend", HP: 16, Dmg: 5, MoveTicks: 3, AtkTicks: 10, XP: 6},
-	'b': {Name: "Bat", HP: 10, Dmg: 4, MoveTicks: 3, AtkTicks: 10, XP: 4},
-	'K': {Name: "The Tallow King", HP: 260, Dmg: 16, MoveTicks: 5, AtkTicks: 14, XP: 120},
-	'M': {Name: "Mimic", HP: 70, Dmg: 11, MoveTicks: 6, AtkTicks: 12, XP: 30},
-	'r': {Name: "Bone Rat", HP: 8, Dmg: 3, MoveTicks: 2, AtkTicks: 8, XP: 2},                                    // fast and fragile
-	'h': {Name: "Bone Hulk", HP: 90, Dmg: 16, MoveTicks: 9, AtkTicks: 20, XP: 22},                               // slow, hits hard
-	'n': {Name: "Bone Caller", HP: 30, Dmg: 4, MoveTicks: 5, AtkTicks: 14, XP: 18, Role: "caller", Summon: 'r'}, // raises bone rats
-	'a': {Name: "Worker Ant", HP: 20, Dmg: 4, MoveTicks: 6, AtkTicks: 12, XP: 4, Neutral: true, Faction: "ants"},
-	'A': {Name: "Soldier Ant", HP: 40, Dmg: 9, MoveTicks: 4, AtkTicks: 12, XP: 12, Faction: "ants"},
-	'Q': {Name: "The Ant Queen", HP: 300, Dmg: 14, MoveTicks: 99, AtkTicks: 16, XP: 140, Role: "queen", Summon: 'A', Faction: "ants"},
-	'i': {Name: "Imp", HP: 22, Dmg: 7, MoveTicks: 3, AtkTicks: 22, XP: 14, Role: "ranged", Range: 9, KeepOff: true},            // fast, shoots firebolts, keeps away
-	'd': {Name: "Drake", HP: 70, Dmg: 10, MoveTicks: 5, AtkTicks: 26, XP: 26, Role: "ranged", Range: 7},                        // spits fire, bites up close
-	'G': {Name: "Magma Golem", HP: 140, Dmg: 15, MoveTicks: 10, AtkTicks: 20, XP: 34, Trail: true},                             // slow, tough, burning trail
-	'S': {Name: "Shade", HP: 26, Dmg: 13, MoveTicks: 4, AtkTicks: 12, XP: 18, Stealth: true},                                   // invisible until close
-	'U': {Name: "Succubus", HP: 60, Dmg: 9, MoveTicks: 4, AtkTicks: 14, XP: 30, Role: "charmer", Range: 7},                     // charms a hero
-	'I': {Name: "Incubus", HP: 60, Dmg: 9, MoveTicks: 4, AtkTicks: 14, XP: 30, Role: "drainer"},                                // drains resource, blinks away
-	'D': {Name: "The Ember Dragon", HP: 520, Dmg: 22, MoveTicks: 7, AtkTicks: 18, XP: 400, Role: "dragon", Range: BreathRange}, // breathes fire
-	'o': {Name: "Blob", HP: 44, Dmg: 6, MoveTicks: 8, AtkTicks: 14, XP: 10, Role: "splitter"},                                  // splits when killed
+	'z':     {Name: "Zombie", HP: 34, Dmg: 6, MoveTicks: 7, AtkTicks: 14, XP: 8},
+	's':     {Name: "Skeleton", HP: 24, Dmg: 7, MoveTicks: 5, AtkTicks: 12, XP: 8},
+	'f':     {Name: "Fiend", HP: 16, Dmg: 5, MoveTicks: 3, AtkTicks: 10, XP: 6},
+	'b':     {Name: "Bat", HP: 10, Dmg: 4, MoveTicks: 3, AtkTicks: 10, XP: 4},
+	'K':     {Name: "The Tallow King", HP: 260, Dmg: 16, MoveTicks: 5, AtkTicks: 14, XP: 120},
+	'M':     {Name: "Mimic", HP: 70, Dmg: 11, MoveTicks: 6, AtkTicks: 12, XP: 30},
+	'r':     {Name: "Bone Rat", HP: 8, Dmg: 3, MoveTicks: 2, AtkTicks: 8, XP: 2},                                    // fast and fragile
+	'h':     {Name: "Bone Hulk", HP: 90, Dmg: 16, MoveTicks: 9, AtkTicks: 20, XP: 22},                               // slow, hits hard
+	'n':     {Name: "Bone Caller", HP: 30, Dmg: 4, MoveTicks: 5, AtkTicks: 14, XP: 18, Role: "caller", Summon: 'r'}, // raises bone rats
+	'a':     {Name: "Worker Ant", HP: 20, Dmg: 4, MoveTicks: 6, AtkTicks: 12, XP: 4, Neutral: true, Faction: "ants"},
+	'A':     {Name: "Soldier Ant", HP: 40, Dmg: 9, MoveTicks: 4, AtkTicks: 12, XP: 12, Faction: "ants"},
+	'Q':     {Name: "The Ant Queen", HP: 300, Dmg: 14, MoveTicks: 99, AtkTicks: 16, XP: 140, Role: "queen", Summon: 'A', Faction: "ants"},
+	'i':     {Name: "Imp", HP: 22, Dmg: 7, MoveTicks: 3, AtkTicks: 22, XP: 14, Role: "ranged", Range: 9, KeepOff: true},            // fast, shoots firebolts, keeps away
+	'd':     {Name: "Drake", HP: 70, Dmg: 10, MoveTicks: 5, AtkTicks: 26, XP: 26, Role: "ranged", Range: 7},                        // spits fire, bites up close
+	'G':     {Name: "Magma Golem", HP: 140, Dmg: 15, MoveTicks: 10, AtkTicks: 20, XP: 34, Trail: true},                             // slow, tough, burning trail
+	'S':     {Name: "Shade", HP: 26, Dmg: 13, MoveTicks: 4, AtkTicks: 12, XP: 18, Stealth: true},                                   // invisible until close
+	'U':     {Name: "Succubus", HP: 60, Dmg: 9, MoveTicks: 4, AtkTicks: 14, XP: 30, Role: "charmer", Range: 7},                     // charms a hero
+	'I':     {Name: "Incubus", HP: 60, Dmg: 9, MoveTicks: 4, AtkTicks: 14, XP: 30, Role: "drainer"},                                // drains resource, blinks away
+	'D':     {Name: "The Ember Dragon", HP: 520, Dmg: 22, MoveTicks: 7, AtkTicks: 18, XP: 400, Role: "dragon", Range: BreathRange}, // breathes fire
+	KegKind: {Name: "Powder Keg", HP: 1, Dmg: 0, MoveTicks: 99, AtkTicks: 99, XP: 0, Role: "keg"},                                  // explodes when hit (world.go)
+	'o':     {Name: "Blob", HP: 44, Dmg: 6, MoveTicks: 8, AtkTicks: 14, XP: 10, Role: "splitter"},                                  // splits when killed
 }
+
+// KegKind is the powder keg: a "monster" that never acts and blows up when broken.
+const KegKind = 'B'
 
 type Difficulty struct {
 	Name    string
-	DmgMult float64
+	DmgMult float64 // monster damage
+	HPMult  float64 // monster hit points
 }
 
-var Difficulties = []Difficulty{{"NORMAL", 1.0}, {"NIGHTMARE", 1.5}}
+// Difficulties, in the order the host's D key cycles them. Index 0 is the default.
+var Difficulties = []Difficulty{
+	{"NORMAL", 1.0, 1.0},
+	{"NIGHTMARE", 1.5, 1.0},
+	{"NOVICE", 0.6, 0.7}, // for learning the game: monsters hit softer and die sooner
+}
 
 // Loot
 const GoldDropChance = 0.5
@@ -438,3 +448,43 @@ func cheb(ax, ay, bx, by int) int {
 	}
 	return dy
 }
+
+// World dressing (world.go): furniture, urns, powder kegs, spike traps and lava pools, per theme.
+type Dressing struct {
+	Furniture   byte    // a low set piece that blocks the way (0 = none)
+	FurnPerRoom int     // up to this many per room
+	UrnChance   float64 // chance a room holds 1-2 urns
+	KegChance   float64 // chance a room holds a powder keg
+	Traps       int     // hidden spike traps per floor (from floor 2 on)
+	LavaPools   int     // pools of burning ground that never go out
+}
+
+var Dressings = map[string]Dressing{
+	"cathedral": {Furniture: TCandle, FurnPerRoom: 2, UrnChance: 0.5, KegChance: 0.25, Traps: 4},
+	"crypt":     {Furniture: TCoffin, FurnPerRoom: 2, UrnChance: 0.6, KegChance: 0.2, Traps: 5},
+	"caverns":   {Furniture: TStalk, FurnPerRoom: 3, UrnChance: 0.3, KegChance: 0.15, Traps: 5},
+	"dark":      {UrnChance: 0.4, KegChance: 0.2, Traps: 6},
+	"hive":      {Traps: 3},
+	"abyss":     {UrnChance: 0.3, KegChance: 0.25, Traps: 6, LavaPools: 3},
+	"ember":     {UrnChance: 0.3, KegChance: 0.35, Traps: 6, LavaPools: 5},
+}
+
+const (
+	UrnGoldChance = 0.4  // a smashed urn spills a little gold...
+	UrnItemChance = 0.12 // ...or, rarely, an item for whoever smashed it
+
+	KegFuse      = 8          // ticks between a keg breaking and its blast (so chains ripple)
+	KegRadius    = 3.5        // blast radius
+	KegDmg       = 40         // to monsters (scaled like monster hp with depth)
+	KegHeroDmg   = 14         // to heroes caught in it (scaled like monster damage)
+	KegFireTicks = 3 * TickHz // the blast leaves burning ground
+
+	TrapDmg    = 10         // spikes, to a hero (scaled like monster damage)
+	TrapMonDmg = 25         // spikes, to a monster lured over them (scaled like monster hp)
+	TrapRearm  = 3 * TickHz // a sprung trap resets after this long
+	LavaDmg    = 6          // per second, standing in a lava pool
+
+	BarkChance   = 0.12        // chance an ordinary monster says something when it notices you
+	BarkGap      = 5 * TickHz  // at most one ordinary monster line per this long
+	GnomeChatter = 25 * TickHz // a gnome says something to a passing hero at most this often
+)

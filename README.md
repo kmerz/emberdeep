@@ -24,9 +24,10 @@ pages). The text lives in `web/src/story.ts`.
 | `1` `2` `3` | class skills, aimed at the mouse cursor (or the nearest enemy / facing) |
 | left click | skill 1 |
 | `Q` | drink a healing potion |
+| `4` | use the item on key 4: firebombs and Scrolls of Light are thrown at the mouse cursor (or the nearest enemy). In the rucksack, `4` on an item puts it on that key |
 | `T` | open the skill tree (arrows pick, `ENTER` learn or rank up, `1` `2` `3` put the skill on that key, `R` reset at the stairs) |
 | `J` | the quest journal |
-| `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use, `X` drop, `I`/`Esc` close) |
+| `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use, `X` drop, `4` put on key 4, `I`/`Esc` close) |
 | hold `E` | revive an adjacent downed ally (3 s) |
 | `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/leave` or `/quit` leave the game, `/help`) |
 | Alt+click or middle click | ping the map (4 s) |
@@ -52,6 +53,8 @@ All numbers live in `internal/game/balance.go`.
 
 ### Rules worth knowing
 
+- Difficulty (host: `D` in the lobby): NORMAL; NIGHTMARE (monsters hit 50% harder); NOVICE (monsters hit for
+  60% and have 70% HP, for learning the game). Bots count toward party scaling like players.
 - Scaling uses the party size **at run start**: enemy HP x `1+0.6(N-1)`, elite HP x `1+0.8(N-1)`, packs `+N-1`.
   Heroes joining mid-run do **not** rescale enemies that already exist.
 - Gold is split between connected heroes. Item drops (healing potions, resource draughts, firebombs, garnets) are
@@ -82,6 +85,16 @@ All numbers live in `internal/game/balance.go`.
   to the stairs; the stairs wait for them), fetch an item, or collect a few things. Quests are shared: anyone
   accepts, everyone gets the gold and XP, and some give each hero a skill point. Fetch and collect quests are
   handed in by walking into Grimble. `J` opens the journal. The quests live in `internal/game/quests.go`.
+- The rooms are dressed per theme (numbers in `Dressings` in `balance.go`, logic in `internal/game/world.go`):
+  candle stands `†` (they give light), coffins `Π` and giant mushroom stalks `♠` stand in the way like pillars.
+  Urns `∪` break when you walk into them (sometimes a little gold, rarely an item). A powder keg `¤` explodes
+  0.4 s after any hit: it hurts monsters (credited to whoever lit it), heroes in the blast, and sets off other
+  kegs nearby. From floor 2 on, hidden spike traps show `×` when a hero steps next to one; they hurt whatever
+  steps on them (monsters too) and reset after 3 s. The Abyss Gate and the Ember Depths have lava pools that
+  never stop burning. Bots walk around seen traps and burning ground.
+- Monsters talk (`internal/game/barks.go`): bosses and hunt targets always greet the party, speak at half health
+  and when they down a hero (also in the log); other monsters sometimes, mimics when they bite, Bone Callers when
+  they raise rats. Gnomes chat with heroes walking by, and a rescued gnome frets on the way to the stairs.
 - About a third of the rooms hold a chest `■`: walk into it to open it. It spills gold for the party and two
   item rolls for every hero. From floor 2 on, some chests are mimics (8% rising to 38% at floor 10): they bite
   when bumped, and hitting a chest gives a mimic away. A dead mimic drops the treasure it was guarding.

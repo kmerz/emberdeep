@@ -140,19 +140,28 @@ func (g *Game) castDelayed(h *Hero, sk SkillDef, tx, ty int) error {
 }
 
 func (g *Game) runPending() {
+	// split first: an impact may queue new effects (a keg blast lights the next keg), and those must survive
+	var due []pending
 	n := 0
 	for _, p := range g.pend {
 		if p.at > g.Now {
 			g.pend[n] = p
 			n++
-			continue
+		} else {
+			due = append(due, p)
 		}
-		g.impact(p)
 	}
 	g.pend = g.pend[:n]
+	for _, p := range due {
+		g.impact(p)
+	}
 }
 
 func (g *Game) impact(p pending) {
+	if p.skill == "keg" { // a powder keg going off (it may have been lit by a trap, so no hero needed)
+		g.kegBlast(p)
+		return
+	}
 	h := g.heroByID[p.caster]
 	if h == nil {
 		return

@@ -155,6 +155,14 @@ export class Sfx {
       case 'buzz': this.tone(110, 0.15, 'square', 0.1); break;
       case 'tick': this.tone(1000, 0.05, 'square', 0.08); break;
       case 'heart': this.tone(60, 0.12, 'sine', 0.4, 45); this.tone(55, 0.14, 'sine', 0.3, 40, 0.18); break;
+      case 'hiss': this.noise(0.4, 0.2, 6000, 'highpass', 3000); break;
+      case 'smash': this.noise(0.12, 0.35, 2200, 'bandpass', 900, 0, 2); this.tone(1800, 0.08, 'triangle', 0.08, 1200, 0.03); break;
+      case 'spikes': this.tone(1600, 0.08, 'square', 0.1, 500); this.noise(0.1, 0.3, 3000, 'bandpass', 1200); break;
+      case 'click': this.tone(2400, 0.02, 'square', 0.06); break;
+      // a few quick "syllables": the voice of whoever speaks
+      case 'voice-boss': for (let i = 0; i < 4; i++) this.tone(70 + Math.random() * 30, 0.09, 'sawtooth', 0.12, 60, i * 0.1); break;
+      case 'voice-gnome': for (let i = 0; i < 4; i++) this.tone(700 + Math.random() * 300, 0.05, 'triangle', 0.06, 650, i * 0.07); break;
+      case 'voice': for (let i = 0; i < 3; i++) this.tone(180 + Math.random() * 80, 0.07, 'square', 0.05, 150, i * 0.09); break;
       case 'streak': this.tone(523, 0.1, 'square', 0.08); this.tone(784, 0.2, 'square', 0.08, 1047, 0.08); break;
       // ambience
       case 'drip': this.tone(1800 + Math.random() * 800, 0.12, 'sine', 0.06, 900); break;
@@ -205,6 +213,11 @@ export class Sfx {
       case 'alarm': this.play('alarm'); break;
       case 'portal': this.play('portal'); break;
       case 'packfull': if (mine) this.play('buzz'); break;
+      case 'fuse': this.play('hiss', Math.max(k, 0.4)); break;
+      case 'urn': this.play('smash', k); break;
+      case 'trap': this.play('spikes', mine ? 1 : k); break;
+      case 'trapseen': if (e.actor === me) this.play('click'); break;
+      case 'bark': this.play(e.fx && 'KQD'.includes(e.fx) ? 'voice-boss' : e.fx === 'g' ? 'voice-gnome' : 'voice', Math.max(k, 0.3)); break;
     }
   }
 

@@ -33,10 +33,11 @@ type Monster struct {
 	BleedOwner int
 	StunUntil  int
 
-	Gen       int  // blobs: 0 = whole, 1 = a blobling (doesn't split again)
-	Parent    int  // the caller that raised this minion (0 = none)
-	Summoned  bool // minions give little XP and no loot
-	NextSpawn int  // callers: tick of the next summon
+	Gen       int   // blobs: 0 = whole, 1 = a blobling (doesn't split again)
+	Parent    int   // the caller that raised this minion (0 = none)
+	Summoned  bool  // minions give little XP and no loot
+	NextSpawn int   // callers: tick of the next summon
+	Barked    uint8 // lines already said (barks.go)
 }
 
 func (m *Monster) Def() MonDef { return MonDefs[m.Kind] }
@@ -49,6 +50,11 @@ func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 	if m.Disguised { // hitting a "chest" gives the mimic away
 		m.Disguised = false
 		g.emit(Event{K: "mimic", Actor: actor, Target: m.ID, X: m.X, Y: m.Y})
+		m.Barked |= barkWoke
+		g.bark(m, MimicBarks)
+	}
+	if !m.Awake && m.Def().Role != "keg" {
+		g.barkWake(m)
 	}
 	if m.Def().Faction != "" {
 		g.alarm(m, actor)
@@ -71,6 +77,8 @@ func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 	g.emit(Event{K: "hit", Actor: actor, Target: m.ID, X: m.X, Y: m.Y, Amount: dmg, FX: fx})
 	if m.HP <= 0 {
 		g.killMonster(m, actor)
+	} else {
+		g.barkHurt(m)
 	}
 }
 
@@ -86,8 +94,12 @@ func (g *Game) killMonster(m *Monster, killer int) {
 			break
 		}
 	}
-	g.Kills++
 	def := m.Def()
+	if def.Role == "keg" { // not a kill: it blows up
+		g.breakKeg(m, killer)
+		return
+	}
+	g.Kills++
 	g.questKill(m)
 	if m.Named != "" { // a named monster guards a little treasure
 		g.chestLoot(m.X, m.Y)
@@ -133,7 +145,7 @@ func (g *Game) killMonster(m *Monster, killer int) {
 // addMon puts a new monster on the floor at x, y (scaled for the party and depth).
 func (g *Game) addMon(kind byte, x, y int, hpScale float64) *Monster {
 	def := MonDefs[kind]
-	hp := max(1, int(math.Round(float64(def.HP)*EnemyHPMult(g.N)*DepthHPMult(g.Depth)*hpScale)))
+	hp := max(1, int(math.Round(float64(def.HP)*EnemyHPMult(g.N)*DepthHPMult(g.Depth)*Difficulties[g.Settings.Difficulty].HPMult*hpScale)))
 	m := &Monster{ID: g.newID(), Kind: kind, X: x, Y: y, HP: hp, HPMax: hp, Facing: 6, Awake: true}
 	g.Mons = append(g.Mons, m)
 	g.monByID[m.ID] = m
@@ -230,6 +242,7 @@ func (g *Game) callerAct(m *Monster, tgt *Hero) bool {
 				r.Parent, r.Summoned = m.ID, true
 				m.NextSpawn = g.Now + CallerEvery
 				g.emit(Event{K: "summon", Actor: m.ID, Target: r.ID, X: p.X, Y: p.Y, Text: MonDefs[def.Summon].Name, FX: string(rune(m.Kind))})
+				g.barkCaller(m)
 				return true
 			}
 		}
@@ -259,6 +272,8 @@ func (g *Game) revealMimic(m *Monster, h *Hero) {
 	m.Disguised, m.Awake = false, true
 	g.addThreat(m, h.ID, 1)
 	g.emit(Event{K: "mimic", Actor: h.ID, Target: m.ID, X: m.X, Y: m.Y})
+	m.Barked |= barkWoke
+	g.bark(m, MimicBarks)
 	dmg := int(math.Round(float64(m.Def().Dmg) * MimicBite * Difficulties[g.Settings.Difficulty].DmgMult * DepthDmgMult(g.Depth)))
 	m.Facing = dirIndex(h.X-m.X, h.Y-m.Y, m.Facing)
 	m.NextAtk = g.Now + m.Def().AtkTicks
@@ -266,7 +281,7 @@ func (g *Game) revealMimic(m *Monster, h *Hero) {
 }
 
 func (g *Game) monsterAI(m *Monster) {
-	if m.Disguised {
+	if m.Disguised || m.Def().Role == "keg" {
 		return
 	}
 	if m.Neutral { // busy carrying food: an aimless step now and then
@@ -300,6 +315,7 @@ func (g *Game) monsterAI(m *Monster) {
 		if d > AggroRange || !g.Level.LineClear(m.X, m.Y, tgt.X, tgt.Y) {
 			return
 		}
+		g.barkWake(m)
 		m.Awake = true
 	}
 	if dist(m.X, m.Y, tgt.X, tgt.Y) > LeashRange {

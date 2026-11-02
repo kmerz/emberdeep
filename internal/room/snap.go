@@ -165,7 +165,20 @@ func BuildShared(g *game.Game) []byte {
 	}
 	for _, c := range g.Chests {
 		if g.IsVisible(c.X, c.Y) {
-			s.Ents = append(s.Ents, proto.Ent{ID: c.ID, K: "i", G: "C", X: c.X, Y: c.Y})
+			gl := "C"
+			if c.Urn {
+				gl = "u"
+			}
+			s.Ents = append(s.Ents, proto.Ent{ID: c.ID, K: "i", G: gl, X: c.X, Y: c.Y})
+		}
+	}
+	for _, t := range g.Traps {
+		if t.Seen && g.IsVisible(t.X, t.Y) {
+			armed := 0
+			if g.Now >= t.ReadyAt {
+				armed = 1
+			}
+			s.Traps = append(s.Traps, [3]int{t.X, t.Y, armed})
 		}
 	}
 	for _, m := range g.Mons {

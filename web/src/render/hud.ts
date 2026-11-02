@@ -6,6 +6,7 @@ import type { Ent, PartyEntry } from '../proto';
 import type { Cam } from './fx';
 import { VW, VH } from './map';
 import { palette } from './themes';
+import { itemInfo } from '../items';
 
 export interface UiState { chatActive: boolean; chatText: string; }
 
@@ -76,6 +77,7 @@ export function pickTarget(st: GameState, ents: Ent[], hero: { x: number; y: num
   if (!hero) return null;
   let best: Ent | null = null, bd = 14;
   for (const m of mons) {
+    if (m.g === 'B') continue; // a powder keg is only a target once you hit it
     const d = Math.hypot(m.x - hero.x, (m.y - hero.y) * 2);
     if (d < bd) { best = m; bd = d; }
   }
@@ -183,13 +185,13 @@ export function logPanel(fb: Fb, st: GameState, now: number) {
   });
 }
 
-export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null) {
+export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null, itemKey = '') {
   const me = st.party.find((p) => p.id === st.youId);
   if (!youCls || !st.me) { fb.box(65, 35, 47, 12, 'HOTBAR'); return; }
   const c = CLS[youCls], m = st.me;
   fb.box(65, 35, 47, 12, (me?.name ?? '').toUpperCase() + ' · ' + c.name, c.col);
   const wall = !!me?.st?.some((s) => s.k === 'wall');
-  type Slot = { k: string; ic: string; n: string; st: number; sub: string };
+  type Slot = { k: string; ic: string; n: string; st: number; sub: string; col?: RGB };
   const slots: Slot[] = [0, 1, 2].map((i) => {
     const s = SKILL_BY_ID[m.binds?.[i] ?? '']?.meta;
     if (!s) return { k: String(i + 1), ic: ' · ', n: 'EMPTY', st: 2, sub: 'T: tree' };
@@ -202,8 +204,14 @@ export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null) {
     return { k: String(i + 1), ic: s.icon, n: s.short, st: state, sub };
   });
   slots.push({ k: 'Q', ic: ' ! ', n: 'POTION', st: m.potCd > 0 || m.potions <= 0 ? 2 : 0, sub: m.potCd > 0 ? (m.potCd / 20).toFixed(1) + 's' : '×' + m.potions });
+  if (itemKey) {
+    const it = itemInfo(itemKey), n = (m.pack ?? []).reduce((a, s) => a + (s.item === itemKey ? s.n : 0), 0);
+    const potLike = itemKey === 'potion' || itemKey === 'draught';
+    const cool = potLike && m.potCd > 0;
+    slots.push({ k: '4', ic: ' ' + it.ch + ' ', n: (it.name.split(' ').pop() ?? '').toUpperCase().slice(0, 9), st: n <= 0 || cool ? 2 : 0, sub: cool ? (m.potCd / 20).toFixed(1) + 's' : '×' + n, col: it.col });
+  } else slots.push({ k: '4', ic: ' · ', n: 'ITEM', st: 2, sub: 'I: pick' });
   slots.forEach((s, i) => {
-    const x = 67 + i * 11, y = 37;
+    const x = 66 + i * 9, y = 37;
     const bc: RGB = s.st === 1 ? GOLD : s.st === 2 ? [52, 48, 72] : [100, 94, 136];
     const ic: RGB = s.st === 1 ? GOLD : s.st === 2 ? [78, 74, 100] : WH;
     const inner: RGB = s.st === 2 ? [20, 19, 30] : s.st === 1 ? [44, 36, 16] : PAN;
@@ -212,12 +220,12 @@ export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null) {
     fb.put(x + 8, y, '╮', bc);
     fb.put(x, y + 1, '│', bc);
     for (let j = 1; j < 8; j++) fb.put(x + j, y + 1, ' ', null, inner);
-    fb.txt(x + 3, y + 1, s.ic, ic, null, 1);
+    fb.txt(x + 3, y + 1, s.ic, s.col && s.st !== 2 ? s.col : ic, null, 1);
     fb.put(x + 8, y + 1, '│', bc);
     fb.put(x, y + 2, '╰', bc);
     for (let j = 1; j < 8; j++) fb.put(x + j, y + 2, '─', bc);
     fb.put(x + 8, y + 2, '╯', bc);
-    const nm = s.n.slice(0, 11);
+    const nm = s.n.slice(0, 9);
     fb.txt(x + Math.floor((9 - nm.length) / 2), y + 3, nm, s.st === 2 ? DIM : TX, null, s.st === 1 ? 1 : 0);
     fb.txt(x + Math.floor((9 - s.sub.length) / 2), y + 4, s.sub, s.st === 1 ? GOLD : DIM);
   });

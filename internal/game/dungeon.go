@@ -23,9 +23,15 @@ const (
 	TWater  = '=' // shallow water (crypt)
 	TFungus = '"' // glowing fungus (caverns)
 	TEmbers = '^' // ember cracks (ember depths)
+	// furniture: one-cell set pieces that block the way like a pillar
+	TCandle = '|' // candle stand (cathedral), gives off light
+	TCoffin = '_' // coffin (crypt)
+	TStalk  = 'P' // giant mushroom stalk (caverns)
 )
 
-func Solid(t byte) bool { return t == TWall || t == TTorch || t == TPillar || t == ' ' || t == 0 }
+func Solid(t byte) bool {
+	return t == TWall || t == TTorch || t == TPillar || t == TCandle || t == TCoffin || t == TStalk || t == ' ' || t == 0
+}
 
 type MonSpawn struct {
 	Kind  byte
@@ -50,11 +56,15 @@ type Level struct {
 	Glows    []Pt // decor tiles that give off light
 	Chests   []ChestSpawn
 	Npcs     []NpcSpawn
+	Kegs     []Pt // powder kegs (they become monsters that never act)
+	Traps    []Pt // hidden spike traps
+	Lava     []Pt // burning ground that never goes out
 }
 
 type ChestSpawn struct {
 	X, Y  int
 	Mimic bool
+	Urn   bool // a breakable urn: walk into it to smash it
 }
 
 func (l *Level) At(x, y int) byte {
@@ -292,6 +302,7 @@ func Generate(seed uint32, depth, n int) *Level {
 			}
 		}
 	}
+	l.dress(seed, depth, taken, isRoom) // last, with its own generator: nothing above moves
 	return l
 }
 

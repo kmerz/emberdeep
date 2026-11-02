@@ -12,6 +12,7 @@ type Npc struct {
 	Trader   bool
 	NextMove int
 	said     int
+	chatAt   int // no chatter before this tick
 
 	Board     bool   // the mayor's notice board (quests)
 	Follower  bool   // a lost gnome from a rescue quest

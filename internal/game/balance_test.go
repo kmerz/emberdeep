@@ -29,6 +29,9 @@ func TestScalingAppliedToLevelAndMonsters(t *testing.T) {
 	for _, n := range []int{1, 2, 4} {
 		g := New(5, Settings{}, n)
 		for _, m := range g.Mons {
+			if m.Kind == KegKind { // a keg always breaks in one hit
+				continue
+			}
 			base := float64(MonDefs[m.Kind].HP)
 			mult := EnemyHPMult(n)
 			if m.Elite {
@@ -57,5 +60,32 @@ func TestEveryClassHasThreeSkillsAndColors(t *testing.T) {
 				t.Errorf("%s skill %d incomplete: %+v", c, i, s)
 			}
 		}
+	}
+}
+
+func TestNoviceMonstersAreWeaker(t *testing.T) {
+	novice := -1
+	for i, d := range Difficulties {
+		if d.Name == "NOVICE" {
+			novice = i
+		}
+	}
+	if novice <= 0 {
+		t.Fatal("NOVICE must exist and NORMAL must stay the default (index 0)")
+	}
+	normal, easy := New(42, Settings{}, 1), New(42, Settings{Difficulty: novice}, 1)
+	if len(normal.Mons) != len(easy.Mons) || len(normal.Mons) == 0 {
+		t.Fatalf("same seed should give the same monsters: %d vs %d", len(normal.Mons), len(easy.Mons))
+	}
+	for i, m := range normal.Mons {
+		e := easy.Mons[i]
+		want := float64(m.HP) * Difficulties[novice].HPMult
+		if float64(e.HP) < want-1 || float64(e.HP) > want+1 {
+			t.Fatalf("%c: novice hp %d, want about %.0f (normal %d)", m.Kind, e.HP, want, m.HP)
+		}
+	}
+	m := normal.Mons[0]
+	if a, b := normal.monsterDmg(m, 20), easy.monsterDmg(easy.Mons[0], 20); b >= a {
+		t.Fatalf("novice monsters should hit softer: %d vs normal %d", b, a)
 	}
 }

@@ -35,5 +35,5 @@ export function bleedFor(kind: string): RGB | null {
 /** Tiles remains may lie on: open floor and floor decor, not walls, stairs, water or embers. */
 export function remainsOk(tile: number): boolean {
   const c = String.fromCharCode(tile);
-  return tile !== 0 && !'#TO>=^'.includes(c);
+  return tile !== 0 && !'#TO>=^|_P'.includes(c);
 }

@@ -28,7 +28,15 @@ const GLY: Record<string, Glyph> = {
   '=': { ch: '≈', fg: [70, 140, 170], lit: true },
   '"': { ch: '♣', fg: [120, 230, 140], b: true },
   '^': { ch: '^', fg: [255, 120, 50], b: true },
+  // furniture (solid on the server, drawn as a lit glyph on the floor)
+  '|': { ch: '†', fg: [236, 206, 150], lit: true, b: true }, // candle stand
+  '_': { ch: 'Π', fg: [150, 162, 172], lit: true, b: true }, // coffin
+  'P': { ch: '♠', fg: [110, 200, 170], lit: true, b: true }, // giant mushroom stalk
+  'u': { ch: '∪', fg: [196, 136, 84], b: true },             // an urn (walk into it to smash it)
 };
+
+/** Monster glyphs that differ from their kind letter. */
+const MON_CH: Record<string, string> = { B: '¤' };
 
 const GNOME: RGB = [140, 220, 120];
 const GNOME_TRADER: RGB = [255, 212, 92];
@@ -46,8 +54,13 @@ export function buildLights(st: GameState, cam: Cam, t: number, heroes: { x: num
     });
     const gl = pal.glow;
     if (gl) (lv.glows ?? []).forEach((p, i) => {
-      if (!inView(p[0], p[1], gl.r) || st.tileAt(p[0], p[1]) === 0) return;
+      if (!inView(p[0], p[1], gl.r) || st.tileAt(p[0], p[1]) === 0 || st.tileAt(p[0], p[1]) === 124) return;
       out.push({ x: p[0], y: p[1], r: gl.r, c: gl.c, i: gl.i * (1 - gl.flicker + gl.flicker * Math.sin(t * 6.1 + i * 2.3)) });
+    });
+    // candle stands are in the glow list too, even on themes without glowing decor
+    (lv.glows ?? []).forEach((p, i) => {
+      if (st.tileAt(p[0], p[1]) !== 124 || !inView(p[0], p[1], 7)) return; // '|'
+      out.push({ x: p[0], y: p[1], r: 7, c: [1, 0.7, 0.36], i: 0.55 * (0.85 + 0.15 * Math.sin(t * 9.7 + i * 2.9)) });
     });
     const s = lv.stairs;
     if (st.tileAt(s[0], s[1]) !== 0 && inView(s[0], s[1], 9)) out.push({ x: s[0], y: s[1], r: 9, c: [0.27, 0.86, 1], i: 0.7 });
@@ -138,9 +151,59 @@ export function drawMap(mb: Fb, st: GameState, cam: Cam, t: number, lights: Ligh
         }
       }
       if (scorched) continue;
-      mb.put(x, y, g.ch, fg, bg, g.b ? 1 : 0);
+      let ch = g.ch;
+      if (c === '=' && !st.remains.has(wy * LW + wx)) { // water ripples
+        const w = Math.sin(t * 1.7 + wx * 0.55 + wy * 0.9);
+        if (w > 0.75) ch = '~';
+        fg = mul(fg, 0.85 + 0.25 * w);
+      } else if (c === '"') { // fungus breathes
+        fg = mul(fg, 0.75 + 0.3 * Math.sin(t * 1.9 + wx * 0.37 + wy * 0.61));
+      } else if (c === '|') { // a candle flame flickers
+        fg = mul(fg, 0.85 + 0.2 * Math.sin(t * 11 + wx * 3.1));
+      }
+      mb.put(x, y, ch, fg, bg, g.b ? 1 : 0);
       void i;
     }
+  }
+  drawParticles(mb, st, cam, t);
+}
+
+/** Embers rising from cracks, lava and torches: client-only, seeded per cell so they look the same every frame. */
+function drawParticles(mb: Fb, st: GameState, cam: Cam, t: number) {
+  const open = (wx: number, wy: number) => {
+    const tc = st.tileAt(wx, wy);
+    return st.isVisible(wx, wy) && tc !== 0 && tc !== 35 && tc !== 84 && tc !== 79; // not # T O
+  };
+  const rise = (wx: number, wy: number, k: number, speed: number, hgt: number, col: RGB, spread: number) => {
+    const ph = (t * speed + k * 7.3) % 1;
+    const px = wx + Math.round(Math.sin(t * 2 + k * 11) * spread), py = wy - 1 - Math.floor(ph * hgt);
+    if (!open(px, py)) return;
+    const x = px - cam.x, y = py - cam.y;
+    if (x < 0 || y < 0 || x >= VW || y >= VH) return;
+    mb.put(x, y, ph < 0.5 ? "'" : '·', mul(col, 1 - ph * 0.8), null, 1);
+  };
+  for (let y = 0; y < VH; y++) {
+    const wy = y + cam.y;
+    for (let x = 0; x < VW; x++) {
+      const wx = x + cam.x;
+      const tc = st.tiles[wy * LW + wx];
+      if (tc !== 94 || !st.vis[wy * LW + wx]) continue; // '^' ember cracks
+      const k = hash(wx, wy, 3);
+      if (k > 0.55) rise(wx, wy, k, 0.45, 4, [255, 150, 60], 0.4);
+    }
+  }
+  for (const f of st.latest?.fires ?? []) {
+    const k = hash(f[0], f[1], 5);
+    if (k > 0.5) rise(f[0], f[1], k, 0.7, 3, [255, 190, 90], 0.6);
+  }
+  // torch sparks drop into the room below the wall
+  for (const p of st.level?.torches ?? []) {
+    if (!st.isVisible(p[0], p[1] + 1)) continue;
+    const k = hash(p[0], p[1], 9), ph = (t * 0.9 + k) % 1;
+    if (ph > 0.35) continue;
+    const px = p[0] + Math.round(Math.sin(t * 3 + k * 20)), py = p[1] + 1 + Math.floor(ph * 4);
+    const x = px - cam.x, y = py - cam.y;
+    if (x >= 0 && y >= 0 && x < VW && y < VH && open(px, py)) mb.put(x, y, '·', mul([255, 200, 110], 1 - ph * 2), null, 1);
   }
 }
 
@@ -218,7 +281,7 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
       const fl = o.flashes.get(e.id);
       if (fl !== undefined && o.now - fl >= 0 && o.now - fl < 130) { fg = [255, 255, 255]; bg = [255, 138, 31]; }
       if (e.el) bg = bg || [64, 10, 32];
-      mb.put(x, y, e.g, fg, bg, 1);
+      mb.put(x, y, MON_CH[e.g] ?? e.g, fg, bg, 1);
     } else if (e.k === 'h') {
       const col = (e.cls && CLS[e.cls].col) || [220, 220, 220];
       if (e.dead) {

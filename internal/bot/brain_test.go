@@ -91,3 +91,36 @@ func TestLeaderExplores(t *testing.T) {
 		t.Fatalf("leader should head toward unexplored space (east), got %+v", msgs)
 	}
 }
+
+func TestWalksAroundTheNoticeBoard(t *testing.T) {
+	// the human is due east; the board stands right in the way
+	b := NewBrain(false)
+	msgs := b.Think(view("rogue", Ent{ID: 1, K: "h", X: 10, Y: 10}, Ent{ID: 50, K: "n", X: 11, Y: 10}, Ent{ID: 2, K: "h", X: 30, Y: 10}))
+	m := find(msgs, proto.CMove)
+	if m == nil {
+		t.Fatal("expected a move toward the human")
+	}
+	if dirs[m.Dir][0] == 1 && dirs[m.Dir][1] == 0 {
+		t.Fatal("bot walked into the notice board")
+	}
+	if dirs[m.Dir][0] != 1 {
+		t.Fatalf("expected a step east around the board, got dir %d", m.Dir)
+	}
+}
+
+func TestStepsAsideWhenMovesGoNowhere(t *testing.T) {
+	// something the bot can't see blocks it: the same position comes back after every move
+	b := NewBrain(false)
+	v := func() *View { return view("rogue", Ent{ID: 1, K: "h", X: 10, Y: 10}, Ent{ID: 2, K: "h", X: 30, Y: 10}) }
+	first := find(b.Think(v()), proto.CMove)
+	if first == nil {
+		t.Fatal("expected a move")
+	}
+	var last *proto.ClientMsg
+	for i := 0; i < StuckAfter; i++ {
+		last = find(b.Think(v()), proto.CMove)
+	}
+	if last == nil || last.Dir == first.Dir {
+		t.Fatalf("after %d failed moves the bot should try another direction, got %+v", StuckAfter, last)
+	}
+}

@@ -33,7 +33,7 @@ const COMMON: BtnMap = { [SELECT]: 'i', [START]: 'j', [R3]: 't' };
 const MAPS: Record<PadContext, BtnMap> = {
   chat: {},
   // A deliberately unbound: Enter in the world would open chat
-  world: { ...COMMON, [X]: '1', [Y]: '2', [RB]: '3', [RT]: '1', [LB]: 'q', [LT]: 'e' },
+  world: { ...COMMON, [X]: '1', [Y]: '2', [RB]: '3', [RT]: '1', [LB]: 'q', [LT]: 'e', [B]: '4' },
   panel: { ...COMMON, [A]: 'Enter', [B]: 'Escape', [X]: 'x', [Y]: 'r', [RB]: 'Tab', [LB]: '1', [LT]: '2', [RT]: '3' },
   overlay: { [A]: 'Enter' },
   menu: { [A]: 'Enter', [B]: 'Escape' },

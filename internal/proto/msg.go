@@ -221,6 +221,7 @@ type SnapShared struct {
 	Orbs    [][3]int     `json:"orbs,omitempty"`   // light orbs: x, y, seconds left
 	Portal  *[3]int      `json:"portal,omitempty"` // Scroll of Return portal: x, y, seconds left
 	Fires   [][2]int     `json:"fires,omitempty"`  // burning ground
+	Traps   [][3]int     `json:"traps,omitempty"`  // spike traps the party has seen: x, y, 1 = armed
 }
 
 type Events struct {

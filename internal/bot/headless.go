@@ -187,6 +187,9 @@ func (c *Client) onSnap(data []byte) {
 	defer c.mu.Unlock()
 	v := View{Me: c.you, Ents: make([]Ent, 0, len(s.Ents))}
 	for _, e := range s.Ents {
+		if e.K == "m" && e.G == string(rune(game.KegKind)) { // a powder keg: in the way, never a target
+			e.K = "n"
+		}
 		v.Ents = append(v.Ents, Ent{ID: e.ID, K: e.K, X: e.X, Y: e.Y, Downed: e.Downed, Dead: e.Dead, Elite: e.Elite, HP: e.HP, HPMax: e.HPMax})
 		if e.K == "h" && e.ID == c.you {
 			v.Cls, v.HP, v.HPMax = e.Cls, e.HP, e.HPMax

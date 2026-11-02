@@ -291,6 +291,7 @@ func (g *Game) damageHero(h *Hero, dmg int, srcID int) {
 	if h.HP <= 0 {
 		h.HP = 0
 		g.downHero(h)
+		g.barkDown(srcID)
 	}
 }
 

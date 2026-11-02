@@ -131,7 +131,11 @@ export class Fx {
         else if (ev.fx === 'firebomb') push('blast', 1400, { pal: 'ember', r: ev.r ?? 3 });
         else if (ev.fx === 'shadowbomb') push('blast', 2000, { pal: 'void', r: ev.r ?? 5 });
         else if (ev.fx === 'leap') push('leap', 1100);
+        else if (ev.fx === 'keg') push('blast', 1500, { pal: 'ember', r: ev.r ?? 3.5 });
         break;
+      case 'fuse': push('flare', 400, { pal: 'fuse' }); push('dmg', 500, { text: '!', crit: true }); break;
+      case 'urn': push('burst', 450, { text: 'u' }); break;
+      case 'trap': push('flare', 350, { pal: 'trap', r: 1 }); break;
       case 'hit':
         if (ev.target) this.flashes.set(ev.target, t0);
         if ((ev.amount ?? 0) > 0) push('dmg', 1300, { crit: ev.fx === 'crit', hero: (ev.target ?? 0) < 10000, text: String(ev.amount) });
@@ -376,7 +380,7 @@ export class Fx {
 
   /** A dying monster flies apart into shards of its own color. */
   private drawBurst(mb: Fb, cx: number, cy: number, e: number, f: Effect, isOpen: IsOpen) {
-    const col: RGB = MC[f.text ?? ''] ?? [220, 220, 220];
+    const col: RGB = f.text === 'u' ? [196, 136, 84] : MC[f.text ?? ''] ?? [220, 220, 220];
     const big = f.r > 0, n = big ? 26 : 9, T = f.dur / 1000;
     if (e < 0.09 && isOpen(cx, cy)) mb.put(cx, cy, '*', [255, 255, 255], mul(col, 0.5), 1);
     for (let k = 0; k < n; k++) {
@@ -474,6 +478,8 @@ function flareCol(pal: string): RGB {
     case 'frost': return [140, 210, 255];
     case 'smoke': return [150, 146, 160];
     case 'charm': return [255, 110, 200];
+    case 'fuse': return [255, 160, 60];
+    case 'trap': return [230, 70, 70];
     default: return [199, 146, 255];
   }
 }

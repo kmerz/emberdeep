@@ -128,7 +128,14 @@ func TestCathedralLayoutUnchanged(t *testing.T) {
 	} {
 		l := Generate(c.seed, c.depth, 2)
 		h := fnv.New64a()
-		h.Write(l.Tiles)
+		// furniture is added on top of the old layout: read it as the floor it stands on
+		under := append([]byte(nil), l.Tiles...)
+		for i, t := range under {
+			if t == TCandle || t == TCoffin || t == TStalk {
+				under[i] = TFloor
+			}
+		}
+		h.Write(under)
 		if h.Sum64() != c.hash || len(l.Mons) != c.mons {
 			t.Errorf("seed %d depth %d changed: hash %#x mons %d", c.seed, c.depth, h.Sum64(), len(l.Mons))
 		}
@@ -176,11 +183,12 @@ func TestGlowsOnlyWhereThemed(t *testing.T) {
 		if len(l.Glows) > MaxGlows {
 			t.Errorf("depth %d: %d glows over the cap", d, len(l.Glows))
 		}
-		if (l.Theme.Glow == 0) != (len(l.Glows) == 0) {
+		lit := l.Theme.Glow != 0 || Dressings[l.Theme.ID].Furniture == TCandle
+		if lit != (len(l.Glows) > 0) {
 			t.Errorf("depth %d (%s): %d glows", d, l.Theme.ID, len(l.Glows))
 		}
 		for _, g := range l.Glows {
-			if l.At(g.X, g.Y) != l.Theme.Glow {
+			if tl := l.At(g.X, g.Y); tl != l.Theme.Glow && tl != TCandle {
 				t.Errorf("depth %d: glow at %v is %q", d, g, l.At(g.X, g.Y))
 			}
 		}

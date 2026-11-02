@@ -124,7 +124,11 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 const pad = new GamepadInput();
 const padSink = {
-  down: (key: string, repeat: boolean) => current.onKey?.(fakeKey(key, repeat)),
+  down: (key: string, repeat: boolean) => {
+    // playing with the pad: forget the mouse cursor, so skills and thrown items aim at the nearest enemy
+    game.mouse = [-1, -1];
+    current.onKey?.(fakeKey(key, repeat));
+  },
   up: (key: string) => current.onKeyUp?.(fakeKey(key)),
 };
 window.addEventListener('gamepaddisconnected', () => pad.releaseAll(padSink));

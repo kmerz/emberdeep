@@ -11,7 +11,7 @@ import (
 
 type Ent struct {
 	ID           int
-	K            string // h, m, i
+	K            string // h, m, i, n (a gnome or the notice board: in the way, never a target)
 	X, Y         int
 	Downed, Dead bool
 	Elite        bool
@@ -38,6 +38,10 @@ type Brain struct {
 	seq    int
 	reviv  int
 	wander int
+	// stuck detection: where we were when we last asked to move, and how many moves in a row went nowhere
+	lastX, lastY int
+	moved        bool
+	stuck        int
 }
 
 func NewBrain(leader bool) *Brain { return &Brain{Leader: leader} }
@@ -65,6 +69,9 @@ func dist(ax, ay, bx, by int) float64 {
 
 var dirs = [8][2]int{{0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}}
 
+// StuckAfter is how many move requests in a row may leave a bot on the same cell before it steps aside.
+const StuckAfter = 4
+
 // Think returns the messages to send this step (at most one move).
 func (b *Brain) Think(v *View) []proto.ClientMsg {
 	var me *Ent
@@ -75,8 +82,50 @@ func (b *Brain) Think(v *View) []proto.ClientMsg {
 	}
 	if me == nil || me.Dead || me.Downed {
 		b.reviv = 0
+		b.moved, b.stuck = false, 0
 		return nil
 	}
+	// A move that keeps going nowhere (something we can't see blocks it): take a random free step instead.
+	if b.moved && me.X == b.lastX && me.Y == b.lastY {
+		b.stuck++
+	} else {
+		b.stuck = 0
+	}
+	b.lastX, b.lastY, b.moved = me.X, me.Y, false
+	if b.stuck >= StuckAfter {
+		b.stuck = 0
+		if m := b.sidestep(v, me); m != nil {
+			b.moved = true
+			return []proto.ClientMsg{*m}
+		}
+	}
+	out := b.think(v, me)
+	for _, m := range out {
+		if m.T == proto.CMove {
+			b.moved = true
+		}
+	}
+	return out
+}
+
+// sidestep picks a random walkable, free neighbor cell.
+func (b *Brain) sidestep(v *View, me *Ent) *proto.ClientMsg {
+	occ := map[node]bool{}
+	for _, e := range v.Ents {
+		occ[node{e.X, e.Y}] = true
+	}
+	b.wander++
+	for k := 0; k < 8; k++ {
+		d := (b.wander*5 + k*3) % 8
+		x, y := me.X+dirs[d][0], me.Y+dirs[d][1]
+		if v.Walkable(x, y) && !occ[node{x, y}] {
+			return &proto.ClientMsg{T: proto.CMove, Dir: d, Seq: b.nextSeq()}
+		}
+	}
+	return nil
+}
+
+func (b *Brain) think(v *View, me *Ent) []proto.ClientMsg {
 	var out []proto.ClientMsg
 	// revive a downed ally
 	var down *Ent

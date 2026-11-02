@@ -17,6 +17,9 @@ export interface PingMark { x: number; y: number; cls: ClassId; name: string; t0
 export interface SnapRec { t: number; snap: Snap; ents: Ent[] }
 
 export const INTERP_MS = 100;
+export const BARK_MS = 3200; // how long a speech bubble stays up
+
+export interface Bark { text: string; at: number; x: number; y: number; kind: string }
 
 export function clock(tick: number): string {
   const s = Math.floor(tick / 20);
@@ -51,6 +54,7 @@ export class GameState {
   lastTarget = 0; // monster id last attacked by us
   errors: string[] = [];
   remains = new Map<number, Remain>(); // corpses and blood on this floor, by tile index (client-only)
+  barks = new Map<number, Bark>();     // speech bubbles, by the speaker's entity id
   // hooks wired by the screens
   onEvents: (evs: GameEvent[], now: number) => void = () => {};
   onPing: (p: PingMark) => void = () => {};
@@ -71,6 +75,7 @@ export class GameState {
     this.log = [];
     this.lastTarget = 0;
     this.remains.clear();
+    this.barks.clear();
   }
 
   /** Leaves corpses where monsters die and splatters on heavy hits. */
@@ -87,6 +92,11 @@ export class GameState {
       if (e.k === 'kill') {
         const r = remainsFor(e.fx ?? '');
         if (r) put(e.x, e.y, r, true);
+      } else if (e.k === 'urn') {
+        put(e.x, e.y, ["'", [150, 100, 60]], true); // shards
+      } else if (e.k === 'impact' && e.fx === 'keg') { // a scorch mark
+        put(e.x, e.y, ['░', [70, 44, 30]], true);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) put(e.x + dx, e.y + dy, [':', [80, 50, 34]], false);
       } else if (e.k === 'hit' && e.target) {
         const heavy = e.fx === 'crit' || (e.amount ?? 0) >= 18;
         if (!heavy) continue;
@@ -165,6 +175,16 @@ export class GameState {
         case 'questfail': this.pushLog([['Quest failed: ', PINK, 1], [e.text || '', TX]], now); break;
         case 'alarm': this.pushLog([['The hive is alarmed!', [255, 170, 60], 1], [' ' + (e.amount ?? 0) + ' ants turn on you', DIM]], now); break;
         case 'say': if (you && e.text) this.pushLog([[e.text, [140, 220, 120]]], now); break;
+        case 'bark': {
+          if (!e.actor || !e.text) break;
+          this.barks.set(e.actor, { text: e.text, at: now, x: e.x, y: e.y, kind: e.fx ?? '' });
+          // bosses and hunt targets also speak into the log
+          const ent = this.recs[this.recs.length - 1]?.ents.find((n) => n.id === e.actor);
+          if ((!!e.fx && 'KQD'.includes(e.fx)) || ent?.el) this.pushLog([[(ent?.name ?? 'Someone') + ': ', PINK, 1], [e.text, TX]], now);
+          break;
+        }
+        case 'trapseen': if (you) this.pushLog([['You spot a ', DIM], ['spike trap', [230, 70, 70], 1], [': step around it', DIM]], now); break;
+        case 'fuse': if (you) this.pushLog([['The powder keg', [230, 120, 50], 1], [' starts to fizz…', DIM]], now); break;
         case 'shop': if (you) this.pushLog([['Grimble', [255, 212, 92], 1], [': Have a look, have a look!', [140, 220, 120]]], now); break;
         case 'trade': if (you && e.fx) {
           const it = itemInfo(e.fx), amt = e.amount ?? 0;
@@ -243,6 +263,7 @@ export class GameState {
         this.level = m; this.tiles.fill(0); this.vis.fill(0);
         this.recs = []; this.latest = null; this.pings = []; this.overlay = null; this.lastTarget = 0;
         this.remains.clear();
+        this.barks.clear();
         this.levelAt = now;
         break;
       case 'explore':

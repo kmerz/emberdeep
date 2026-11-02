@@ -14,7 +14,7 @@ export function slotAt(cx: number, cy: number, cap: number): number {
   return row * INV.cols + col;
 }
 
-export function inventoryPanel(fb: Fb, st: GameState, sel: number) {
+export function inventoryPanel(fb: Fb, st: GameState, sel: number, itemKey = '') {
   const pack = st.me?.pack ?? [];
   const cap = packCap(st.me), rows = Math.ceil(cap / INV.cols);
   const used = pack.filter((s) => s.n > 0).length;
@@ -30,6 +30,7 @@ export function inventoryPanel(fb: Fb, st: GameState, sel: number) {
       const it = itemInfo(s.item);
       fb.put(x + 1, y, it.ch, it.col, null, 1);
       fb.txt(x + 2, y, ('×' + s.n).padEnd(4), on ? WH : TX);
+      if (s.item === itemKey) fb.put(x + 5, y, '4', GOLD, null, 1); // this item is on key 4
     } else fb.txt(x + 3, y, '·', [70, 66, 96]);
   }
   const s = pack[sel];
@@ -39,6 +40,7 @@ export function inventoryPanel(fb: Fb, st: GameState, sel: number) {
     fb.segs(INV.x + 2, y, [['▸ ', GOLD], [it.name, it.col, null, 1], [' ×' + s.n, TX]]);
     fb.txt(INV.x + 4, y + 1, it.desc, DIM);
     if (it.thrown) fb.txt(INV.x + 4, y + 2, 'aims at the mouse cursor', mul(DIM, 0.8));
+    if (it.usable) fb.segs(INV.x + 4, y + 3, s.item === itemKey ? [['on key ', DIM], ['4', GOLD, null, 1]] : [['4', WH, null, 1], [': put on key 4', DIM]]);
   } else fb.txt(INV.x + 2, y, 'empty slot', DIM);
   const cd = st.me?.potCd ?? 0;
   if (cd > 0) fb.txt(INV.x + 2, y + 4, 'potions and draughts ready in ' + (cd / 20).toFixed(1) + 's', DIM);

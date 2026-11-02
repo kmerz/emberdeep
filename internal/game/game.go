@@ -103,6 +103,7 @@ type Item struct {
 type Chest struct {
 	ID   int
 	X, Y int
+	Urn  bool // a breakable urn rather than a treasure chest
 }
 
 type Patch struct {
@@ -140,6 +141,7 @@ type Game struct {
 	Portal  *Portal
 	Quests  []*Quest // the run's sidequests (offered, active, done, failed)
 	Fires   []Fire
+	Traps   []*Trap
 
 	InVillage   bool
 	VillageSeen bool
@@ -161,6 +163,8 @@ type Game struct {
 	WipedTick   int
 
 	rng       *RNG
+	barkRng   *RNG // only for what monsters say, so lines never change the fight's dice
+	nextBark  int  // no ordinary monster line before this tick
 	nextID    int
 	occ       []int32
 	heroByID  map[int]*Hero
@@ -221,6 +225,8 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 	g.Depth = depth
 	g.Level = lvl
 	g.rng = NewRNG(uint64(seed)*31 + 5)
+	g.barkRng = NewRNG(uint64(seed)*17 + 99)
+	g.nextBark = 0
 	g.Mons, g.Items, g.Patches, g.pend, g.Chests, g.Orbs, g.Npcs, g.Portal, g.Fires = nil, nil, nil, nil, nil, nil, nil, nil, nil
 	g.npcByID = map[int]*Npc{}
 	g.portalSince, g.PortalAt, g.PortalNeed = -1, 0, 0
@@ -239,7 +245,7 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 		if s.Elite {
 			hp = float64(def.HP) * EliteHPMult(n)
 		}
-		hp *= DepthHPMult(depth)
+		hp *= DepthHPMult(depth) * Difficulties[g.Settings.Difficulty].HPMult
 		m := &Monster{ID: g.newID(), Kind: s.Kind, X: s.X, Y: s.Y, HP: int(math.Round(hp)), Elite: s.Elite, Facing: 6, Neutral: def.Neutral}
 		m.HPMax = m.HP
 		g.Mons = append(g.Mons, m)
@@ -268,18 +274,19 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 	for _, cs := range g.Level.Chests {
 		if cs.Mimic {
 			def := MonDefs['M']
-			hp := int(math.Round(float64(def.HP) * EnemyHPMult(n) * DepthHPMult(depth)))
+			hp := int(math.Round(float64(def.HP) * EnemyHPMult(n) * DepthHPMult(depth) * Difficulties[g.Settings.Difficulty].HPMult))
 			m := &Monster{ID: g.newID(), Kind: 'M', X: cs.X, Y: cs.Y, HP: hp, HPMax: hp, Facing: 6, Disguised: true}
 			g.Mons = append(g.Mons, m)
 			g.monByID[m.ID] = m
 			g.occ[m.Y*LW+m.X] = int32(m.ID)
 			continue
 		}
-		c := &Chest{ID: g.newID(), X: cs.X, Y: cs.Y}
+		c := &Chest{ID: g.newID(), X: cs.X, Y: cs.Y, Urn: cs.Urn}
 		g.Chests = append(g.Chests, c)
 		g.chestByID[c.ID] = c
 		g.occ[c.Y*LW+c.X] = int32(c.ID)
 	}
+	g.setupWorld()
 	g.questsOnFloor()
 	g.arrival = map[int]heroSave{}
 	for _, h := range g.Heroes {
@@ -606,6 +613,10 @@ func (g *Game) openChest(h *Hero, c *Chest) {
 	}
 	if g.occ[c.Y*LW+c.X] == int32(c.ID) {
 		g.occ[c.Y*LW+c.X] = 0
+	}
+	if c.Urn {
+		g.smashUrn(h, c)
+		return
 	}
 	g.emit(Event{K: "chest", Actor: h.ID, Target: c.ID, X: c.X, Y: c.Y})
 	g.chestLoot(c.X, c.Y)

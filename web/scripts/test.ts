@@ -5,7 +5,7 @@ import { displayEnts } from '../src/render/interp';
 import { Predictor, MOVE_MS } from '../src/render/predict';
 import type { Ent, Snap } from '../src/proto';
 import { Fx, streakLabel } from '../src/render/fx';
-import { depthBanner } from '../src/render/hud';
+import { depthBanner, hotbar, pickTarget } from '../src/render/hud';
 import { Fb } from '../src/term/fb';
 import { VW, VH } from '../src/render/map';
 import { GamepadInput, type PadLike, type PadContext } from '../src/gamepad';
@@ -167,6 +167,10 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   eq(step(270, 'world'), ['d:e'], 'LT starts a revive');
   cur = mk();
   eq(step(300, 'world'), ['u:e'], 'releasing LT ends the revive hold');
+  cur = mk([1]);
+  eq(step(310, 'world'), ['d:4'], 'B uses the item on key 4 in the world');
+  cur = mk();
+  eq(step(320, 'world'), ['u:4'], 'releasing B sends keyup');
 
   eq(step(330, 'panel'), [], 'switching context emits nothing by itself');
   cur = mk([0]);
@@ -239,6 +243,42 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   eq(row(8).includes('DEPTH 02'), true, 'banner shows the depth');
   eq(row(10).includes('F L O O D E D'), true, 'banner shows the theme name');
   eq(row(12).includes('counts your steps'), true, 'banner shows the flavor line');
+}
+
+// --- a world that reacts: speech bubbles, scorch marks, kegs are never auto-targeted
+{
+  const st = new GameState();
+  st.tiles.fill(46);
+  st.handle({ t: 'events', tick: 1, list: [{ k: 'bark', actor: 20001, x: 4, y: 4, text: 'Kneel, little wicks.', fx: 'K' }] }, 1000);
+  eq(st.barks.get(20001)?.text, 'Kneel, little wicks.', 'a bark opens a speech bubble');
+  eq(st.log.some((l) => l.segs.some((s) => s[0] === 'Kneel, little wicks.')), true, 'a boss line also goes to the log');
+  st.handle({ t: 'events', tick: 2, list: [{ k: 'bark', actor: 20002, x: 6, y: 4, text: '*blorp*', fx: 'o' }] }, 1000);
+  eq(st.log.some((l) => l.segs.some((s) => s[0] === '*blorp*')), false, 'an ordinary monster line stays out of the log');
+  st.handle({ t: 'events', tick: 3, list: [{ k: 'impact', actor: 1, x: 10, y: 10, fx: 'keg', r: 3.5 }] }, 1000);
+  eq(st.remains.get(10 * 176 + 10)?.[0], '░', 'a keg blast leaves a scorch mark');
+  const keg: Ent = { id: 30000, k: 'm', g: 'B', x: 5, y: 5, face: 0 };
+  const rat: Ent = { id: 30001, k: 'm', g: 'r', x: 9, y: 5, face: 0 };
+  eq(pickTarget(st, [keg, rat], { x: 4, y: 5 })?.id, 30001, 'the target panel skips a nearer powder keg');
+}
+
+// --- item key 4: the hotbar shows the bound item and how many are left in the rucksack
+{
+  const st = new GameState();
+  st.youId = 1;
+  st.party = [{ id: 1, name: 'vela', cls: 'rogue', lvl: 1, hp: 10, hpMax: 10, res: 0, resMax: 100, connected: true }];
+  st.me = {
+    res: 0, resMax: 100, cd: [0, 0, 0], cdMax: [1, 1, 1], cost: [0, 0, 0], potions: 0, potCd: 0, gold: 0, xp: 0, xpNeed: 10, lvl: 1,
+    pack: [{ item: 'firebomb', n: 2 }, { item: 'potion', n: 1 }, { item: 'firebomb', n: 1 }], packCap: 12,
+    binds: ['stab', '', ''], tree: [], points: 0, respec: false,
+  };
+  const row = (fb: Fb, y: number) => Array.from({ length: 160 }, (_, x) => fb.ch[y * 160 + x]).join('');
+  let fb = new Fb(160, 48, [0, 0, 0]);
+  hotbar(fb, st, 'rogue', 'firebomb');
+  eq(row(fb, 40).includes('FIREBOMB'), true, 'hotbar names the item on key 4');
+  eq(row(fb, 41).includes('×3'), true, 'hotbar counts the item across rucksack stacks');
+  fb = new Fb(160, 48, [0, 0, 0]);
+  hotbar(fb, st, 'rogue', '');
+  eq(row(fb, 41).includes('I: pick'), true, 'an empty key 4 says how to fill it');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

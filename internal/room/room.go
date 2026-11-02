@@ -759,12 +759,20 @@ func (r *Room) botView(h *game.Hero, humans map[int]bool) *bot.View {
 		v.Ents = append(v.Ents, bot.Ent{ID: o.ID, K: "h", X: o.X, Y: o.Y, Downed: o.Downed, Dead: o.Dead})
 	}
 	for _, m := range g.Mons {
+		if m.Def().Role == "keg" { // a keg is in the way, but bots don't shoot it
+			v.Ents = append(v.Ents, bot.Ent{ID: m.ID, K: "n", X: m.X, Y: m.Y})
+			continue
+		}
 		if g.IsVisible(m.X, m.Y) && !m.Disguised && !m.Neutral && g.Revealed(m) { // bots spot no mimics or hidden shades, and leave ant workers be
 			v.Ents = append(v.Ents, bot.Ent{ID: m.ID, K: "m", X: m.X, Y: m.Y, Elite: m.Elite, HP: m.HP, HPMax: m.HPMax})
 		}
 	}
+	// gnomes and the notice board block the way: without them a bot paths through the board and bumps it forever
+	for _, n := range g.Npcs {
+		v.Ents = append(v.Ents, bot.Ent{ID: n.ID, K: "n", X: n.X, Y: n.Y})
+	}
 	v.Walkable = func(x, y int) bool {
-		return x >= 0 && y >= 0 && x < game.LW && y < game.LH && g.Explored[y*game.LW+x] && g.Level.Walkable(x, y)
+		return x >= 0 && y >= 0 && x < game.LW && y < game.LH && g.Explored[y*game.LW+x] && g.Level.Walkable(x, y) && !g.HazardAt(x, y)
 	}
 	v.Unknown = func(x, y int) bool {
 		return x >= 0 && y >= 0 && x < game.LW && y < game.LH && !g.Explored[y*game.LW+x]

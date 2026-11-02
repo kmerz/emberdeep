@@ -1,6 +1,6 @@
 import type { App, Screen } from '../app';
-import { Fb, W, H, DIM, PINK, WH, TX } from '../term/fb';
-import { LW, LH } from '../state';
+import { Fb, RGB, W, H, DIM, PINK, WH, TX } from '../term/fb';
+import { LW, LH, BARK_MS } from '../state';
 import { Fx, streakLabel } from '../render/fx';
 import { sfx } from '../audio';
 import { VW, VH, buildLights, drawEnts, drawMap } from '../render/map';
@@ -15,6 +15,11 @@ import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objec
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
 import type { PadContext } from '../gamepad';
+
+const ITEM_KEY = 'emberdeep:itemkey';
+function loadItemKey(): string {
+  try { return localStorage.getItem(ITEM_KEY) ?? ''; } catch { return ''; }
+}
 
 export class GameScreen implements Screen {
   fx = new Fx();
@@ -39,6 +44,8 @@ export class GameScreen implements Screen {
   private levelSeen = 0;
   private yp: { x: number; y: number } | null = null; // where we drew ourselves last frame (for sound falloff)
   private stairsSec = 0;
+  /** The rucksack item on key 4 (an item id such as 'firebomb'; '' = none). Remembered in this browser. */
+  itemKey = loadItemKey();
 
   constructor(private app: App) {
     this.pred = new Predictor(app.st);
@@ -103,6 +110,7 @@ export class GameScreen implements Screen {
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) { this.held.add(k); ev.preventDefault(); return; }
     if (ev.repeat) return;
     if (k === '1' || k === '2' || k === '3') { this.cast(parseInt(k) - 1); ev.preventDefault(); }
+    else if (k === '4') { this.useItemKey(); ev.preventDefault(); }
     else if (k === 'q') { net.send({ t: 'potion', seq: this.pred.nextSeq() }); ev.preventDefault(); }
     else if (k === 'e') { this.startRevive(); ev.preventDefault(); }
     else if (k === 'm') {
@@ -208,7 +216,28 @@ export class GameScreen implements Screen {
     if (ev.repeat) return false;
     if (k === 'u' || ev.key === 'Enter') { this.useItem(this.invSel); return true; }
     if (k === 'x') { this.app.net.send({ t: 'drop', slot: this.invSel, seq: this.pred.nextSeq() }); return true; }
+    if (k === '4' || k === 'r') { this.bindItem(this.invSel); return true; } // r: the pad's Y button in panels
     return false;
+  }
+
+  /** Puts the item in a rucksack slot on key 4. */
+  private bindItem(slot: number) {
+    const st = this.app.st, s = st.me?.pack?.[slot];
+    if (!s || s.n <= 0) return;
+    const it = itemInfo(s.item);
+    if (!it.usable) { st.pushLog([[it.name, it.col], [' cannot be used', DIM]]); return; }
+    this.itemKey = s.item;
+    try { localStorage.setItem(ITEM_KEY, s.item); } catch { /* private window */ }
+    st.pushLog([[it.name, it.col, 1], [' is on key ', DIM], ['4', WH, 1]]);
+  }
+
+  /** Key 4: use (or throw) the bound item from wherever it sits in the rucksack. */
+  private useItemKey() {
+    const st = this.app.st;
+    if (!this.itemKey) { st.pushLog([['Key 4 is empty: open the rucksack (', DIM], ['I', WH, 1], ['), pick an item and press ', DIM], ['4', WH, 1]]); return; }
+    const slot = (st.me?.pack ?? []).findIndex((s) => s.item === this.itemKey && s.n > 0);
+    if (slot < 0) { const it = itemInfo(this.itemKey); st.pushLog([['No ', DIM], [it.name, it.col], [' left in your rucksack', DIM]]); return; }
+    this.useItem(slot);
   }
 
   private useItem(slot: number) {
@@ -240,8 +269,8 @@ export class GameScreen implements Screen {
       else if (cmd === '/leave' || cmd === '/quit') { this.app.setScreen('landing'); return; }
       else if (cmd === '/help') {
         st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['/help', [214, 208, 234]]]);
-        st.pushLog([['keys: WASD move · 1-3 skills · Q potion · E revive · Alt+click ping · M sound on/off', DIM]]);
-        st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · LB potion · LT revive · Select pack · Start journal · R3 skills · A/B in panels', DIM]]);
+        st.pushLog([['keys: WASD move · 1-3 skills · 4 item · Q potion · E revive · Alt+click ping · M sound on/off', DIM]]);
+        st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · B item · LB potion · LT revive · Select pack · Start journal · R3 skills · A/B in panels', DIM]]);
         return;
       } else { st.pushLog([['unknown command ' + cmd + ' (try /help)', PINK]]); return; }
       if (!text) return;
@@ -279,7 +308,7 @@ export class GameScreen implements Screen {
     if (!meta.targeted && w === null) { const d = DIRS[this.pred.face]; tx = px + d[0]; ty = py + d[1]; }
     if (!meta.targeted) {
       const rec = st.recs[st.recs.length - 1];
-      const adj = (rec?.ents ?? []).filter((e) => e.k === 'm' && Math.max(Math.abs(e.x - px), Math.abs(e.y - py)) === 1);
+      const adj = (rec?.ents ?? []).filter((e) => e.k === 'm' && e.g !== 'B' && Math.max(Math.abs(e.x - px), Math.abs(e.y - py)) === 1);
       if (adj.length) {
         const aimed = w !== null && adj.some((e) => e.x === w[0] && e.y === w[1]);
         if (!aimed) {
@@ -305,7 +334,7 @@ export class GameScreen implements Screen {
     const rec = this.app.st.recs[this.app.st.recs.length - 1];
     let best: Ent | null = null, bd = 1e9;
     for (const e of rec?.ents ?? []) {
-      if (e.k !== 'm') continue;
+      if (e.k !== 'm' || e.g === 'B') continue; // never aim at a powder keg by accident
       const d = Math.hypot(e.x - px, (e.y - py) * 2);
       if (d < bd) { best = e; bd = d; }
     }
@@ -334,6 +363,26 @@ export class GameScreen implements Screen {
     if (this.reviving) { this.reviving = 0; }
     const m = this.pred.move(dir, now);
     if (m) this.app.net.send(m);
+  }
+
+  /** Speech bubbles over whoever is talking; they follow the speaker and fade out. */
+  private drawBarks(mb: Fb, ents: Ent[], now: number) {
+    const st = this.app.st;
+    for (const [id, b] of st.barks) {
+      const age = now - b.at;
+      if (age > BARK_MS) { st.barks.delete(id); continue; }
+      const e = ents.find((n) => n.id === id);
+      const wx = e ? e.x : b.x, wy = e ? e.y : b.y;
+      if (!st.isVisible(wx, wy)) continue;
+      const s = ' ' + b.text + ' ';
+      const fd = age > BARK_MS - 500 ? (BARK_MS - age) / 500 : 1;
+      const boss = !!b.kind && 'KQD'.includes(b.kind) || !!e?.el;
+      const fg: RGB = b.kind === 'g' ? [170, 240, 150] : boss ? [255, 150, 180] : [236, 230, 250];
+      const bg: RGB = b.kind === 'g' ? [18, 40, 22] : boss ? [50, 10, 26] : [30, 28, 44];
+      const x = Math.max(0, Math.min(VW - s.length, wx - this.cam.x - Math.floor(s.length / 2)));
+      const y = Math.max(0, wy - this.cam.y - 2);
+      mb.txt(x, y, s, fg.map((v) => v * fd) as RGB, bg.map((v) => v * fd) as RGB, boss ? 1 : 0);
+    }
   }
 
   // ---- drawing ----
@@ -380,6 +429,12 @@ export class GameScreen implements Screen {
           mb.put(x, y, '∴', [199, 146, 255], null, 1);
       }
     }
+    // spike traps the party has seen: dull when armed, bright for a moment after they spring
+    for (const tr of st.latest?.traps ?? []) {
+      const x = tr[0] - this.cam.x, y = tr[1] - this.cam.y;
+      if (x >= 0 && y >= 0 && x < VW && y < VH && st.isVisible(tr[0], tr[1]))
+        mb.put(x, y, tr[2] ? '×' : '‡', tr[2] ? [170, 80, 76] : [255, 120, 110], tr[2] ? null : [60, 12, 12], 1);
+    }
     this.fx.drawUnder(mb, this.cam, now, st);
     drawEnts(mb, st, this.cam, ents, yp, { youId: st.youId, now, flashes: this.fx.flashes, hitCol: [255, 200, 160] });
     // pings
@@ -390,6 +445,7 @@ export class GameScreen implements Screen {
       mb.put(p.x - this.cam.x, p.y - this.cam.y, '◇', c.map((v) => v * pulse), null, 1);
     }
     this.fx.drawOver(mb, this.cam, now, st);
+    this.drawBarks(mb, ents, now);
     // compose with camera shake
     const [ox, oy] = yp ? this.fx.shake(now, yp.x, yp.y) : [0, 0];
     for (let y = 0; y < VH; y++) for (let x = 0; x < VW; x++) {
@@ -405,9 +461,9 @@ export class GameScreen implements Screen {
     minimap(fb, st, this.cam, ents.map((e) => (e.id === st.youId && yp ? { ...e, x: yp.x, y: yp.y } : e)), now);
     objectives(fb, st);
     logPanel(fb, st, now);
-    hotbar(fb, st, you?.cls ?? null);
+    hotbar(fb, st, you?.cls ?? null, this.itemKey);
     commandLine(fb, this.ui, now);
-    if (this.invOpen) inventoryPanel(fb, st, this.invSel);
+    if (this.invOpen) inventoryPanel(fb, st, this.invSel, this.itemKey);
     if (this.treeOpen) treePanel(fb, st, this.treeSel, you?.cls ?? null);
     if (this.shopOpen) {
       // walking away from Grimble closes the shop
