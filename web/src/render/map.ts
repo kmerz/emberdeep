@@ -145,10 +145,36 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
   const inV = (x: number, y: number) => x >= 0 && y >= 0 && x < VW && y < VH;
   const order = (e: Ent) => (e.k === 'i' ? 0 : e.k === 'm' ? 1 : 2);
   const list = ents.slice().sort((a, b) => order(a) - order(b));
+  const pos = (e: Ent): [number, number] => {
+    if (e.k === 'h' && e.id === o.youId && youPos) return [youPos.x - cam.x, youPos.y - cam.y];
+    return [e.x - cam.x, e.y - cam.y];
+  };
+  // Pass 1: decorations (brackets, labels, timers); entity glyphs are drawn over them afterwards.
   for (const e of list) {
-    let ex = e.x, ey = e.y;
-    if (e.k === 'h' && e.id === o.youId && youPos) { ex = youPos.x; ey = youPos.y; }
-    const x = ex - cam.x, y = ey - cam.y;
+    const [x, y] = pos(e);
+    if (!inV(x, y)) continue;
+    if (e.k === 'm') {
+      if (e.el) mb.txt(x - 1, y - 1, (e.name || '').replace(/^The /, '').toUpperCase(), [255, 110, 150], null, 1);
+    } else if (e.k === 'h') {
+      const col = (e.cls && CLS[e.cls].col) || [220, 220, 220];
+      const you = e.id === o.youId;
+      const wall = !!e.st?.some((s) => s.k === 'wall');
+      if (e.downed && !e.dead) {
+        const lab = String(e.downT ?? 0);
+        mb.txt(x - Math.floor(lab.length / 2), y - 2, lab, [255, 46, 136], null, 1);
+        if (e.rev && e.rev > 0) mb.bar(x - 2, y - 3, 5, e.rev, [126, 240, 178], [20, 40, 30]);
+      } else if (!e.dead && (you || wall)) {
+        const bc: RGB = wall ? [255, 212, 92] : mul([255, 212, 92], 0.8);
+        mb.put(x - 1, y, '[', bc, null, 1);
+        mb.put(x + 1, y, ']', bc, null, 1);
+      }
+      const nm = e.name || '';
+      mb.txt(x - Math.floor(nm.length / 2), y - 1, nm, mul(col, e.dead ? 0.35 : 0.8), null, 0);
+    }
+  }
+  // Pass 2: glyphs, items then monsters then heroes.
+  for (const e of list) {
+    const [x, y] = pos(e);
     if (!inV(x, y)) continue;
     if (e.k === 'i') {
       const g = GLY[e.g];
@@ -159,31 +185,17 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
       if (fl !== undefined && o.now - fl >= 0 && o.now - fl < 130) { fg = [255, 255, 255]; bg = [255, 138, 31]; }
       if (e.el) bg = bg || [64, 10, 32];
       mb.put(x, y, e.g, fg, bg, 1);
-      if (e.el) mb.txt(x - 1, y - 1, (e.name || '').replace(/^The /, '').toUpperCase(), [255, 110, 150], null, 1);
     } else if (e.k === 'h') {
       const col = (e.cls && CLS[e.cls].col) || [220, 220, 220];
-      const you = e.id === o.youId;
-      const wall = !!e.st?.some((s) => s.k === 'wall');
       if (e.dead) {
         mb.put(x, y, 'x', mul(col, 0.25), null, 0);
       } else if (e.downed) {
         mb.put(x, y, 'x', mul(col, 0.5), mul(col, 0.12), 1);
-        const lab = String(e.downT ?? 0);
-        mb.txt(x - Math.floor(lab.length / 2), y - 2, lab, [255, 46, 136], null, 1);
-        if (e.rev && e.rev > 0) mb.bar(x - 2, y - 3, 5, e.rev, [126, 240, 178], [20, 40, 30]);
       } else {
-        if (you || wall) {
-          const bc: RGB = wall ? [255, 212, 92] : mul([255, 212, 92], 0.8);
-          mb.put(x - 1, y, '[', bc, null, 1);
-          mb.put(x + 1, y, ']', bc, null, 1);
-        }
         let bg = mul(col, 0.3);
         if (o.flashes.has(e.id) && o.now - o.flashes.get(e.id)! < 150) bg = mix(bg, o.hitCol, 0.6);
-        mb.put(x, y, wall && !you ? '@' : '@', col, bg, 1);
-        if (wall) { mb.put(x - 1, y, '[', [255, 212, 92], null, 1); mb.put(x + 1, y, ']', [255, 212, 92], null, 1); }
+        mb.put(x, y, '@', col, bg, 1);
       }
-      const nm = e.name || '';
-      mb.txt(x - Math.floor(nm.length / 2), y - 1, nm, mul(col, e.dead ? 0.35 : 0.8), null, 0);
     }
   }
 }
