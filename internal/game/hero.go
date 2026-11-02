@@ -48,6 +48,8 @@ type Hero struct {
 	SlowUntil  int
 	BleedUntil int
 	TorchUntil int // tick a lit torch goes out (0 = none)
+	CharmUntil int // charmed by a succubus: can't act, drifts toward her
+	CharmBy    int
 	LastDamage int // tick of last damage taken (for display)
 
 	fov      []int32
@@ -193,6 +195,7 @@ func (h *Hero) freshOnFloor() {
 	h.CDReady = [TreeSize]int{}
 	h.CryUntil, h.HiddenUntil, h.PoisonCharges = 0, 0, 0
 	h.TorchUntil = 0 // a torch doesn't make it down the stairs
+	h.CharmUntil = 0
 	h.PotionReady = 0
 	h.fovValid = false
 }

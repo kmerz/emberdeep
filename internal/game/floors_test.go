@@ -94,7 +94,7 @@ func checkFloor(t *testing.T, seed uint32, d int) {
 }
 
 func TestThemeBands(t *testing.T) {
-	want := map[int]string{1: "cathedral", 2: "cathedral", 3: "crypt", 5: "crypt", 6: "caverns", 8: "caverns", 9: "ember", 10: "ember"}
+	want := map[int]string{1: "cathedral", 2: "cathedral", 3: "crypt", 5: "crypt", 6: "caverns", 8: "abyss", 9: "ember", 10: "ember"}
 	for d, id := range want {
 		if got := Floor(d).Theme.ID; got != id {
 			t.Errorf("depth %d: theme %s, want %s", d, got, id)

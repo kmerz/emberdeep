@@ -52,6 +52,8 @@ export class Predictor {
   /** Try to move; returns the message to send, or null if not allowed yet. */
   move(dir: number, now: number): object | null {
     if (!this.ready || now - this.lastSend < MOVE_MS) return null;
+    const me = this.st.recs[this.st.recs.length - 1]?.ents.find((e) => e.k === 'h' && e.id === this.st.youId);
+    if (me?.st?.some((s) => s.k === 'charmed')) return null; // the server won't let a charmed hero move
     this.lastSend = now;
     const seq = ++this.seq;
     this.apply(dir);

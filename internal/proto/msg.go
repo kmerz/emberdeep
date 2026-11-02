@@ -216,6 +216,7 @@ type SnapShared struct {
 	Patches [][2]int     `json:"patches,omitempty"`
 	Orbs    [][3]int     `json:"orbs,omitempty"`   // light orbs: x, y, seconds left
 	Portal  *[3]int      `json:"portal,omitempty"` // Scroll of Return portal: x, y, seconds left
+	Fires   [][2]int     `json:"fires,omitempty"`  // burning ground
 }
 
 type Events struct {

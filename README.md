@@ -66,6 +66,11 @@ All numbers live in `internal/game/balance.go`.
   anything (garnets for 40 gold, everything else for half its price). Everyone shops with their own gold.
 - A Scroll of Return, read anywhere below the village, opens a portal for 30 s. When the whole party stands in it
   for 3 s you go back to the village; its stairs then lead back down to a fresh copy of the floor you left.
+- Deep monsters: Shades (floors 6-8) stay invisible until they're within 3 cells. Floor 8, the Abyss Gate, adds
+  the Succubus (charms a hero for 2 s: no actions, drifting toward her) and the Incubus (drains resource to heal
+  itself, blinks away when hit). The Ember Depths (9-10) add Imps (fast, shoot firebolts, keep away), Drakes
+  (spit fire, bite up close) and Magma Golems (slow, tough, leave burning ground). Floor 10's boss is the Ember
+  Dragon: it winds up for a second before breathing a cone of fire that keeps burning, so step out of it.
 - About a third of the rooms hold a chest `■`: walk into it to open it. It spills gold for the party and two
   item rolls for every hero. From floor 2 on, some chests are mimics (8% rising to 38% at floor 10): they bite
   when bumped, and hitting a chest gives a mimic away. A dead mimic drops the treasure it was guarding.

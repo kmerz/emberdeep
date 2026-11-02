@@ -71,18 +71,19 @@ type Theme struct {
 var Themes = map[string]*Theme{
 	"cathedral": {ID: "cathedral", Name: "Cathedral of Ash", Kinds: "zzzssfbr", TorchRate: 1, Decor: "~:%", DecorChance: 0.03},
 	"crypt":     {ID: "crypt", Name: "Flooded Crypt", Kinds: "zzzzsssbohn", TorchRate: 0.6, Decor: "==:=%", DecorChance: 0.06},
-	"caverns":   {ID: "caverns", Name: "Fungal Caverns", Kinds: "bbbbfzsoor", Caves: true, Decor: "\":\"%", DecorChance: 0.04, Glow: '"'},
-	"dark":      {ID: "dark", Name: "The Black Hollow", Kinds: "bbbzzsorr", Caves: true, Decor: ":%~", DecorChance: 0.03, Dark: true},
+	"caverns":   {ID: "caverns", Name: "Fungal Caverns", Kinds: "bbbbfzsoorS", Caves: true, Decor: "\":\"%", DecorChance: 0.04, Glow: '"'},
+	"dark":      {ID: "dark", Name: "The Black Hollow", Kinds: "bbbzzsorrSS", Caves: true, Decor: ":%~", DecorChance: 0.03, Dark: true},
 	"hive":      {ID: "hive", Name: "The Hive", Kinds: "aaaaaaAA", Caves: true, TorchRate: 0.2, Decor: ":%%", DecorChance: 0.05, Boss: 'Q'},
 	"village":   {ID: "village", Name: "Gnome Village", TorchRate: 1, Decor: ":", DecorChance: 0.01},
-	"ember":     {ID: "ember", Name: "Ember Depths", Kinds: "fffsszbhnn", TorchRate: 0.4, Decor: "^^:%~", DecorChance: 0.04, Glow: '^'},
+	"abyss":     {ID: "abyss", Name: "The Abyss Gate", Kinds: "SSUIfbozh", Caves: true, TorchRate: 0, Decor: "^:%", DecorChance: 0.03, Glow: '^'},
+	"ember":     {ID: "ember", Name: "Ember Depths", Kinds: "ffiiddGhnUIs", TorchRate: 0.4, Decor: "^^:%~", DecorChance: 0.04, Glow: '^'},
 }
 
 // ThemeBands: a theme covers floors from From until the next band starts.
 var ThemeBands = []struct {
 	From  int
 	Theme string
-}{{1, "cathedral"}, {3, "crypt"}, {4, "hive"}, {5, "crypt"}, {6, "caverns"}, {7, "dark"}, {8, "caverns"}, {9, "ember"}}
+}{{1, "cathedral"}, {3, "crypt"}, {4, "hive"}, {5, "crypt"}, {6, "caverns"}, {7, "dark"}, {8, "abyss"}, {9, "ember"}}
 
 // Light on dark floors (radii in the aspect-corrected metric, like VisionRadius).
 const (
@@ -115,6 +116,9 @@ func Floor(depth int) FloorDef {
 	}
 	if th.Boss != 0 {
 		f.Boss = th.Boss
+	}
+	if depth == MaxDepth {
+		f.Boss = FinalBoss
 	}
 	return f
 }
@@ -251,7 +255,30 @@ type MonDef struct {
 	Summon    byte   // what a caller or queen raises
 	Neutral   bool   // leaves heroes alone until its faction is alarmed
 	Faction   string // hitting one alarms the others nearby ("" = none)
+
+	// deep monsters
+	Range   float64 // "ranged": shoots from this far; "charmer": charms from this far
+	KeepOff bool    // "ranged": backs away from heroes that get close
+	Trail   bool    // leaves burning ground where it walks
+	Stealth bool    // unseen unless a hero is within StealthReveal cells
 }
+
+// Deep monsters
+const (
+	StealthReveal = 3          // a shade shows itself this close
+	FireTicks     = 4 * TickHz // burning ground lasts this long (golem trail)
+	FireDmg       = 4          // per second, to heroes standing in it
+	BreathWind    = 20         // ticks the dragon winds up before it breathes (you can step aside)
+	BreathCD      = 8 * TickHz // between breaths
+	BreathRange   = 9.0        // cone length
+	BreathFire    = 5 * TickHz // the cone keeps burning this long
+	CharmTicks    = 2 * TickHz // a charmed hero can't act and drifts toward the charmer
+	CharmCD       = 10 * TickHz
+	DrainRes      = 15 // an incubus bite drains this much resource and heals itself by it
+	BlinkCD       = 3 * TickHz
+	BlinkChance   = 0.35 // an incubus that's hit blinks away with this chance
+	FinalBoss     = 'D'  // the last floor's boss
+)
 
 // Monster roles
 const (
@@ -280,7 +307,14 @@ var MonDefs = map[byte]MonDef{
 	'a': {Name: "Worker Ant", HP: 20, Dmg: 4, MoveTicks: 6, AtkTicks: 12, XP: 4, Neutral: true, Faction: "ants"},
 	'A': {Name: "Soldier Ant", HP: 40, Dmg: 9, MoveTicks: 4, AtkTicks: 12, XP: 12, Faction: "ants"},
 	'Q': {Name: "The Ant Queen", HP: 300, Dmg: 14, MoveTicks: 99, AtkTicks: 16, XP: 140, Role: "queen", Summon: 'A', Faction: "ants"},
-	'o': {Name: "Blob", HP: 44, Dmg: 6, MoveTicks: 8, AtkTicks: 14, XP: 10, Role: "splitter"}, // splits when killed
+	'i': {Name: "Imp", HP: 22, Dmg: 7, MoveTicks: 3, AtkTicks: 22, XP: 14, Role: "ranged", Range: 9, KeepOff: true},            // fast, shoots firebolts, keeps away
+	'd': {Name: "Drake", HP: 70, Dmg: 10, MoveTicks: 5, AtkTicks: 26, XP: 26, Role: "ranged", Range: 7},                        // spits fire, bites up close
+	'G': {Name: "Magma Golem", HP: 140, Dmg: 15, MoveTicks: 10, AtkTicks: 20, XP: 34, Trail: true},                             // slow, tough, burning trail
+	'S': {Name: "Shade", HP: 26, Dmg: 13, MoveTicks: 4, AtkTicks: 12, XP: 18, Stealth: true},                                   // invisible until close
+	'U': {Name: "Succubus", HP: 60, Dmg: 9, MoveTicks: 4, AtkTicks: 14, XP: 30, Role: "charmer", Range: 7},                     // charms a hero
+	'I': {Name: "Incubus", HP: 60, Dmg: 9, MoveTicks: 4, AtkTicks: 14, XP: 30, Role: "drainer"},                                // drains resource, blinks away
+	'D': {Name: "The Ember Dragon", HP: 520, Dmg: 22, MoveTicks: 7, AtkTicks: 18, XP: 400, Role: "dragon", Range: BreathRange}, // breathes fire
+	'o': {Name: "Blob", HP: 44, Dmg: 6, MoveTicks: 8, AtkTicks: 14, XP: 10, Role: "splitter"},                                  // splits when killed
 }
 
 type Difficulty struct {

@@ -47,6 +47,9 @@ func heroStatuses(g *game.Game, h *game.Hero) []proto.Status {
 	if h.PoisonCharges > 0 {
 		st = append(st, proto.Status{K: "poison", T: h.PoisonCharges})
 	}
+	if g.Now < h.CharmUntil {
+		st = append(st, proto.Status{K: "charmed", T: ceilSec(h.CharmUntil - g.Now)})
+	}
 	if g.Now < h.TorchUntil {
 		st = append(st, proto.Status{K: "torch", T: ceilSec(h.TorchUntil - g.Now)})
 	}
@@ -148,6 +151,11 @@ func BuildShared(g *game.Game) []byte {
 			s.Ents = append(s.Ents, proto.Ent{ID: n.ID, K: "n", G: "g", X: n.X, Y: n.Y, Name: n.Name, Trader: n.Trader})
 		}
 	}
+	for _, f := range g.Fires {
+		if g.IsVisible(f.X, f.Y) {
+			s.Fires = append(s.Fires, [2]int{f.X, f.Y})
+		}
+	}
 	if p := g.Portal; p != nil {
 		s.Portal = &[3]int{p.X, p.Y, ceilSec(p.Until - g.Now)}
 	}
@@ -158,6 +166,9 @@ func BuildShared(g *game.Game) []byte {
 	}
 	for _, m := range g.Mons {
 		if !g.IsVisible(m.X, m.Y) {
+			continue
+		}
+		if !g.Revealed(m) { // a shade stays unseen until a hero is close
 			continue
 		}
 		if m.Disguised { // looks exactly like a chest

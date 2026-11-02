@@ -127,6 +127,12 @@ export class Fx {
       case 'revive': push('flare', 900, { pal: 'revive', x: ev.x, y: ev.y }); break;
       case 'levelup': push('dmg', 1800, { text: 'LEVEL UP', pal: 'level' }); break;
       case 'chest': push('flare', 700, { pal: 'wall' }); break;
+      case 'blink': push('blink', 420); break;
+      case 'shot': push('bolt', 160); break;
+      case 'breath': push('charge', Math.max(400, (ev.amount ?? 20) * 50), { pal: 'ember' }); break;
+      case 'breathfire': push('blast', 1500, { pal: 'ember', r: 4 }); break;
+      case 'charm': push('flare', 900, { pal: 'charm' }); break;
+      case 'drain': push('dmg', 1100, { text: '-' + ev.amount, pal: 'absorb' }); break;
       case 'summon': push('flare', 600, { pal: 'cast' }); break;
       case 'split': push('flare', 500, { pal: 'revive' }); break;
       case 'mimic':
@@ -397,6 +403,7 @@ function flareCol(pal: string): RGB {
     case 'revive': return [126, 240, 178];
     case 'frost': return [140, 210, 255];
     case 'smoke': return [150, 146, 160];
+    case 'charm': return [255, 110, 200];
     default: return [199, 146, 255];
   }
 }

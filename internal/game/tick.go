@@ -8,6 +8,8 @@ func (g *Game) Tick() []Event {
 		g.runPending()
 		g.tickPatches()
 		g.tickNpcs()
+		g.tickFires()
+		g.tickCharm()
 		for _, h := range g.Heroes {
 			g.tickHero(h)
 			g.tickReviver(h)

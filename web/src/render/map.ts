@@ -60,6 +60,9 @@ export function buildLights(st: GameState, cam: Cam, t: number, heroes: { x: num
       : dark ? { r: 5, c: pal.hero, i: 0.45 } : { r: 16, c: pal.hero, i: 0.5 };
     if (inView(h.x, h.y, l.r)) out.push({ x: h.x, y: h.y, ...l });
   });
+  for (const f of st.latest?.fires ?? []) {
+    if (inView(f[0], f[1], 4)) out.push({ x: f[0], y: f[1], r: 4, c: [1, 0.45, 0.15], i: 0.35 + 0.1 * Math.sin(t * 11 + f[0]) });
+  }
   for (const o of st.latest?.orbs ?? []) {
     if (inView(o[0], o[1], 12)) out.push({ x: o[0], y: o[1], r: 12, c: [0.75, 0.85, 1], i: Math.min(1, o[2] / 3) * (0.8 + 0.05 * Math.sin(t * 4)) });
   }
@@ -177,6 +180,13 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
       const nm = e.name || '';
       mb.txt(x - Math.floor(nm.length / 2), y - 1, nm, mul(col, e.dead ? 0.35 : 0.8), null, 0);
     }
+  }
+  // burning ground (golem trails, dragon breath)
+  for (const f of st.latest?.fires ?? []) {
+    const x = f[0] - cam.x, y = f[1] - cam.y;
+    if (!inV(x, y)) continue;
+    const k = hash(f[0], f[1], Math.floor(o.now / 140));
+    mb.put(x, y, k > 0.5 ? '^' : '"', mix([255, 90, 20], [255, 210, 80], k), mix([70, 14, 4], [110, 30, 6], k), 1);
   }
   // the Scroll of Return's portal: a swirl on its cell
   const pt = st.latest?.portal;

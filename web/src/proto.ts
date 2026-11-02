@@ -29,7 +29,7 @@ export interface Me {
 export interface PackSlot { item: string; n: number }
 export interface Snap {
   t: 'snap'; tick: number; ackSeq?: number; vis: Vis; ents: Ent[]; party: PartyEntry[]; obj: Objectives;
-  patches?: [number, number][]; orbs?: [number, number, number][]; portal?: [number, number, number]; me?: Me; drops?: Ent[];
+  patches?: [number, number][]; orbs?: [number, number, number][]; portal?: [number, number, number]; fires?: [number, number][]; me?: Me; drops?: Ent[];
 }
 export interface GameEvent {
   k: string; actor?: number; target?: number; x: number; y: number; tx?: number; ty?: number;

@@ -64,6 +64,7 @@ var (
 	ErrLocked    = errors.New("skill locked")
 	ErrNotHere   = errors.New("not here")
 	ErrNoGold    = errors.New("not enough gold")
+	ErrCharmed   = errors.New("charmed")
 	ErrPackFull  = errors.New("rucksack full")
 	ErrPhase     = errors.New("run is over")
 )
@@ -135,6 +136,7 @@ type Game struct {
 	Orbs    []Orb
 	Npcs    []*Npc
 	Portal  *Portal
+	Fires   []Fire
 
 	InVillage   bool
 	VillageSeen bool
@@ -213,7 +215,7 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 	g.Depth = depth
 	g.Level = lvl
 	g.rng = NewRNG(uint64(seed)*31 + 5)
-	g.Mons, g.Items, g.Patches, g.pend, g.Chests, g.Orbs, g.Npcs, g.Portal = nil, nil, nil, nil, nil, nil, nil, nil
+	g.Mons, g.Items, g.Patches, g.pend, g.Chests, g.Orbs, g.Npcs, g.Portal, g.Fires = nil, nil, nil, nil, nil, nil, nil, nil, nil
 	g.npcByID = map[int]*Npc{}
 	g.portalSince, g.PortalAt, g.PortalNeed = -1, 0, 0
 	g.KingKilled = false
@@ -459,6 +461,12 @@ func (g *Game) Apply(pid int, in Intent) error {
 	}
 	if !h.Connected {
 		return ErrBadIntent
+	}
+	if g.Now < h.CharmUntil {
+		switch in.Kind {
+		case IntMove, IntCast, IntPotion, IntUse, IntRevive, IntDrop:
+			return ErrCharmed
+		}
 	}
 	switch in.Kind {
 	case IntMove:

@@ -121,6 +121,9 @@ export class GameState {
           this.pushLog(e.fx === 'Q' ? [['The Ant Queen', [255, 170, 60]], [' lays a ', DIM], [e.text || 'soldier', TX]]
             : [['A Bone Caller', [180, 120, 255]], [' raises a ', DIM], [e.text || 'minion', TX]], now);
           break;
+        case 'breath': this.pushLog([['The Ember Dragon', [255, 60, 30], 1], [' draws a deep breath…', DIM]], now); break;
+        case 'charm': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is charmed by the ', DIM], ['Succubus', [255, 110, 200], 1]], now); break;
+        case 'drain': if (e.target === this.youId) this.pushLog([['The Incubus', [180, 90, 255]], [' drains ' + (e.amount ?? 0) + ' of your power', DIM]], now); break;
         case 'alarm': this.pushLog([['The hive is alarmed!', [255, 170, 60], 1], [' ' + (e.amount ?? 0) + ' ants turn on you', DIM]], now); break;
         case 'say': if (you && e.text) this.pushLog([[e.text, [140, 220, 120]]], now); break;
         case 'shop': if (you) this.pushLog([['Grimble', [255, 212, 92], 1], [': Have a look, have a look!', [140, 220, 120]]], now); break;

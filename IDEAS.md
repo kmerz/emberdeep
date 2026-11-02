@@ -34,7 +34,7 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [x] [M] Monster roles: bone rats (fast), bone hulks (slow, heavy), Bone Callers (summon rats)
 - [x] [S] Blob (splits into two bloblings when it dies)
 - [x] [L] Ant hive floor (floor 4): neutral workers, alarm within 12 cells, soldiers, a queen that lays soldiers
-- [ ] [L] Deep floors: dragons, incubus, succubus
+- [x] [L] Deep floors: Ember Dragon (final boss), Drakes, Imps, Magma Golems, Shades, Succubus, Incubus
 
 ## 7. Special floors
 - [x] [M] Pitch-black floor (floor 7, The Black Hollow)

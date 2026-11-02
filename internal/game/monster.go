@@ -20,7 +20,11 @@ type Monster struct {
 	Awake     bool
 	Disguised bool // a mimic still pretending to be a chest
 	Neutral   bool // an ant worker that hasn't been provoked
-	Threat    []ThreatEntry
+
+	NextAbility      int // breath, charm or blink ready again
+	BreathAt         int // tick the dragon's breath lands (0 = not winding up)
+	BreathX, BreathY int
+	Threat           []ThreatEntry
 
 	SlowUntil  int
 	BleedUntil int
@@ -50,6 +54,9 @@ func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 	}
 	m.HP -= dmg
 	m.Awake = true
+	if m.HP > 0 && m.Def().Role == "drainer" {
+		defer g.maybeBlink(m)
+	}
 	if a := g.heroByID[actor]; a != nil {
 		g.addThreat(m, actor, dmg)
 		if gd := a.Def().GainDeal; gd > 0 {
@@ -297,6 +304,20 @@ func (g *Game) monsterAI(m *Monster) {
 	if m.Def().Role == "caller" && g.callerAct(m, tgt) {
 		return
 	}
+	switch m.Def().Role {
+	case "ranged":
+		if g.rangedAct(m, tgt) {
+			return
+		}
+	case "dragon":
+		if g.dragonAct(m, tgt) {
+			return
+		}
+	case "charmer":
+		if g.charmerAct(m, tgt) {
+			return
+		}
+	}
 	if m.Def().Role == "queen" {
 		g.queenAct(m, tgt)
 		if cheb(m.X, m.Y, tgt.X, tgt.Y) > 1 { // she never walks; she bites only what comes close
@@ -314,6 +335,9 @@ func (g *Game) monsterAI(m *Monster) {
 			dx, dy := tgt.X-m.X, tgt.Y-m.Y
 			m.Facing = dirIndex(dx, dy, m.Facing)
 			g.damageHero(tgt, dmg, m.ID)
+			if def.Role == "drainer" {
+				g.drainBite(m, tgt)
+			}
 		}
 		return
 	}
@@ -338,7 +362,11 @@ func (g *Game) monsterAI(m *Monster) {
 	}
 	if ok {
 		m.Facing = dirIndex(step.X-m.X, step.Y-m.Y, m.Facing)
+		px, py := m.X, m.Y
 		g.moveEntity(int32(m.ID), &m.X, &m.Y, step.X, step.Y)
+		if m.Def().Trail {
+			g.addFire(px, py, FireTicks, FireDmg)
+		}
 	}
 }
 
