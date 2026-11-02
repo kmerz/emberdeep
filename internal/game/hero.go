@@ -48,7 +48,7 @@ type Hero struct {
 	BellUntil  int
 	SlowUntil  int
 	BleedUntil int
-	TorchUntil int // tick a lit torch goes out (0 = none)
+	Oil        int // ticks of light left in the lantern (it burns by itself on dark floors)
 	CharmUntil int // charmed by a succubus: can't act, drifts toward her
 	CharmBy    int
 	LastDamage int // tick of last damage taken (for display)
@@ -63,12 +63,20 @@ func (h *Hero) Def() *ClassDef { return Classes[h.Cls] }
 
 func (h *Hero) save() heroSave {
 	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Pack: h.Pack, PackCap: h.PackCap,
-		Ranks: h.Ranks, Binds: h.Binds, Points: h.Points}
+		Ranks: h.Ranks, Binds: h.Binds, Points: h.Points, Oil: h.Oil}
 }
 
 func (h *Hero) restore(s heroSave) {
 	h.Lvl, h.XP, h.HP, h.HPMax, h.Res, h.ResMax, h.Gold, h.Pack = s.Lvl, s.XP, s.HP, s.HPMax, s.Res, s.ResMax, s.Gold, s.Pack
-	h.Ranks, h.Binds, h.Points, h.PackCap = s.Ranks, s.Binds, s.Points, s.PackCap
+	h.Ranks, h.Binds, h.Points, h.PackCap, h.Oil = s.Ranks, s.Binds, s.Points, s.PackCap, s.Oil
+	for i, st := range h.Pack { // saves from before the lantern: torches become oil, unknown items go
+		if st.Item == "torch" {
+			h.Oil = min(OilMax, h.Oil+st.N*OilFlask)
+		}
+		if st.N > 0 && Items[st.Item] == nil {
+			h.Pack[i] = Stack{}
+		}
+	}
 	h.Dead, h.Downed = false, false
 }
 
@@ -195,7 +203,6 @@ func (h *Hero) freshOnFloor() {
 	h.WallUntil, h.WallAbsorb, h.BellUntil, h.SlowUntil, h.BleedUntil = 0, 0, 0, 0, 0
 	h.CDReady = [TreeSize]int{}
 	h.CryUntil, h.HiddenUntil, h.PoisonCharges = 0, 0, 0
-	h.TorchUntil = 0 // a torch doesn't make it down the stairs
 	h.CharmUntil = 0
 	h.PotionReady = 0
 	h.fovValid = false
@@ -323,7 +330,7 @@ func (g *Game) Lights() []Light {
 			continue
 		}
 		r := BareLight
-		if g.Now < h.TorchUntil {
+		if g.LanternLit(h) {
 			r = TorchLight
 		}
 		out = append(out, Light{h.X, h.Y, r})
@@ -390,4 +397,9 @@ func (g *Game) updateVision() {
 
 func (g *Game) IsVisible(x, y int) bool {
 	return x >= 0 && y >= 0 && x < LW && y < LH && g.Visible[y*LW+x]
+}
+
+// LanternLit: every hero carries a lantern; it burns by itself on dark floors while it has oil.
+func (g *Game) LanternLit(h *Hero) bool {
+	return h.Oil > 0 && !h.Dead && g.Level.Theme != nil && g.Level.Theme.Dark && !g.InVillage
 }

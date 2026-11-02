@@ -51,7 +51,7 @@ var WakeBarks = map[byte][]string{
 var MimicBarks = []string{"SURPRISE!", "Finders keepers!", "Mine! All mine!"}
 var CallerBarks = []string{"Rise, my pretties!", "Bones, to me!", "Heh heh heh..."}
 var FollowerBarks = []string{"Is it much further?", "I hear something...", "Don't leave me!", "Are those the stairs?"}
-var TraderBarks = []string{"Potions! Fresh potions!", "Torches, two for... one each!", "Garnets wanted, good prices!"}
+var TraderBarks = []string{"Potions! Fresh potions!", "Lamp oil! Keeps the dark away!", "Garnets wanted, good prices!"}
 var GnomeBarks = []string{"Oh! Adventurers!", "Mind the mud.", "Hello hello!", "Back from below? Brave!"}
 
 const (

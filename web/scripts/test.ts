@@ -1,6 +1,6 @@
 declare const process: { exit(n: number): never };
 // Unit tests for the pure client logic (interpolation, prediction, state handling). Run with: npm test
-import { GameState } from '../src/state';
+import { GameState, LOG_W, wrapSegs } from '../src/state';
 import { displayEnts } from '../src/render/interp';
 import { Predictor, MOVE_MS } from '../src/render/predict';
 import type { Ent, Snap } from '../src/proto';
@@ -8,7 +8,7 @@ import { Fx, streakLabel } from '../src/render/fx';
 import { depthBanner, hotbar, pickTarget } from '../src/render/hud';
 import { Fb } from '../src/term/fb';
 import { VW, VH } from '../src/render/map';
-import { GamepadInput, type PadLike, type PadContext } from '../src/gamepad';
+import { GamepadInput, keyLabel, lastInput, padLabel, type PadLike, type PadContext } from '../src/gamepad';
 
 let failed = 0;
 function eq(a: unknown, b: unknown, msg: string) {
@@ -162,7 +162,9 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   cur = mk();
   eq(step(210, 'world'), ['u:1'], 'releasing the button sends keyup');
   cur = mk([0]);
-  eq(step(240, 'world'), [], 'A is unbound in the world (Enter would open chat)');
+  eq(step(240, 'world'), ['d:5'], 'A uses item key 5 in the world (never Enter: that would open chat)');
+  cur = mk();
+  step(250, 'world');
   cur = mk([6]);
   eq(step(270, 'world'), ['d:e'], 'LT starts a revive');
   cur = mk();
@@ -273,12 +275,69 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   };
   const row = (fb: Fb, y: number) => Array.from({ length: 160 }, (_, x) => fb.ch[y * 160 + x]).join('');
   let fb = new Fb(160, 48, [0, 0, 0]);
-  hotbar(fb, st, 'rogue', 'firebomb');
-  eq(row(fb, 40).includes('FIREBOMB'), true, 'hotbar names the item on key 4');
+  hotbar(fb, st, 'rogue', ['firebomb', 'potion']);
+  eq(row(fb, 40).includes('BOMB'), true, 'hotbar names the item on key 4');
   eq(row(fb, 41).includes('×3'), true, 'hotbar counts the item across rucksack stacks');
+  eq(row(fb, 40).split('POTION').length - 1, 2, 'key 5 holds a second item (next to the Q potion slot)');
+  eq(row(fb, 37).includes('5'), true, 'the sixth slot is labelled 5');
   fb = new Fb(160, 48, [0, 0, 0]);
-  hotbar(fb, st, 'rogue', '');
-  eq(row(fb, 41).includes('I: pick'), true, 'an empty key 4 says how to fill it');
+  hotbar(fb, st, 'rogue', []);
+  eq(row(fb, 41).includes('(I)'), true, 'an empty item key says how to fill it');
+  for (let y = 35; y < 47; y++) eq(row(fb, y).slice(112).trim(), '', 'the hotbar stays inside its box (row ' + y + ')');
+}
+
+// --- hit log: your hits on one monster fold into one line; hits on you and your kills are logged too
+{
+  const st = new GameState();
+  st.youId = 1;
+  const z = { id: 20005, k: 'm' as const, g: 'z', x: 5, y: 5, name: 'Zombie', face: 0 };
+  const k = { id: 20006, k: 'm' as const, g: 'B', x: 6, y: 5, name: 'Powder Keg', face: 0 };
+  st.recs.push({ t: 0, snap: {} as never, ents: [z, k] });
+  const text = (i: number) => st.log[i].segs.map((s) => s[0]).join('');
+  const hit = (actor: number, target: number, amount: number, fx = '', at = 1000) =>
+    st.handle({ t: 'events', tick: 1, list: [{ k: 'hit', actor, target, x: 5, y: 5, amount, fx }] }, at);
+  hit(1, 20005, 12);
+  eq(text(st.log.length - 1), 'You hit Zombie for 12', 'first hit gets its own line');
+  hit(1, 20005, 20, 'crit', 1500);
+  hit(1, 20005, 9, '', 2000);
+  eq(st.log.length, 1, 'repeat hits on the same monster share one line');
+  eq(text(0), 'You hit Zombie ×3 · 41 dmg · crit', 'the line counts hits, damage and crits');
+  hit(1, 20005, 5, '', 9000);
+  eq(st.log.length, 2, 'after a pause a new line starts');
+  hit(20005, 1, 7, '', 9100);
+  eq(text(2), 'Zombie hits you for 7', 'hits on you are logged');
+  hit(0, 1, 10, '', 9150);
+  eq(text(3), 'You are hurt for 10', 'trap and fire damage is logged without an attacker');
+  hit(2, 20005, 30, '', 9200);
+  eq(st.log.length, 4, "an ally's hits stay out of the log");
+  hit(1, 20006, 1, '', 9300);
+  eq(st.log.length, 4, 'hitting a powder keg is not logged as a hit');
+  st.recs.push({ t: 1, snap: {} as never, ents: [k] }); // the zombie is gone from the newest snapshot
+  hit(1, 20005, 6, '', 9400);
+  eq(text(1), 'You hit Zombie ×2 · 11 dmg', 'the killing blow still finds the name in the previous snapshot');
+  st.handle({ t: 'events', tick: 1, list: [{ k: 'kill', actor: 1, target: 20005, x: 5, y: 5, text: 'Zombie', fx: 'z' }] }, 9500);
+  eq(text(st.log.length - 1), 'You slay the Zombie', 'your kills are logged');
+}
+
+// --- long log lines wrap instead of running out of the log box; hints name pad buttons while playing with a pad
+{
+  const lines = wrapSegs([['keys: ', [1, 1, 1]], ['WASD move · 1-3 skills · 4 item · Q potion · hold E revive · Alt+click ping', [2, 2, 2]]], LOG_W);
+  eq(lines.length, 2, 'a long line becomes two');
+  eq(lines.every((l) => l.reduce((a, s) => a + s[0].length, 0) <= LOG_W), true, 'no wrapped line is wider than the log');
+  eq(lines.map((l) => l.map((s) => s[0]).join('')).join(' '), 'keys: WASD move · 1-3 skills · 4 item · Q potion · hold E revive · Alt+click ping', 'wrapping loses no text');
+  eq(lines[1][0][1], [2, 2, 2], 'the second line keeps the color');
+  const st = new GameState();
+  st.pushLog([['x'.repeat(LOG_W + 5), [1, 1, 1]]]);
+  eq(st.log.length, 2, 'an unbreakable word is cut hard');
+  eq(padLabel('world', 'e'), 'LT', 'revive is LT on the pad');
+  eq(padLabel('world', '1'), 'X', 'skill 1 is X');
+  eq(padLabel('panel', '1'), 'LB', 'in panels LB puts a skill on key 1');
+  lastInput.pad = false;
+  eq(keyLabel('world', 'e'), 'E', 'keyboard hints show the key');
+  lastInput.pad = true;
+  eq(keyLabel('world', 'e'), 'LT', 'pad hints show the button');
+  eq(keyLabel('world', 'm'), 'M', 'a key with no button falls back to the key');
+  lastInput.pad = false;
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

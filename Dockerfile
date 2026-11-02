@@ -17,11 +17,14 @@ COPY cmd ./cmd
 COPY internal ./internal
 COPY --from=web /src/web/dist ./internal/web/dist
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/emberdeep ./cmd/emberdeep
+RUN mkdir -p /out/data/saves
 
 # 3) tiny runtime image
 FROM gcr.io/distroless/static
 COPY --from=build /out/emberdeep /emberdeep
-ENV ADDR=:8080 MAX_ROOMS=200
+# saved games: mount a volume on /data to keep them across container restarts
+COPY --from=build --chown=65532:65532 /out/data /data
+ENV ADDR=:8080 MAX_ROOMS=200 SAVE_DIR=/data/saves
 EXPOSE 8080
 USER nonroot
 ENTRYPOINT ["/emberdeep"]

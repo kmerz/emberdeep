@@ -19,10 +19,10 @@ func step(t *testing.T, g *Game, h *Hero, dir int) {
 func TestStartingKitAndStacking(t *testing.T) {
 	g := arena(1)
 	h := hero(g, 1, Warrior, 40, 25)
-	if h.Count("potion") != StartPotions || h.Count("torch") != StartTorches || h.PackUsed() != 2 {
-		t.Fatalf("expected %d potions and %d torches, got %d and %d in %d slots", StartPotions, StartTorches, h.Count("potion"), h.Count("torch"), h.PackUsed())
+	if h.Count("potion") != StartPotions || h.PackUsed() != 1 || h.Oil != StartOil {
+		t.Fatalf("expected %d potions in one slot and a lantern with oil, got %d in %d slots, oil %d", StartPotions, h.Count("potion"), h.PackUsed(), h.Oil)
 	}
-	if n := h.AddItem("potion", 10); n != 10 || h.PackUsed() != 3 || h.Pack[0].N != 9 {
+	if n := h.AddItem("potion", 10); n != 10 || h.PackUsed() != 2 || h.Pack[0].N != 9 {
 		t.Fatalf("12 potions should fill one stack of 9 and start another: added %d, %+v", n, h.Pack[:2])
 	}
 	if h.AddItem("nothing", 1) != 0 {
@@ -150,5 +150,35 @@ func TestKillsDropRucksackItems(t *testing.T) {
 		if !seen[id] {
 			t.Errorf("no %s dropped in 600 kills", id)
 		}
+	}
+}
+
+func TestPotionKeyDrinksADraughtWhenThatHelps(t *testing.T) {
+	g := arena(1)
+	h := hero(g, 1, Sorcerer, 30, 25)
+	h.AddItem("draught", 2)
+	pots := h.Count("potion")
+	h.HP, h.Res = h.HPMax, 10
+	if err := g.Apply(1, Intent{Kind: IntPotion}); err != nil {
+		t.Fatal(err)
+	}
+	if h.Count("draught") != 1 || h.Count("potion") != pots || h.Res <= 10 {
+		t.Fatal("healthy with low mana: Q drinks a draught")
+	}
+	g.Now = h.PotionReady
+	h.HP, h.Res = h.HPMax/3, 10
+	if err := g.Apply(1, Intent{Kind: IntPotion}); err != nil {
+		t.Fatal(err)
+	}
+	if h.Count("potion") != pots-1 || h.Count("draught") != 1 {
+		t.Fatal("hurt: Q drinks a healing potion first")
+	}
+	for h.Count("potion") > 0 {
+		h.removeAt(h.firstSlot("potion"), 1)
+	}
+	g.Now = h.PotionReady
+	h.HP = h.HPMax / 3
+	if err := g.Apply(1, Intent{Kind: IntPotion}); err != nil || h.Count("draught") != 0 {
+		t.Fatalf("no potions left: Q drinks the draught (%v)", err)
 	}
 }

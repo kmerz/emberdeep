@@ -7,7 +7,7 @@ import { GameScreen } from './screens/game';
 import { LandingScreen, store } from './screens/landing';
 import { LobbyScreen } from './screens/lobby';
 import type { ClassId } from './proto';
-import { GamepadInput, fakeKey } from './gamepad';
+import { GamepadInput, fakeKey, lastInput } from './gamepad';
 import { sfx } from './audio';
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
@@ -114,7 +114,7 @@ function tryReconnect() {
 }
 
 // browsers only start audio after a user gesture
-for (const t of ['keydown', 'pointerdown']) window.addEventListener(t, () => sfx.unlock(), { capture: true });
+for (const t of ['keydown', 'pointerdown']) window.addEventListener(t, () => { sfx.unlock(); lastInput.pad = false; }, { capture: true });
 window.addEventListener('keydown', (e) => current.onKey?.(e));
 window.addEventListener('keyup', (e) => current.onKeyUp?.(e));
 canvas.addEventListener('mousedown', (e) => current.onMouseDown?.(e, term.cellAt(e)));
@@ -127,6 +127,7 @@ const padSink = {
   down: (key: string, repeat: boolean) => {
     // playing with the pad: forget the mouse cursor, so skills and thrown items aim at the nearest enemy
     game.mouse = [-1, -1];
+    lastInput.pad = true;
     current.onKey?.(fakeKey(key, repeat));
   },
   up: (key: string) => current.onKeyUp?.(fakeKey(key)),

@@ -20,7 +20,7 @@ const (
 
 	PotionCD     = 10 * TickHz // shared cooldown of healing potions and draughts
 	StartPotions = 2
-	StartTorches = 2
+	StartOil     = 5 * 60 * TickHz // a new hero's lantern holds 5 minutes of light
 
 	// Co-op rules
 	ThreatWindow   = 5 * TickHz
@@ -88,12 +88,19 @@ var ThemeBands = []struct {
 
 // Light on dark floors (radii in the aspect-corrected metric, like VisionRadius).
 const (
-	BareLight  = 4.5  // a hero without a torch sees only the cells next to them
-	TorchLight = 12.0 // a lit torch
-	OrbLight   = 11.0 // a light orb
-	TorchTicks = 120 * TickHz
-	OrbTicks   = 60 * TickHz
-	MaxOrbs    = 8 // per floor at once; the oldest goes out first
+	BareLight  = 4.5              // a hero whose lantern is out sees only the cells next to them
+	TorchLight = 12.0             // a burning lantern
+	OrbLight   = 11.0             // a light orb
+	OilMax     = 10 * 60 * TickHz // a full lantern: 10 minutes of light
+	OilFlask   = 150 * TickHz     // one flask of lamp oil
+	OilWarn    = 30 * TickHz      // "your lantern is running low" at this much oil left
+
+	// the Q key drinks a Resource Draught instead of a potion when HP is at least DraughtHPOK and the
+	// resource below DraughtResLow (shares of the maximum)
+	DraughtHPOK   = 0.7
+	DraughtResLow = 0.35
+	OrbTicks      = 60 * TickHz
+	MaxOrbs       = 8 // per floor at once; the oldest goes out first
 )
 
 func ThemeAt(depth int) *Theme {
@@ -374,7 +381,7 @@ const (
 var ShopStock = []struct {
 	Item  string
 	Price int
-}{{"potion", 30}, {"draught", 30}, {"torch", 15}, {"lightorb", 40}, {"firebomb", 60}, {"returnscroll", 120}, {"satchel", SatchelPrice}}
+}{{"potion", 30}, {"draught", 30}, {"oil", 15}, {"lightorb", 40}, {"firebomb", 60}, {"returnscroll", 120}, {"satchel", SatchelPrice}}
 
 // SellPrice is what Grimble pays for one item: its Value if it has one, else half the shop price.
 func SellPrice(id string) int {
@@ -403,7 +410,7 @@ type ItemDef struct {
 	ID, Name, Desc string
 	Glyph          byte // plain-ASCII fallback; the client draws its own glyph by ID
 	MaxStack       int
-	Use            string  // "heal", "resource", "throw", "torch", "orb"; "" = can't be used
+	Use            string  // "heal", "resource", "throw", "orb", "oil" (fills the lantern on pickup); "" = can't be used
 	Amount         float64 // heal/resource share of the maximum, or damage for "throw"
 	Radius, Range  float64
 	Value          int     // gold value (for trading later)
@@ -415,7 +422,7 @@ var Items = map[string]*ItemDef{
 	"potion":       {ID: "potion", Name: "Healing Potion", Desc: "restores 40% HP", Glyph: '!', MaxStack: 9, Use: "heal", Amount: 0.40, DropChance: 0.18},
 	"draught":      {ID: "draught", Name: "Resource Draught", Desc: "refills half your resource", Glyph: '&', MaxStack: 9, Use: "resource", Amount: 0.50, DropChance: 0.12},
 	"firebomb":     {ID: "firebomb", Name: "Firebomb", Desc: "throw at the cursor: fire blast", Glyph: '*', MaxStack: 5, Use: "throw", Amount: 22, Radius: 3, Range: 12, DropChance: 0.04},
-	"torch":        {ID: "torch", Name: "Torch", Desc: "burns for 2 minutes; you see in the dark", Glyph: 't', MaxStack: 5, Use: "torch", DropChance: 0.06},
+	"oil":          {ID: "oil", Name: "Lamp Oil", Desc: "2.5 minutes of light; goes straight into your lantern", Glyph: 't', MaxStack: 1, Use: "oil", DropChance: 0.04}, // never in the rucksack
 	"lightorb":     {ID: "lightorb", Name: "Scroll of Light", Desc: "lights the spot at the cursor for a minute", Glyph: '?', MaxStack: 5, Use: "orb", Range: 14, DropChance: 0.04},
 	"returnscroll": {ID: "returnscroll", Name: "Scroll of Return", Desc: "opens a portal back to the gnome village", Glyph: '%', MaxStack: 3, Use: "portal"}, // sold only, never dropped
 	"ledger":       {ID: "ledger", Name: "The Tallow King's Ledger", Desc: "a list of every soul he melted; for Grimble", Glyph: '=', MaxStack: 1, Quest: true},
@@ -423,10 +430,13 @@ var Items = map[string]*ItemDef{
 	"antegg":       {ID: "antegg", Name: "Ant Egg", Desc: "warm and faintly ticking; for Grimble", Glyph: 'o', MaxStack: 9, Quest: true},
 	"embershard":   {ID: "embershard", Name: "Ember Shard", Desc: "too hot to hold for long; for Grimble", Glyph: '*', MaxStack: 9, Quest: true},
 	"gem":          {ID: "gem", Name: "Garnet", Desc: "worth 40 gold to a trader", Glyph: 'g', MaxStack: 20, Value: 40, DropChance: 0.05},
+	"coin":         {ID: "coin", Name: "Old Coin", Desc: "a coin of a kingdom nobody remembers; 15 gold to a trader", Glyph: 'c', MaxStack: 20, Value: 15, DropChance: 0.05},
+	"ring":         {ID: "ring", Name: "Silver Ring", Desc: "someone's wedding ring; 80 gold to a trader", Glyph: 'o', MaxStack: 10, Value: 80, DropChance: 0.012},
+	"idol":         {ID: "idol", Name: "Gold Idol", Desc: "heavy, grinning and very old; 200 gold to a trader", Glyph: 'I', MaxStack: 5, Value: 200, DropChance: 0.003},
 }
 
 // ItemOrder fixes the order drops are rolled in (map order is random, the simulation must not be).
-var ItemOrder = []string{"potion", "draught", "firebomb", "torch", "lightorb", "gem"}
+var ItemOrder = []string{"potion", "draught", "firebomb", "oil", "lightorb", "gem", "coin", "ring", "idol"}
 
 // dist is the aspect-corrected metric used for radii and FOV (cells are twice as tall as wide).
 func dist(ax, ay, bx, by int) float64 {

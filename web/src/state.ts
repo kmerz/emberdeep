@@ -1,17 +1,45 @@
 import type { Ent, GameEvent, LevelMsg, LobbyMsg, Me, Objectives, PartyEntry, ServerMsg, Snap, ClassId, QuestInfo } from './proto';
-import { CLS, SKILL_BY_ID } from './classes';
+import { CLS, MC, SKILL_BY_ID } from './classes';
 import { DIM, GOLD, PINK, RGB, TX } from './term/fb';
 import { palette } from './render/themes';
-import { itemInfo } from './items';
+import { VALUE, itemInfo } from './items';
 import { Remain, bleedFor, remainsFor, remainsOk } from './render/remains';
 
 const MINT_LOG: RGB = [126, 240, 178];
+const WH_LOG: RGB = [236, 232, 248];
+const CRIT_LOG: RGB = [255, 200, 60];
+const HURT_LOG: RGB = [255, 110, 110];
+
+/** Characters of text a log line has room for (the log panel in hud.ts). */
+export const LOG_W = 54;
+
+/** Splits colored segments into lines of at most width characters, breaking at spaces where it can. */
+export function wrapSegs(segs: LogSeg[], width: number): LogSeg[][] {
+  const lines: LogSeg[][] = [[]];
+  let used = 0;
+  for (const sg of segs) {
+    let text = sg[0];
+    while (used + text.length > width) {
+      const room = width - used;
+      let cut = text.lastIndexOf(' ', room);
+      if (cut <= 0) cut = used === 0 ? room : 0; // a word longer than a line: hard cut; else move it to the next line
+      if (cut > 0) lines[lines.length - 1].push([text.slice(0, cut), sg[1], sg[2]]);
+      text = text.slice(cut).replace(/^ +/, '');
+      lines.push([]);
+      used = 0;
+    }
+    if (text) { lines[lines.length - 1].push([text, sg[1], sg[2]]); used += text.length; }
+  }
+  return lines.filter((l) => l.length);
+}
 
 export const LW = 176;
 export const LH = 62;
 
 export type LogSeg = [string, RGB, number?];
-export interface LogLine { ts: string; segs: LogSeg[]; at: number }
+export interface LogLine { ts: string; segs: LogSeg[]; at: number; key?: string; n?: number; dmg?: number; crits?: number }
+/** Hits on the same target within this window update one log line instead of adding new ones. */
+export const HIT_MERGE_MS = 3000;
 export interface PingMark { x: number; y: number; cls: ClassId; name: string; t0: number }
 
 export interface SnapRec { t: number; snap: Snap; ents: Ent[] }
@@ -132,8 +160,35 @@ export class GameState {
     return x >= 0 && y >= 0 && x < LW && y < LH && this.vis[y * LW + x] === 1;
   }
 
+  /** A short-lived snapshot entity by id (for names and glyphs of monsters in events). */
+  entById(id: number): Ent | undefined {
+    // a monster killed this tick is already gone from the newest snapshot: look one back too
+    for (let i = this.recs.length - 1; i >= Math.max(0, this.recs.length - 2); i--) {
+      const e = this.recs[i].ents.find((n) => n.id === id);
+      if (e) return e;
+    }
+    return undefined;
+  }
+
+  /** Logs a hit, folding repeats (same attacker and target, within HIT_MERGE_MS) into one line with a running total. */
+  logHit(key: string, head: LogSeg[], dmg: number, crit: boolean, now: number) {
+    let ln = this.log.slice(-4).find((l) => l.key === key && now - l.at < HIT_MERGE_MS);
+    if (!ln) {
+      ln = { ts: clock(this.tick), segs: [], at: now, key, n: 0, dmg: 0, crits: 0 };
+      this.log.push(ln);
+      if (this.log.length > 300) this.log.splice(0, this.log.length - 200);
+    }
+    ln.n! += 1; ln.dmg! += dmg; if (crit) ln.crits! += 1;
+    ln.at = now; ln.ts = clock(this.tick);
+    const tail: LogSeg[] = ln.n === 1 ? [[' for ', DIM], [String(dmg), WH_LOG, 1]]
+      : [[' ×' + ln.n, TX], [' · ', DIM], [ln.dmg + ' dmg', WH_LOG, 1]];
+    if (ln.crits) tail.push([ln.crits > 1 ? ' · ' + ln.crits + ' crits' : ' · crit', CRIT_LOG, 1]);
+    ln.segs = [...head, ...tail];
+  }
+
   pushLog(segs: LogSeg[], now = performance.now()) {
-    this.log.push({ ts: clock(this.tick), segs, at: now });
+    const ts = clock(this.tick);
+    for (const line of wrapSegs(segs, LOG_W)) this.log.push({ ts, segs: line, at: now });
     if (this.log.length > 300) this.log.splice(0, this.log.length - 200);
   }
 
@@ -150,13 +205,38 @@ export class GameState {
           if (sk && sk.meta.log) this.pushLog([[an, ac], [' casts ', DIM], [sk.meta.name, CLS[sk.cls].col]], now);
           break;
         }
+        case 'hit': {
+          const dmg = e.amount ?? 0;
+          if (dmg <= 0 || !e.target) break;
+          const crit = e.fx === 'crit';
+          if (you && e.target >= 10000) {
+            // your hits on a monster (not on a powder keg, which has its own line)
+            const m = this.entById(e.target);
+            if (!m || m.g === 'B') break;
+            this.logHit('you>' + e.target, [['You hit ', DIM], [m.name || 'something', MC[m.g] ?? TX]], dmg, crit, now);
+          } else if (e.target === this.youId) {
+            // what hits you: a monster, an ally, a trap or a fire
+            // no attacker: a trap, fire or a keg blast
+            if (!e.actor) { this.logHit('0>you', [['You are hurt', HURT_LOG, 1]], dmg, crit, now); break; }
+            const src = e.actor >= 10000 ? this.entById(e.actor) : undefined;
+            const who: LogSeg = e.actor < 10000 ? [this.nameOf(e.actor) || 'An ally', this.colOf(e.actor)]
+              : [src?.name || 'Something', src ? MC[src.g] ?? TX : TX];
+            this.logHit(e.actor + '>you', [who, [' hits ', DIM], ['you', HURT_LOG, 1]], dmg, crit, now);
+          }
+          break;
+        }
         case 'kill':
           if (e.fx === 'K') this.pushLog([['The Tallow King', PINK, 1], [' falls to ', DIM], [an || 'the party', ac]], now);
           else if (e.fx === 'M') this.pushLog([['The mimic', PINK, 1], [' falls and spills its treasure', DIM]], now);
+          else if (you && e.fx !== 'B') this.pushLog([['You slay the ', DIM], [e.text || 'monster', MC[e.fx ?? ''] ?? TX, 1]], now);
           break;
         case 'pickup':
           if (e.fx === 'gold') this.pushLog([[you ? 'You' : an, you ? TX : ac], [' pick' + (you ? '' : 's') + ' up ', DIM], [(e.amount || 0) + ' gold', GOLD, 1]], now);
-          else if (you && e.fx) { const it = itemInfo(e.fx); this.pushLog([['You pick up ', DIM], [(e.amount || 1) > 1 ? e.amount + '× ' + it.name : it.name, it.col, 1]], now); }
+          else if (you && e.fx === 'oil') this.pushLog([['You fill your lantern with ', DIM], ['lamp oil', [255, 170, 70], 1]], now);
+          else if (you && e.fx) {
+            const it = itemInfo(e.fx), v = VALUE[e.fx];
+            this.pushLog([['You pick up ', DIM], [(e.amount || 1) > 1 ? e.amount + '× ' + it.name : it.name, it.col, 1], ...(v ? [[' · Grimble pays ' + v + ' gold', GOLD] as LogSeg] : [])], now);
+          }
           break;
         case 'packfull': if (you) this.pushLog([['Your rucksack is full', PINK]], now); break;
         case 'chest': this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' open a ' : ' opens a ', DIM], ['chest', GOLD, 1]], now); break;
@@ -183,6 +263,7 @@ export class GameState {
           if ((!!e.fx && 'KQD'.includes(e.fx)) || ent?.el) this.pushLog([[(ent?.name ?? 'Someone') + ': ', PINK, 1], [e.text, TX]], now);
           break;
         }
+        case 'oillow': if (you) this.pushLog([['Your lantern is running low', PINK, 1], [': pick up lamp oil, or buy some from Grimble', DIM]], now); break;
         case 'trapseen': if (you) this.pushLog([['You spot a ', DIM], ['spike trap', [230, 70, 70], 1], [': step around it', DIM]], now); break;
         case 'fuse': if (you) this.pushLog([['The powder keg', [230, 120, 50], 1], [' starts to fizz…', DIM]], now); break;
         case 'shop': if (you) this.pushLog([['Grimble', [255, 212, 92], 1], [': Have a look, have a look!', [140, 220, 120]]], now); break;
@@ -199,8 +280,7 @@ export class GameState {
         case 'use': {
           if (!e.fx) break;
           const it = itemInfo(e.fx), who: LogSeg = [you ? 'You' : an, you ? TX : ac];
-          if (e.fx === 'torch') this.pushLog([who, [you ? ' light a ' : ' lights a ', DIM], ['torch', it.col]], now);
-          else if (e.fx === 'lightorb') this.pushLog([who, [you ? ' read a ' : ' reads a ', DIM], [it.name, it.col]], now);
+          if (e.fx === 'lightorb') this.pushLog([who, [you ? ' read a ' : ' reads a ', DIM], [it.name, it.col]], now);
           else this.pushLog([who, [you ? ' drink a ' : ' drinks a ', DIM], [it.name, it.col]], now);
           break;
         }
@@ -258,7 +338,7 @@ export class GameState {
         // a new floor (or a retry): forget everything about the old map
         if (m.theme !== this.level?.theme) {
           this.pushLog([['You enter the ', DIM], [palette(m.theme).name, TX], [' · Depth ' + String(m.depth).padStart(2, '0'), DIM]], now);
-          if (m.dark) this.pushLog([['It is pitch black. Light a torch from your rucksack (', DIM], ['I', TX, 1], [').', DIM]], now);
+          if (m.dark) this.pushLog([['It is pitch black. Your lantern burns oil while you are here: ', DIM], ['keep an eye on it', [255, 170, 70]], ['.', DIM]], now);
         }
         this.level = m; this.tiles.fill(0); this.vis.fill(0);
         this.recs = []; this.latest = null; this.pings = []; this.overlay = null; this.lastTarget = 0;

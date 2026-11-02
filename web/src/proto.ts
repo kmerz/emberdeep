@@ -23,6 +23,7 @@ export interface Me {
   res: number; resMax: number; cd: number[]; cdMax: number[]; cost: number[]; potions: number; potCd: number;
   gold: number; xp: number; xpNeed: number; lvl: number;
   pack: PackSlot[]; // always 16 entries; empty ones are { item: '', n: 0 }
+  oil?: number; oilMax?: number; // seconds of light in the lantern, and in a full one
   packCap: number;  // usable slots: 12, or 16 with the Gnome Satchel
   binds: string[];  // skill id on keys 1-3 ('' = empty)
   tree: { id: string; rank: number }[]; // the class's 6 skills in tree order
@@ -42,9 +43,12 @@ export interface GameEvent {
 export interface LobbyPlayer {
   slot: number; id: number; name: string; cls: ClassId; lvl: number; ready: boolean; pingMs: number;
   host: boolean; connected: boolean; bot?: boolean;
+  saved?: boolean; // continues their saved hero
 }
+/** A saved game in the lobby: the next start continues it. */
+export interface SaveInfo { depth: number; village?: boolean; heroes: { name: string; cls: ClassId; lvl: number }[] }
 export interface LobbyMsg {
-  t: 'lobby'; code: string; players: LobbyPlayer[]; inGame: boolean;
+  t: 'lobby'; code: string; players: LobbyPlayer[]; inGame: boolean; save?: SaveInfo;
   settings: { difficulty: string; seed: string; loot: string; friendlyFire: boolean };
 }
 export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][]; dark?: boolean; village?: boolean }

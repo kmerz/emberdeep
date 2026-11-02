@@ -41,6 +41,12 @@ func (g *Game) tickHero(h *Hero) {
 	if h.Dead {
 		return
 	}
+	if g.LanternLit(h) {
+		h.Oil--
+		if h.Oil == OilWarn {
+			g.emit(Event{K: "oillow", Actor: h.ID, X: h.X, Y: h.Y})
+		}
+	}
 	def := h.Def()
 	if def.Regen != 0 && !h.Downed {
 		h.resAcc += def.Regen / TickHz

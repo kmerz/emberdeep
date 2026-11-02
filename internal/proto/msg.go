@@ -46,6 +46,7 @@ const (
 	CPing     = "ping"
 	CHbAck    = "hbAck"
 	CLeave    = "leave" // leave the room for good: no 60 s reconnect hold
+	CSave     = "save"  // host: save the game and return everyone to the lobby
 )
 
 type Welcome struct {
@@ -68,6 +69,7 @@ type LobbyPlayer struct {
 	Host      bool   `json:"host"`
 	Connected bool   `json:"connected"`
 	Bot       bool   `json:"bot,omitempty"`
+	Saved     bool   `json:"saved,omitempty"` // continues their saved hero
 }
 
 type LobbySettings struct {
@@ -83,6 +85,20 @@ type Lobby struct {
 	Players  []LobbyPlayer `json:"players"`
 	Settings LobbySettings `json:"settings"`
 	InGame   bool          `json:"inGame"`
+	Save     *SaveInfo     `json:"save,omitempty"` // a saved game the next start continues
+}
+
+// SaveInfo describes a saved game in the lobby.
+type SaveInfo struct {
+	Depth   int        `json:"depth"`
+	Village bool       `json:"village,omitempty"`
+	Heroes  []SaveHero `json:"heroes"`
+}
+
+type SaveHero struct {
+	Name string `json:"name"`
+	Cls  string `json:"cls"`
+	Lvl  int    `json:"lvl"`
 }
 
 type Phase struct {
@@ -207,6 +223,8 @@ type Me struct {
 	XP      int         `json:"xp"`
 	XPNeed  int         `json:"xpNeed"`
 	Lvl     int         `json:"lvl"`
+	Oil     int         `json:"oil"`    // seconds of light left in the lantern
+	OilMax  int         `json:"oilMax"` // seconds in a full lantern
 }
 
 // SnapShared is the part of a snapshot identical for every client of a room.

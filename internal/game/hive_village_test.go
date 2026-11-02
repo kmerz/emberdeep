@@ -125,11 +125,16 @@ func TestBuyingAndSelling(t *testing.T) {
 		t.Fatalf("a 30-gold potion with 20 gold: %v", err)
 	}
 	h.Gold = 200
-	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "torch"}); err != nil {
+	h.Oil = 0
+	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "oil"}); err != nil {
 		t.Fatal(err)
 	}
-	if h.Gold != 185 || h.Count("torch") != StartTorches+1 {
-		t.Fatalf("a torch costs 15: gold %d torches %d", h.Gold, h.Count("torch"))
+	if h.Gold != 185 || h.Oil != OilFlask || h.Count("oil") != 0 {
+		t.Fatalf("lamp oil costs 15 and goes into the lantern: gold %d oil %d", h.Gold, h.Oil)
+	}
+	h.Oil = OilMax
+	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "oil"}); err != ErrHaveIt {
+		t.Fatalf("no oil for a full lantern: %v", err)
 	}
 	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "gem"}); err != ErrNoItem {
 		t.Fatalf("garnets aren't for sale: %v", err)
@@ -141,9 +146,9 @@ func TestBuyingAndSelling(t *testing.T) {
 	if h.Gold != 225 || h.Count("gem") != 1 {
 		t.Fatalf("a garnet sells for 40: gold %d", h.Gold)
 	}
-	_ = g.Apply(1, Intent{Kind: IntSell, Slot: h.firstSlot("torch")})
-	if h.Gold != 232 {
-		t.Fatalf("a torch sells for half: gold %d", h.Gold)
+	_ = g.Apply(1, Intent{Kind: IntSell, Slot: h.firstSlot("potion")})
+	if h.Gold != 240 {
+		t.Fatalf("a potion sells for half: gold %d", h.Gold)
 	}
 	for i := 0; i < PackSlots; i++ {
 		h.Pack[i] = Stack{Item: "gem", N: Items["gem"].MaxStack}

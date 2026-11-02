@@ -5,6 +5,7 @@ import { MC, CLS } from '../classes';
 import type { Ent } from '../proto';
 import type { Cam, Light } from './fx';
 import { palette } from './themes';
+import { ITEMS } from '../items';
 
 export const VW = 112;
 export const VH = 34;
@@ -22,7 +23,7 @@ const GLY: Record<string, Glyph> = {
   '*': { ch: '*', fg: [255, 140, 50], b: true },  // firebomb
   'g': { ch: '♦', fg: [230, 60, 90], b: true },   // garnet
   'C': { ch: '■', fg: [214, 150, 80], b: true },   // closed chest (or a mimic pretending)
-  't': { ch: '/', fg: [255, 170, 70], b: true },   // torch
+  't': { ch: '¡', fg: [255, 170, 70], b: true },   // lamp oil
   '?': { ch: '?', fg: [230, 230, 170], b: true },  // scroll of light
   '>': { ch: '>', fg: [120, 240, 255], b: true },
   '=': { ch: '≈', fg: [70, 140, 170], lit: true },
@@ -274,7 +275,8 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
       continue;
     }
     if (e.k === 'i') {
-      const g = GLY[e.g];
+      const info = e.it ? ITEMS[e.it] : undefined; // rucksack items by id; gold and chests by glyph
+      const g = info ? { ch: info.ch, fg: info.col } : GLY[e.g];
       if (g) mb.put(x, y, g.ch, g.fg, null, 1);
     } else if (e.k === 'm') {
       let fg = MC[e.g] || [200, 200, 200], bg: RGB | null = null;

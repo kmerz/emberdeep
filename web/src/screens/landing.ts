@@ -3,6 +3,7 @@ import { Fb, W, DIM, TX, WH, PINK, MINT, mul } from '../term/fb';
 import { CLS, CLASS_LIST } from '../classes';
 import { drawTitle, keyChips } from '../render/title';
 import type { ClassId } from '../proto';
+import { VERSION } from '../version';
 
 type Field = 'name' | 'class' | 'new' | 'code' | 'join';
 
@@ -129,7 +130,7 @@ export class LandingScreen implements Screen {
     if (this.error) fb.ctxt(y + h + 1, this.error, [255, 90, 120], null, 1);
     keyChips(fb, 40, [['TAB', 'next field'], ['ENTER', 'select'], ['←/→', 'change class']], -1);
     fb.txt(2, 46, 'co-op for 1–4 players · create a game, then share the code or invite link', DIM);
-    const rt = 'v0.1 · 24-bit color · 160×48';
+    const rt = 'v' + VERSION + ' · 24-bit color · 160×48';
     fb.txt(W - 2 - rt.length, 46, rt, [88, 84, 118]);
     void MINT; void mul;
   }

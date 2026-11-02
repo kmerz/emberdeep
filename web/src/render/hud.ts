@@ -7,6 +7,7 @@ import type { Cam } from './fx';
 import { VW, VH } from './map';
 import { palette } from './themes';
 import { itemInfo } from '../items';
+import { keyLabel, lastInput } from '../gamepad';
 
 export interface UiState { chatActive: boolean; chatText: string; }
 
@@ -37,7 +38,7 @@ function statusSegs(p: PartyEntry): [string, RGB, (RGB | null)?, number?][] {
     if (s.k === 'wall') out.push(['▲ Iron Wall', GOLD], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'bell') out.push(['◆ Bell of Warding', GOLD], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'slow') out.push(['▼ Slowed', [150, 196, 106]], [' ' + s.t + 's', DIM], ['   ', DIM]);
-    else if (s.k === 'torch') out.push(['/ Torch', [255, 170, 70]], [' ' + s.t + 's', DIM], ['   ', DIM]);
+    else if (s.k === 'torch') out.push(['¡ Lantern', [255, 170, 70]], [' ' + Math.floor(s.t / 60) + ':' + String(s.t % 60).padStart(2, '0'), DIM], ['   ', DIM]);
     else if (s.k === 'cry') out.push(['! War Cry', [255, 138, 61]], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'hidden') out.push(['░ Hidden', [199, 146, 255]], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'poison') out.push(['~ Poison', [126, 240, 178]], [' ×' + s.t, DIM], ['   ', DIM]);
@@ -185,55 +186,70 @@ export function logPanel(fb: Fb, st: GameState, now: number) {
   });
 }
 
-export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null, itemKey = '') {
+/** Hotbar slot width and where each slot starts (skills 1-3, then a gap, then potion and the two item keys). */
+const SLOT_W = 7;
+const slotX = (i: number) => 67 + i * SLOT_W + (i >= 3 ? 1 : 0);
+
+export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null, itemKeys: string[] = []) {
   const me = st.party.find((p) => p.id === st.youId);
   if (!youCls || !st.me) { fb.box(65, 35, 47, 12, 'HOTBAR'); return; }
   const c = CLS[youCls], m = st.me;
   fb.box(65, 35, 47, 12, (me?.name ?? '').toUpperCase() + ' · ' + c.name, c.col);
   const wall = !!me?.st?.some((s) => s.k === 'wall');
+  const count = (id: string) => (m.pack ?? []).reduce((a, s) => a + (s.item === id ? s.n : 0), 0);
   type Slot = { k: string; ic: string; n: string; st: number; sub: string; col?: RGB };
   const slots: Slot[] = [0, 1, 2].map((i) => {
     const s = SKILL_BY_ID[m.binds?.[i] ?? '']?.meta;
-    if (!s) return { k: String(i + 1), ic: ' · ', n: 'EMPTY', st: 2, sub: 'T: tree' };
+    if (!s) return { k: keyLabel('world', String(i + 1)), ic: ' · ', n: 'EMPTY', st: 2, sub: '(' + keyLabel('world', 't') + ')' };
     const cd = m.cd[i] ?? 0;
     let state = 0, sub = 'ready';
     if (s.id === 'ironwall' && wall) { state = 1; sub = (me!.st!.find((q) => q.k === 'wall')!.t) + 's'; }
     else if (cd > 0) { state = 2; sub = (cd / 20).toFixed(1) + 's'; }
     else if (m.res < (m.cost[i] ?? 0)) { state = 2; sub = 'no ' + c.rl; }
     else if ((m.cost[i] ?? 0) > 0) sub = m.cost[i] + ' ' + c.rl;
-    return { k: String(i + 1), ic: s.icon, n: s.short, st: state, sub };
+    return { k: keyLabel('world', String(i + 1)), ic: s.icon, n: s.short, st: state, sub };
   });
-  slots.push({ k: 'Q', ic: ' ! ', n: 'POTION', st: m.potCd > 0 || m.potions <= 0 ? 2 : 0, sub: m.potCd > 0 ? (m.potCd / 20).toFixed(1) + 's' : '×' + m.potions });
-  if (itemKey) {
-    const it = itemInfo(itemKey), n = (m.pack ?? []).reduce((a, s) => a + (s.item === itemKey ? s.n : 0), 0);
-    const potLike = itemKey === 'potion' || itemKey === 'draught';
-    const cool = potLike && m.potCd > 0;
-    slots.push({ k: '4', ic: ' ' + it.ch + ' ', n: (it.name.split(' ').pop() ?? '').toUpperCase().slice(0, 9), st: n <= 0 || cool ? 2 : 0, sub: cool ? (m.potCd / 20).toFixed(1) + 's' : '×' + n, col: it.col });
-  } else slots.push({ k: '4', ic: ' · ', n: 'ITEM', st: 2, sub: 'I: pick' });
+  // Q: a potion, or a draught when that helps (the server decides); shows both counts
+  const drs = count('draught');
+  slots.push({ k: keyLabel('world', 'q'), ic: ' ! ', n: 'POTION', st: m.potCd > 0 || m.potions + drs <= 0 ? 2 : 0,
+    sub: m.potCd > 0 ? (m.potCd / 20).toFixed(1) + 's' : '×' + m.potions + (drs ? ' &' + drs : '') });
+  ['4', '5'].forEach((key, i) => {
+    const id = itemKeys[i] ?? '';
+    if (!id) { slots.push({ k: keyLabel('world', key), ic: ' · ', n: 'ITEM', st: 2, sub: '(' + keyLabel('world', 'i') + ')' }); return; }
+    const it = itemInfo(id), n = count(id);
+    const cool = (id === 'potion' || id === 'draught') && m.potCd > 0;
+    slots.push({ k: keyLabel('world', key), ic: ' ' + it.ch + ' ', n: it.short ?? it.name.toUpperCase(), st: n <= 0 || cool ? 2 : 0,
+      sub: cool ? (m.potCd / 20).toFixed(1) + 's' : '×' + n, col: it.col });
+  });
   slots.forEach((s, i) => {
-    const x = 66 + i * 9, y = 37;
+    const x = slotX(i), y = 37, w = SLOT_W;
     const bc: RGB = s.st === 1 ? GOLD : s.st === 2 ? [52, 48, 72] : [100, 94, 136];
     const ic: RGB = s.st === 1 ? GOLD : s.st === 2 ? [78, 74, 100] : WH;
     const inner: RGB = s.st === 2 ? [20, 19, 30] : s.st === 1 ? [44, 36, 16] : PAN;
-    fb.put(x, y, '╭', bc); fb.put(x + 1, y, s.k, s.st === 2 ? DIM : WH, null, 1);
-    for (let j = 2; j < 8; j++) fb.put(x + j, y, '─', bc);
-    fb.put(x + 8, y, '╮', bc);
+    fb.put(x, y, '╭', bc);
+    for (let j = 1; j < w - 1; j++) fb.put(x + j, y, '─', bc);
+    fb.txt(x + 1, y, s.k, s.st === 2 ? DIM : WH, null, 1); // a key or a pad button (up to 2 letters)
+    fb.put(x + w - 1, y, '╮', bc);
     fb.put(x, y + 1, '│', bc);
-    for (let j = 1; j < 8; j++) fb.put(x + j, y + 1, ' ', null, inner);
-    fb.txt(x + 3, y + 1, s.ic, s.col && s.st !== 2 ? s.col : ic, null, 1);
-    fb.put(x + 8, y + 1, '│', bc);
+    for (let j = 1; j < w - 1; j++) fb.put(x + j, y + 1, ' ', null, inner);
+    fb.txt(x + 2, y + 1, s.ic, s.col && s.st !== 2 ? s.col : ic, null, 1);
+    fb.put(x + w - 1, y + 1, '│', bc);
     fb.put(x, y + 2, '╰', bc);
-    for (let j = 1; j < 8; j++) fb.put(x + j, y + 2, '─', bc);
-    fb.put(x + 8, y + 2, '╯', bc);
-    const nm = s.n.slice(0, 9);
-    fb.txt(x + Math.floor((9 - nm.length) / 2), y + 3, nm, s.st === 2 ? DIM : TX, null, s.st === 1 ? 1 : 0);
-    fb.txt(x + Math.floor((9 - s.sub.length) / 2), y + 4, s.sub, s.st === 1 ? GOLD : DIM);
+    for (let j = 1; j < w - 1; j++) fb.put(x + j, y + 2, '─', bc);
+    fb.put(x + w - 1, y + 2, '╯', bc);
+    const nm = s.n.slice(0, w), sub = s.sub.slice(0, w);
+    fb.txt(x + Math.floor((w - nm.length) / 2), y + 3, nm, s.st === 2 ? DIM : TX, null, s.st === 1 ? 1 : 0);
+    fb.txt(x + Math.floor((w - sub.length) / 2), y + 4, sub, s.st === 1 ? GOLD : DIM);
   });
   fb.txt(67, 43, 'XP', DIM);
   fb.bar(70, 43, 34, m.xp / Math.max(1, m.xpNeed), [177, 120, 255], [30, 22, 48]);
   fb.txt(106, 43, (Math.round((100 * m.xp) / Math.max(1, m.xpNeed)) + '%').padStart(4), TX);
-  if ((m.points ?? 0) > 0) fb.segs(67, 45, [[String(m.points), GOLD, null, 1], [m.points === 1 ? ' skill point' : ' skill points', GOLD], [' to spend (T)', DIM]]);
-  fb.segs(67, 44, [['LV ' + m.lvl, TX, null, 1], ['   gold ', DIM], [String(m.gold), GOLD, null, 1], ['   rucksack ', DIM], [(m.pack ?? []).filter((s) => s.n > 0).length + '/' + (m.packCap || 12), TX, null, 1], [' (I)', DIM]]);
+  if (m.oilMax) { // the lantern: it burns by itself on dark floors
+    const sec = m.oil ?? 0, low = sec <= 30;
+    fb.segs(96, 45, [['lantern ', DIM], [Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'), low ? PINK : [255, 170, 70], null, low ? 1 : 0]]);
+  }
+  if ((m.points ?? 0) > 0) fb.segs(67, 45, [[String(m.points), GOLD, null, 1], [m.points === 1 ? ' skill point' : ' skill points', GOLD], [' to spend (' + keyLabel('world', 't') + ')', DIM]]);
+  fb.segs(67, 44, [['LV ' + m.lvl, TX, null, 1], ['   gold ', DIM], [String(m.gold), GOLD, null, 1], ['   rucksack ', DIM], [(m.pack ?? []).filter((s) => s.n > 0).length + '/' + (m.packCap || 12), TX, null, 1], [' (' + keyLabel('world', 'i') + ')', DIM]]);
 }
 
 export function commandLine(fb: Fb, ui: UiState, now: number) {
@@ -245,7 +261,10 @@ export function commandLine(fb: Fb, ui: UiState, now: number) {
   } else {
     fb.txt(3, 47, 'press ENTER to chat · /help', [88, 84, 118]);
   }
-  const hints = [['ENTER', 'chat'], ['E', 'revive'], ['Q', 'potion'], ['1-3', 'skills'], ['Alt+Click', 'ping']];
+  // a pad can't chat or ping, so it gets its own list
+  const hints = lastInput.pad
+    ? [['LT', 'revive (hold)'], ['LB', 'potion'], ['X Y RB', 'skills'], ['B A', 'items'], ['SEL', 'rucksack'], ['R3', 'skill tree']]
+    : [['ENTER', 'chat'], ['E', 'revive (hold)'], ['Q', 'potion'], ['1-3', 'skills'], ['4 5', 'items'], ['Alt+Click', 'ping']];
   let hx = W - 1;
   for (let hi = hints.length - 1; hi >= 0; hi--) {
     const lab = ' ' + hints[hi][1] + '  ';

@@ -11,7 +11,7 @@ export const CLS: Record<ClassId, ClassMeta> = {
     id: 'warrior', name: 'WARRIOR', col: [255, 138, 61], resCol: [255, 138, 61], rl: 'RG',
     skills: [
       { id: 'cleave', key: '1', icon: '─╳─', name: 'CLEAVE', short: 'CLEAVE', targeted: false, desc: 'hit the 3 cells in front of you' },
-      { id: 'ironwall', key: '2', icon: '[▣]', name: 'IRON WALL', short: 'IRON WALL', log: true, targeted: false, desc: 'absorb damage and draw enemies to you' },
+      { id: 'ironwall', key: '2', icon: '[▣]', name: 'IRON WALL', short: 'WALL', log: true, targeted: false, desc: 'absorb damage and draw enemies to you' },
       { id: 'leap', key: '3', icon: ' ↑ ', name: 'LEAP', short: 'LEAP', log: true, targeted: true, desc: 'jump to the cursor and shake the ground' },
       { id: 'shieldbash', key: '', icon: '[■]', name: 'SHIELD BASH', short: 'BASH', targeted: false, desc: 'hit the enemy in front and stun it' },
       { id: 'warcry', key: '', icon: '\\o/', name: 'WAR CRY', short: 'WAR CRY', log: true, targeted: false, desc: 'pull nearby enemies onto you; allies hit 20% harder' },
@@ -22,7 +22,7 @@ export const CLS: Record<ClassId, ClassMeta> = {
     id: 'rogue', name: 'ROGUE', col: [199, 146, 255], resCol: [199, 146, 255], rl: 'EN',
     skills: [
       { id: 'stab', key: '1', icon: '─▸ ', name: 'STAB', short: 'STAB', targeted: false, desc: 'quick stab; double damage from behind' },
-      { id: 'caltrops', key: '2', icon: ' ∴ ', name: 'CALTROPS', short: 'CALTROPS', log: true, targeted: true, desc: 'spikes that slow and bleed enemies' },
+      { id: 'caltrops', key: '2', icon: ' ∴ ', name: 'CALTROPS', short: 'SPIKES', log: true, targeted: true, desc: 'spikes that slow and bleed enemies' },
       { id: 'shadowbomb', key: '3', icon: '(●)', name: 'SHADOW BOMB', short: 'BOMB', log: true, targeted: true, desc: 'a void blast at the cursor, after a moment' },
       { id: 'poisonblade', key: '', icon: '─▸~', name: 'POISON BLADE', short: 'POISON', log: true, targeted: false, desc: 'your next 3 stabs poison the target' },
       { id: 'smokestep', key: '', icon: '░░░', name: 'SMOKE STEP', short: 'SMOKE', log: true, targeted: false, desc: 'vanish: enemies lose track of you' },

@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"log"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -93,6 +95,7 @@ type Room struct {
 	clearedAt  int
 	overlay    string
 	closed     bool
+	saved      *game.RunSave // the saved game the next start continues (nil = a new run)
 }
 
 func newRoom(h *Hub, code string, seed uint32) *Room {
@@ -179,6 +182,9 @@ func (r *Room) run(ctx context.Context) {
 }
 
 func (r *Room) shutdown() {
+	if r.g != nil && r.g.Phase != game.PhaseCleared {
+		r.persist() // the room closes (empty, or the server stops): keep the run
+	}
 	r.hub.remove(r.code)
 	close(r.done)
 	for _, p := range r.players {
@@ -270,14 +276,26 @@ func (r *Room) assignHost() {
 func (r *Room) lobbyMsg() []byte {
 	l := proto.Lobby{T: "lobby", Code: r.code, InGame: r.g != nil, Players: []proto.LobbyPlayer{}}
 	for i, p := range r.players {
-		lvl := 1
+		lvl, saved := 1, false
 		if r.g != nil {
 			if h := r.g.Hero(p.ID); h != nil {
 				lvl = h.Lvl
 			}
+		} else if sh, ok := r.savedHero(p); ok {
+			lvl, saved = sh.Lvl(), true
 		}
 		l.Players = append(l.Players, proto.LobbyPlayer{Slot: i + 1, ID: p.ID, Name: p.Name, Cls: string(p.Cls), Lvl: lvl,
-			Ready: p.Ready || p.Bot, PingMs: p.PingMs, Host: p.Host, Connected: p.connected(), Bot: p.Bot})
+			Ready: p.Ready || p.Bot, PingMs: p.PingMs, Host: p.Host, Connected: p.connected(), Bot: p.Bot, Saved: saved})
+	}
+	if r.saved != nil {
+		si := &proto.SaveInfo{Depth: r.saved.Depth, Village: r.saved.InVillage, Heroes: []proto.SaveHero{}}
+		for name, h := range r.saved.Heroes {
+			si.Heroes = append(si.Heroes, proto.SaveHero{Name: name, Cls: string(h.Cls), Lvl: h.Lvl()})
+		}
+		sort.Slice(si.Heroes, func(i, j int) bool {
+			return si.Heroes[i].Lvl > si.Heroes[j].Lvl || si.Heroes[i].Lvl == si.Heroes[j].Lvl && si.Heroes[i].Name < si.Heroes[j].Name
+		})
+		l.Save = si
 	}
 	l.Settings = proto.LobbySettings{Difficulty: game.Difficulties[r.settings.Difficulty].Name, Seed: SeedString(r.seed),
 		Loot: "personal drops · shared gold", FriendlyFire: r.settings.FriendlyFire}
@@ -328,6 +346,11 @@ func (r *Room) handleJoin(j joinReq) {
 	if !game.ValidClass(h.Cls) {
 		cls = game.Warrior
 	}
+	if r.saved != nil {
+		if sh, ok := r.saved.Heroes[name]; ok {
+			cls = sh.Cls // back for a saved hero: same class, so they continue it
+		}
+	}
 	r.nextPID++
 	p := &Player{ID: r.nextPID, Name: name, Cls: cls, Token: newToken(), Conn: j.conn, PingMs: -1, hbSent: map[int]time.Time{}}
 	j.conn.PlayerID = p.ID
@@ -335,7 +358,7 @@ func (r *Room) handleJoin(j joinReq) {
 	r.emptySince = time.Time{}
 	r.assignHostIfNone()
 	if r.g != nil {
-		r.g.AddHero(p.ID, p.Name, p.Cls) // join in progress: spawns next to the party
+		r.addHero(p) // join in progress: spawns next to the party
 	}
 	r.syncConn(p)
 	r.broadcastLobby()
@@ -412,6 +435,9 @@ func (r *Room) removePlayer(p *Player) {
 		}
 	}
 	if r.g != nil {
+		if h := r.g.Hero(p.ID); h != nil && r.saved != nil {
+			r.saved.Heroes[h.Name] = r.g.SaveHero(h) // the hero waits in the save for their player
+		}
 		r.g.RemoveHero(p.ID)
 	}
 	if p.Host {
@@ -488,12 +514,26 @@ func (r *Room) handleMsg(in inMsg) {
 				return
 			}
 			r.removePlayer(b)
+		case "newRun": // forget the saved game: the next start is a fresh descent
+			if r.saved == nil {
+				return
+			}
+			r.saved = nil
+			deleteSave(r.cfg.SaveDir, r.code)
+			r.seed = r.hub.nextSeed()
 		default:
 			return
 		}
 		r.broadcastLobby()
 	case proto.CLeave:
 		r.quit(p)
+	case proto.CSave:
+		if !p.Host || r.g == nil || r.g.Phase == game.PhaseCleared {
+			return
+		}
+		r.persist()
+		r.sendAll(mustJSON(proto.Events{T: "events", Tick: r.g.Now, List: []game.Event{{K: "msg", Text: p.Name + " saved the game"}}}))
+		r.endRun()
 	case proto.CHbAck:
 		if t, ok := p.hbSent[m.N]; ok {
 			p.PingMs = int(r.cfg.Clock().Sub(t).Milliseconds())
@@ -538,11 +578,25 @@ func (r *Room) applyIntent(pid int, it game.Intent) {
 
 func (r *Room) startGame() {
 	r.overlay = ""
-	r.g = game.NewAt(r.seed, r.settings, len(r.players), r.cfg.StartDepth)
-	for _, p := range r.players {
-		h := r.g.AddHero(p.ID, p.Name, p.Cls)
-		h.Connected = p.connected()
+	if r.saved != nil {
+		run := *r.saved
+		run.Settings = r.settings // the lobby may have changed the difficulty
+		r.g = game.Load(run, len(r.players))
+	} else {
+		r.g = game.NewAt(r.seed, r.settings, len(r.players), r.cfg.StartDepth)
 	}
+	for _, p := range r.players {
+		if _, ok := r.savedHero(p); !ok {
+			continue
+		}
+		r.addHero(p).Connected = p.connected()
+	}
+	for _, p := range r.players { // new heroes after the saved ones, so they catch up to the party's level
+		if _, ok := r.savedHero(p); !ok {
+			r.addHero(p).Connected = p.connected()
+		}
+	}
+	r.persist()
 	r.g.Tick()
 	r.sendAll(mustJSON(proto.Phase{T: "phase", Phase: "game"}))
 	r.sendLevel()
@@ -609,6 +663,7 @@ func (r *Room) onTick(now time.Time) {
 	r.Metrics.Ticks.Add(1)
 	if r.g.TakeLevelChanged() {
 		r.sendAll(LevelMsg(r.g)) // the party went down the stairs
+		r.persist()
 	}
 	if r.g.TakeQuestsChanged() {
 		r.sendAll(QuestsMsg(r.g))
@@ -654,14 +709,55 @@ func (r *Room) afterTick() {
 
 // endRun returns the room to the lobby (a new seed for the next descent).
 func (r *Room) endRun() {
+	if r.g.Phase == game.PhaseCleared { // the run is won: nothing to continue
+		r.saved = nil
+		deleteSave(r.cfg.SaveDir, r.code)
+	}
 	r.g = nil
 	r.overlay = ""
-	r.seed = r.hub.nextSeed()
+	if r.saved != nil {
+		r.seed = r.saved.Seed
+	} else {
+		r.seed = r.hub.nextSeed()
+	}
 	for _, p := range r.players {
 		p.Ready = false
 	}
 	r.sendAll(mustJSON(proto.Phase{T: "phase", Phase: "lobby"}))
 	r.broadcastLobby()
+}
+
+// savedHero is the player's hero in the saved game, if there is one of the class they picked.
+func (r *Room) savedHero(p *Player) (game.SavedHero, bool) {
+	if r.saved == nil {
+		return game.SavedHero{}, false
+	}
+	sh, ok := r.saved.Heroes[p.Name]
+	return sh, ok && sh.Cls == p.Cls
+}
+
+// addHero puts a player's hero into the running game: their saved hero if they have one, else a new hero
+// at the party's level.
+func (r *Room) addHero(p *Player) *game.Hero {
+	if sh, ok := r.savedHero(p); ok {
+		return r.g.AddSavedHero(p.ID, p.Name, sh)
+	}
+	h := r.g.AddHero(p.ID, p.Name, p.Cls)
+	r.g.CatchUp(h)
+	return h
+}
+
+// persist saves the running game: in memory for the lobby, and to disk when a save dir is set.
+func (r *Room) persist() {
+	var prev map[string]game.SavedHero
+	if r.saved != nil {
+		prev = r.saved.Heroes
+	}
+	run := r.g.Save(prev)
+	r.saved = &run
+	if err := writeSave(r.cfg.SaveDir, r.code, run, r.cfg.Clock()); err != nil {
+		log.Printf("room %s: save failed: %v", r.code, err)
+	}
 }
 
 var botNames = []string{"bot-ash", "bot-vex", "bot-orm"}
@@ -728,15 +824,6 @@ func (r *Room) botThink() {
 		if h.Points > 0 {
 			if idx := game.NextSkill(h.Ranks, h.Lvl); idx >= 0 {
 				r.applyIntent(p.ID, game.Intent{Kind: game.IntLearn, Skill: h.Def().Skills[idx].ID})
-			}
-		}
-		// in the dark a bot lights a torch when it has one
-		if r.g.Level.Theme.Dark && r.g.Now >= h.TorchUntil && !h.Downed && !h.Dead {
-			for i, s := range h.Pack {
-				if s.Item == "torch" {
-					r.applyIntent(p.ID, game.Intent{Kind: game.IntUse, Slot: i})
-					break
-				}
 			}
 		}
 		v := r.botView(h, humans)

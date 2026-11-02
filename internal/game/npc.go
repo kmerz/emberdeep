@@ -35,7 +35,7 @@ type Portal struct {
 
 var gnomeLines = []string{
 	"Mind the stairs, they bite. Well, the things below do.",
-	"Grimble has torches. Never go down without a torch.",
+	"Grimble sells lamp oil. Keep your lantern full.",
 	"We dug this village with spoons. Long story.",
 	"Garnets! Grimble pays well for garnets.",
 	"The Hollow below is dark as a boot. Take light.",
@@ -211,6 +211,15 @@ func (g *Game) applyBuy(h *Hero, id string) error {
 			return ErrHaveIt
 		}
 		h.PackCap = min(PackSlots, h.PackCap+SatchelSlots)
+		h.Gold -= price
+		g.emit(Event{K: "trade", Actor: h.ID, X: h.X, Y: h.Y, FX: id, Amount: -price})
+		return nil
+	}
+	if id == "oil" { // straight into the lantern
+		if h.Oil > OilMax-OilFlask/2 {
+			return ErrHaveIt
+		}
+		h.Oil = min(OilMax, h.Oil+OilFlask)
 		h.Gold -= price
 		g.emit(Event{K: "trade", Actor: h.ID, X: h.X, Y: h.Y, FX: id, Amount: -price})
 		return nil

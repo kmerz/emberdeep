@@ -32,15 +32,31 @@ const COMMON: BtnMap = { [SELECT]: 'i', [START]: 'j', [R3]: 't' };
 
 const MAPS: Record<PadContext, BtnMap> = {
   chat: {},
-  // A deliberately unbound: Enter in the world would open chat
-  world: { ...COMMON, [X]: '1', [Y]: '2', [RB]: '3', [RT]: '1', [LB]: 'q', [LT]: 'e', [B]: '4' },
+  // A is item key 5, never Enter: Enter in the world would open chat
+  world: { ...COMMON, [X]: '1', [Y]: '2', [RB]: '3', [RT]: '1', [LB]: 'q', [LT]: 'e', [B]: '4', [A]: '5' },
   panel: { ...COMMON, [A]: 'Enter', [B]: 'Escape', [X]: 'x', [Y]: 'r', [RB]: 'Tab', [LB]: '1', [LT]: '2', [RT]: '3' },
   overlay: { [A]: 'Enter' },
   menu: { [A]: 'Enter', [B]: 'Escape' },
-  // A = ready/start, LT = change class, host: X friendly fire, Y difficulty, RB add bot, LB remove bot
-  // (B is unbound: 'q' would leave the lobby)
-  lobby: { [A]: 'Enter', [LT]: 'c', [X]: 'f', [Y]: 'd', [RB]: 'b', [LB]: 'x' },
+  // A = ready/start, LT = change class, host: X friendly fire, Y difficulty, RB add bot, LB remove bot,
+  // B: new run (press twice; only with a save). 'q' would leave the lobby, so no button sends it
+  lobby: { [A]: 'Enter', [LT]: 'c', [X]: 'f', [Y]: 'd', [RB]: 'b', [LB]: 'x', [B]: 'n' },
 };
+
+const BTN_NAMES: Record<number, string> = { [A]: 'A', [B]: 'B', [X]: 'X', [Y]: 'Y', [LB]: 'LB', [RB]: 'RB', [LT]: 'LT', [RT]: 'RT', [SELECT]: 'SEL', [START]: 'START', [R3]: 'R3' };
+
+/** Which input the player used last. While it is the pad, on-screen hints name pad buttons instead of keys. */
+export const lastInput = { pad: false };
+
+/** The pad button that sends this key in this context ('' if none; the lowest button index wins). */
+export function padLabel(ctx: PadContext, key: string): string {
+  for (const [b, k] of Object.entries(MAPS[ctx])) if (k === key) return BTN_NAMES[Number(b)] ?? '';
+  return '';
+}
+
+/** The label for a key in a hint: its pad button while playing with a pad, else `shown` (default: the key). */
+export function keyLabel(ctx: PadContext, key: string, shown = key.toUpperCase()): string {
+  return lastInput.pad ? padLabel(ctx, key) || shown : shown;
+}
 
 export const DEADZONE = 0.35;
 export const MENU_REPEAT_MS = 150;

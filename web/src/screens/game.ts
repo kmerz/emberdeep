@@ -3,6 +3,7 @@ import { Fb, RGB, W, H, DIM, PINK, WH, TX } from '../term/fb';
 import { LW, LH, BARK_MS } from '../state';
 import { Fx, streakLabel } from '../render/fx';
 import { sfx } from '../audio';
+import { VERSION } from '../version';
 import { VW, VH, buildLights, drawEnts, drawMap } from '../render/map';
 import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
@@ -14,12 +15,16 @@ import { itemInfo, packCap, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
-import type { PadContext } from '../gamepad';
+import { keyLabel, lastInput, type PadContext } from '../gamepad';
 
-const ITEM_KEY = 'emberdeep:itemkey';
-function loadItemKey(): string {
-  try { return localStorage.getItem(ITEM_KEY) ?? ''; } catch { return ''; }
+/** The two item keys (4 and 5) and where this browser remembers what is on them. */
+export const ITEM_KEYS = ['4', '5'];
+const ITEM_STORE = ['emberdeep:itemkey', 'emberdeep:itemkey5'];
+function loadItemKeys(): string[] {
+  return ITEM_STORE.map((k) => { try { return localStorage.getItem(k) ?? ''; } catch { return ''; } });
 }
+// lamp oil and torches no longer live in the rucksack: forget a key bound to them in an older version
+const RETIRED = new Set(['torch', 'oil']);
 
 export class GameScreen implements Screen {
   fx = new Fx();
@@ -45,7 +50,7 @@ export class GameScreen implements Screen {
   private yp: { x: number; y: number } | null = null; // where we drew ourselves last frame (for sound falloff)
   private stairsSec = 0;
   /** The rucksack item on key 4 (an item id such as 'firebomb'; '' = none). Remembered in this browser. */
-  itemKey = loadItemKey();
+  itemKeys = loadItemKeys().map((id) => (RETIRED.has(id) ? '' : id));
 
   constructor(private app: App) {
     this.pred = new Predictor(app.st);
@@ -110,7 +115,7 @@ export class GameScreen implements Screen {
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) { this.held.add(k); ev.preventDefault(); return; }
     if (ev.repeat) return;
     if (k === '1' || k === '2' || k === '3') { this.cast(parseInt(k) - 1); ev.preventDefault(); }
-    else if (k === '4') { this.useItemKey(); ev.preventDefault(); }
+    else if (k === '4' || k === '5') { this.useItemKey(ITEM_KEYS.indexOf(k)); ev.preventDefault(); }
     else if (k === 'q') { net.send({ t: 'potion', seq: this.pred.nextSeq() }); ev.preventDefault(); }
     else if (k === 'e') { this.startRevive(); ev.preventDefault(); }
     else if (k === 'm') {
@@ -136,6 +141,10 @@ export class GameScreen implements Screen {
     if (this.invOpen && ev.button === 0) {
       const s = slotAt(cell[0], cell[1], packCap(this.app.st.me));
       if (s >= 0) { this.invSel = s; ev.preventDefault(); return; }
+    }
+    if (this.invOpen && ev.button === 2) { // right-click a slot: put that item on key 4 (again: key 5)
+      const s = slotAt(cell[0], cell[1], packCap(this.app.st.me));
+      if (s >= 0) { this.invSel = s; this.bindItem(s); ev.preventDefault(); return; }
     }
     const w = this.cellToWorld(cell);
     if (!w) return;
@@ -182,7 +191,11 @@ export class GameScreen implements Screen {
     if (k === 'arrowdown') { this.shopSel = (this.shopSel + 1) % Math.max(1, n); return true; }
     if (ev.repeat) return false;
     if (ev.key === 'Enter' || k === 'u') {
-      if (this.shopSide === 0) { const s = SHOP[this.shopSel]; if (s) net.send({ t: 'buy', skill: s.item, seq: this.pred.nextSeq() }); }
+      if (this.shopSide === 0) {
+        const s = SHOP[this.shopSel], me = this.app.st.me;
+        if (s?.item === 'oil' && me?.oilMax && (me.oil ?? 0) > me.oilMax - 75) this.app.st.pushLog([['Your lantern is already full', DIM]]);
+        else if (s) net.send({ t: 'buy', skill: s.item, seq: this.pred.nextSeq() });
+      }
       else { const slot = sellSlots(st)[this.shopSel]; if (slot !== undefined) net.send({ t: 'sell', slot, seq: this.pred.nextSeq() }); }
       return true;
     }
@@ -216,27 +229,35 @@ export class GameScreen implements Screen {
     if (ev.repeat) return false;
     if (k === 'u' || ev.key === 'Enter') { this.useItem(this.invSel); return true; }
     if (k === 'x') { this.app.net.send({ t: 'drop', slot: this.invSel, seq: this.pred.nextSeq() }); return true; }
-    if (k === '4' || k === 'r') { this.bindItem(this.invSel); return true; } // r: the pad's Y button in panels
+    if (k === '4' || k === '5') { this.bindItem(this.invSel, ITEM_KEYS.indexOf(k)); return true; }
+    if (k === 'r') { this.bindItem(this.invSel); return true; } // the pad's Y button in panels
     return false;
   }
 
-  /** Puts the item in a rucksack slot on key 4. */
-  private bindItem(slot: number) {
+  /** Puts the item in a rucksack slot on item key `which` (0 = key 4, 1 = key 5). Without `which` (right-click,
+   *  the pad's Y) it goes on key 4, or moves to key 5 when it is already on 4. */
+  private bindItem(slot: number, which?: number) {
     const st = this.app.st, s = st.me?.pack?.[slot];
     if (!s || s.n <= 0) return;
     const it = itemInfo(s.item);
     if (!it.usable) { st.pushLog([[it.name, it.col], [' cannot be used', DIM]]); return; }
-    this.itemKey = s.item;
-    try { localStorage.setItem(ITEM_KEY, s.item); } catch { /* private window */ }
-    st.pushLog([[it.name, it.col, 1], [' is on key ', DIM], ['4', WH, 1]]);
+    const k = which ?? (this.itemKeys[0] === s.item ? 1 : 0);
+    this.itemKeys = this.itemKeys.map((id, i) => (i === k ? s.item : id === s.item ? '' : id)); // one key per item
+    this.itemKeys.forEach((id, i) => { try { localStorage.setItem(ITEM_STORE[i], id); } catch { /* private window */ } });
+    st.pushLog([[it.name, it.col, 1], [' is on key ', DIM], [keyLabel('world', ITEM_KEYS[k]), WH, 1]]);
   }
 
-  /** Key 4: use (or throw) the bound item from wherever it sits in the rucksack. */
-  private useItemKey() {
-    const st = this.app.st;
-    if (!this.itemKey) { st.pushLog([['Key 4 is empty: open the rucksack (', DIM], ['I', WH, 1], ['), pick an item and press ', DIM], ['4', WH, 1]]); return; }
-    const slot = (st.me?.pack ?? []).findIndex((s) => s.item === this.itemKey && s.n > 0);
-    if (slot < 0) { const it = itemInfo(this.itemKey); st.pushLog([['No ', DIM], [it.name, it.col], [' left in your rucksack', DIM]]); return; }
+  /** Key 4 or 5: use (or throw) the bound item from wherever it sits in the rucksack. */
+  private useItemKey(which: number) {
+    const st = this.app.st, id = this.itemKeys[which] ?? '', key = ITEM_KEYS[which];
+    if (!id) {
+      st.pushLog(lastInput.pad
+        ? [['That item key is empty: open the rucksack (', DIM], ['SEL', WH, 1], ['), pick an item and press ', DIM], ['Y', WH, 1]]
+        : [['Key ' + key + ' is empty: open the rucksack (', DIM], ['I', WH, 1], ['), pick an item and press ', DIM], [key, WH, 1], [' or right-click it', DIM]]);
+      return;
+    }
+    const slot = (st.me?.pack ?? []).findIndex((s) => s.item === id && s.n > 0);
+    if (slot < 0) { const it = itemInfo(id); st.pushLog([['No ', DIM], [it.name, it.col], [' left in your rucksack', DIM]]); return; }
     this.useItem(slot);
   }
 
@@ -267,10 +288,16 @@ export class GameScreen implements Screen {
       const [cmd, ...rest] = text.split(' ');
       if (cmd === '/p') text = rest.join(' ').trim();
       else if (cmd === '/leave' || cmd === '/quit') { this.app.setScreen('landing'); return; }
+      else if (cmd === '/save') {
+        if (st.isHost) this.app.net.send({ t: 'save' });
+        else st.pushLog([['Only the host can save. The game also saves by itself on every new floor.', DIM]]);
+        return;
+      }
       else if (cmd === '/help') {
-        st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['/help', [214, 208, 234]]]);
-        st.pushLog([['keys: WASD move · 1-3 skills · 4 item · Q potion · E revive · Alt+click ping · M sound on/off', DIM]]);
-        st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · B item · LB potion · LT revive · Select pack · Start journal · R3 skills · A/B in panels', DIM]]);
+        st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/save', [214, 208, 234]], [' save + back to the lobby (host) · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['/help', [214, 208, 234]], [' · emberdeep v' + VERSION, DIM]]);
+        st.pushLog([['keys: WASD move · 1-3 skills · 4 5 items · Q potion · hold E revive · Alt+click ping · M sound on/off', DIM]]);
+        st.pushLog([['in the skill tree (T) press 1, 2 or 3 on a skill to put it on that key; in the rucksack (I) press 4 or 5, or right-click an item', DIM]]);
+        st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · B A items · LB potion · hold LT revive · Select pack · Start journal · R3 skills · in panels A ok, B back, Y item key', DIM]]);
         return;
       } else { st.pushLog([['unknown command ' + cmd + ' (try /help)', PINK]]); return; }
       if (!text) return;
@@ -461,9 +488,9 @@ export class GameScreen implements Screen {
     minimap(fb, st, this.cam, ents.map((e) => (e.id === st.youId && yp ? { ...e, x: yp.x, y: yp.y } : e)), now);
     objectives(fb, st);
     logPanel(fb, st, now);
-    hotbar(fb, st, you?.cls ?? null, this.itemKey);
+    hotbar(fb, st, you?.cls ?? null, this.itemKeys);
     commandLine(fb, this.ui, now);
-    if (this.invOpen) inventoryPanel(fb, st, this.invSel, this.itemKey);
+    if (this.invOpen) inventoryPanel(fb, st, this.invSel, this.itemKeys);
     if (this.treeOpen) treePanel(fb, st, this.treeSel, you?.cls ?? null);
     if (this.shopOpen) {
       // walking away from Grimble closes the shop

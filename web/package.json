@@ -1,7 +1,7 @@
 {
   "name": "emberdeep-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.1-black",
   "type": "module",
   "scripts": {
     "dev": "vite",

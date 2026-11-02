@@ -23,16 +23,16 @@ pages). The text lives in `web/src/story.ts`.
 | WASD / arrows | move (hold two for diagonals) |
 | `1` `2` `3` | class skills, aimed at the mouse cursor (or the nearest enemy / facing) |
 | left click | skill 1 |
-| `Q` | drink a healing potion |
-| `4` | use the item on key 4: firebombs and Scrolls of Light are thrown at the mouse cursor (or the nearest enemy). In the rucksack, `4` on an item puts it on that key |
-| `T` | open the skill tree (arrows pick, `ENTER` learn or rank up, `1` `2` `3` put the skill on that key, `R` reset at the stairs) |
+| `Q` | drink a healing potion, or a Resource Draught when your HP is fine (70%+) and your resource is low (or you have no potions left) |
+| `4` `5` | use the item on that key: firebombs and Scrolls of Light are thrown at the mouse cursor (or the nearest enemy). In the rucksack, `4` or `5` on an item puts it on that key; right-click puts it on `4` (again: `5`) |
+| `T` | open the skill tree (arrows pick, `ENTER` learn or rank up, `1` `2` `3` put the selected skill on that key, `R` reset at the stairs). Learned skills fill an empty key by themselves |
 | `J` | the quest journal |
-| `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use, `X` drop, `4` put on key 4, `I`/`Esc` close) |
+| `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use, `X` drop, `4`/`5` put on that key, `I`/`Esc` close) |
 | hold `E` | revive an adjacent downed ally (3 s) |
-| `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/leave` or `/quit` leave the game, `/help`) |
+| `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/save` save and go back to the lobby (host), `/leave` or `/quit` leave the game, `/help`) |
 | Alt+click or middle click | ping the map (4 s) |
 | `M` | sound on or off (remembered in this browser) |
-| lobby: `ENTER` `C` `I` | ready, change class, copy invite link (host: `F` friendly fire, `D` difficulty, `B` add bot, `X` remove bot) |
+| lobby: `ENTER` `C` `I` | ready, change class, copy invite link (host: `F` friendly fire, `D` difficulty, `B` add bot, `X` remove bot, `N` twice: drop the save for a new run) |
 
 ### Classes
 
@@ -51,18 +51,34 @@ the stairs lets you reset it for free.
 
 All numbers live in `internal/game/balance.go`.
 
+With a gamepad, every on-screen hint shows pad buttons instead of keys (as soon as you press a button):
+skills `X` `Y` `RB`, items `B` and `A`, potion `LB`, hold `LT` to revive, `SELECT` rucksack, `R3` skill tree, `START`
+journal. In panels, `LB` `LT` `RT` put a skill on key 1 2 3 and `Y` puts an item on `B` (again: `A`).
+
+### Saving
+
+The game saves by itself on every new floor, when a player leaves, and when the server stops. The host can
+also type `/save` to save and take everyone back to the lobby. A save keeps the floor, the quests and every
+hero by player name; continuing builds the floor fresh, and heroes keep their level, gold, rucksack and
+skills. Join with the same name and class to get your hero back. Someone new starts at the party's level, and
+heroes whose player isn't there wait in the save. The invite link keeps working after a server restart.
+Saves untouched for 30 days are deleted.
+
 ### Rules worth knowing
 
 - Difficulty (host: `D` in the lobby): NORMAL; NIGHTMARE (monsters hit 50% harder); NOVICE (monsters hit for
   60% and have 70% HP, for learning the game). Bots count toward party scaling like players.
 - Scaling uses the party size **at run start**: enemy HP x `1+0.6(N-1)`, elite HP x `1+0.8(N-1)`, packs `+N-1`.
   Heroes joining mid-run do **not** rescale enemies that already exist.
-- Gold is split between connected heroes. Item drops (healing potions, resource draughts, firebombs, garnets) are
+- Gold is split between connected heroes. Item drops (healing potions, resource draughts, firebombs, trade goods) are
   personal: only their owner sees and picks them up. Each hero has a 12-slot rucksack (items stack); an item
   dropped from the rucksack can be picked up by anyone, which is how you hand things to a teammate.
-- Floor 7, The Black Hollow, is pitch black: you see only what a light reaches. Everyone starts with 2 torches
-  (`I`, then use one: it burns for 2 minutes and doesn't survive the stairs), and a Scroll of Light lights the
-  spot at the cursor for a minute, for the whole party. Torches and scrolls also drop from monsters and chests.
+- Floor 7, The Black Hollow, is pitch black: you see only what a light reaches. Every hero carries a lantern
+  that lights itself there and burns oil only on dark floors (5 minutes to start, 10 when full; the hotbar shows
+  what is left). Lamp oil drops from monsters and chests and goes straight into the lantern, never into the
+  rucksack; Grimble sells it too. A Scroll of Light lights the spot at the cursor for a minute, for everyone.
+- Trade goods are only for selling: Old Coin (15 gold), Garnet (40), Silver Ring (80) and the rare Gold Idol
+  (200). Picking one up says what Grimble pays for it.
 - Monsters differ: bone rats are faster than you but fragile, bone hulks are slow and hit hard, a Bone Caller
   hangs back and raises bone rats (up to 3 at a time, no loot from them), and a blob splits into two
   bloblings when it dies. Each theme has its own mix.
@@ -70,9 +86,9 @@ All numbers live in `internal/game/balance.go`.
   every ant within 12 cells. Soldier ants are always hostile, and the Ant Queen in the deepest chamber lays a
   soldier every 6 s (up to 4 at a time) while she sees you.
 - After floor 5 the stairs lead to the Gnome Village, a safe extra floor between 5 and 6. Walk into Grimble to
-  trade: he sells potions, draughts, torches, Scrolls of Light, firebombs, Scrolls of Return and a Gnome Satchel
+  trade: he sells potions, draughts, lamp oil, Scrolls of Light, firebombs, Scrolls of Return and a Gnome Satchel
   (+4 rucksack slots, 200 gold, one per hero), and buys
-  anything (garnets for 40 gold, everything else for half its price). Everyone shops with their own gold.
+  anything (trade goods for their value, everything else for half its price). Everyone shops with their own gold.
 - A Scroll of Return, read anywhere below the village, opens a portal for 30 s. When the whole party stands in it
   for 3 s you go back to the village; its stairs then lead back down to a fresh copy of the floor you left.
 - Deep monsters: Shades (floors 6-8) stay invisible until they're within 3 cells. Floor 8, the Abyss Gate, adds
@@ -126,6 +142,8 @@ All numbers live in `internal/game/balance.go`.
 | `-bots N` | fill N slots of each new room with AI teammates (1-3); joining players replace them |
 | `-lag ms`, `-jitter ms` | artificial one-way latency in both directions (never reorders messages) |
 | `-dev` | also accept the Vite dev origin `http://localhost:5173` |
+| `-saves dir` / `SAVE_DIR` | folder for saved games (default `saves`; empty = saves last only while the room is open) |
+| `-version` | print the version and exit |
 
 ## Development
 
@@ -150,8 +168,11 @@ One static binary, or the multi-stage `Dockerfile` (node build, go build, distro
 
 ```sh
 docker build -t emberdeep .
-docker run -p 8080:8080 -e PUBLIC_URL=https://play.example.com emberdeep
+docker run -p 8080:8080 -v emberdeep-data:/data -e PUBLIC_URL=https://play.example.com emberdeep
 ```
+
+Saved games go to `/data/saves` in the container; the volume keeps them across restarts and upgrades.
+Stop the container normally (`docker stop` sends SIGTERM) so running games are saved before it exits.
 
 The server speaks plain HTTP. Put it behind a TLS reverse proxy so the websocket runs over `wss`; see
 `Caddyfile.example` (`play.example.com { reverse_proxy emberdeep:8080 }`: Caddy gets the certificate and

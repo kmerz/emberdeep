@@ -3,17 +3,20 @@ import { Fb, W, DIM, TX, WH, PINK, MINT, AMB, mul } from '../term/fb';
 import { CLS, CLASS_LIST } from '../classes';
 import { drawTitle, keyChips } from '../render/title';
 import { STORY, STORY_TITLE, wrap } from '../story';
-import type { PadContext } from '../gamepad';
+import { keyLabel, type PadContext } from '../gamepad';
+import { VERSION } from '../version';
 
 const STORY_BOX = { x: 22, y: 39, w: 116, h: 7 };
 const TYPE_CPS = 70;      // story letters per second
 const PAGE_HOLD = 9000;   // ms a finished page stays before the next one
+const NEW_RUN_MS = 3000;  // the second N press must come this soon
 
 export class LobbyScreen implements Screen {
   toast = '';
   toastAt = 0;
   private page = 0;
   private pageAt = 0; // when the current page started typing (0 = not yet)
+  private newRunArmed = 0; // when N was pressed once: a second press within NEW_RUN_MS forgets the save
   constructor(private app: App) {}
 
   private turn(d: number) {
@@ -68,6 +71,11 @@ export class LobbyScreen implements Screen {
     else if (k === 'd' && st.isHost) net.send({ t: 'setting', key: 'difficulty' });
     else if (k === 'b' && st.isHost) net.send({ t: 'setting', key: 'addBot' });
     else if (k === 'x' && st.isHost) net.send({ t: 'setting', key: 'removeBot' });
+    else if (k === 'n' && st.isHost && lob?.save) {
+      const now = performance.now();
+      if (now - this.newRunArmed < NEW_RUN_MS) { net.send({ t: 'setting', key: 'newRun' }); this.newRunArmed = 0; this.say('the save is gone: the next start is a new descent'); }
+      else { this.newRunArmed = now; this.say('press ' + keyLabel('lobby', 'n', 'N') + ' again to delete the save and start a new run'); }
+    }
     else if (k === 'q') this.app.setScreen('landing');
     else if (ev.key === 'ArrowRight') this.turn(1);
     else if (ev.key === 'ArrowLeft') this.turn(-1);
@@ -94,6 +102,7 @@ export class LobbyScreen implements Screen {
       else if (p.host) fb.txt(49 + p.name.length + 1, y, 'host', DIM);
       fb.txt(61, y, c.name, c.col, null, 1);
       fb.txt(74, y, String(p.lvl), TX);
+      if (p.saved) fb.txt(74 + String(p.lvl).length + 1, y, '↺', AMB); // continues a saved hero
       if (!p.connected) fb.txt(81, y, '… reconnecting', AMB, null, 1);
       else if (p.ready) fb.txt(81, y, p.bot ? '● READY (bot)' : '● READY', MINT, null, 1);
       else fb.txt(81, y, '○ choosing class…', Math.floor(now / 500) % 2 === 0 ? AMB : mul(AMB, 0.55), null, 1);
@@ -108,6 +117,17 @@ export class LobbyScreen implements Screen {
     fb.txt(57, 27, s?.loot ?? '', TX);
     fb.txt(41, 28, 'FRIENDLY FIRE', DIM);
     fb.txt(57, 28, s?.friendlyFire ? 'on' : 'off', s?.friendlyFire ? PINK : TX);
+    const sv = lob?.save;
+    if (sv) {
+      fb.txt(41, 29, 'SAVED RUN', AMB, null, 1);
+      const where = sv.village ? 'the gnome village' : 'depth ' + sv.depth;
+      const segs: [string, [number, number, number], null?, number?][] = [[where, WH, null, 1]];
+      for (const h of sv.heroes) segs.push([' · ', DIM], [h.name + ' ', TX], [CLS[h.cls]?.name.toLowerCase() ?? h.cls, CLS[h.cls]?.col ?? TX], [' ' + h.lvl, TX]);
+      let x = 57;
+      for (const sg of segs) { const t = sg[0].slice(0, Math.max(0, 119 - x)); fb.txt(x, 29, t, sg[1], null, sg[3] ?? 0); x += t.length; }
+      const hint = 'starting continues it · same name + class = your saved hero' + (st.isHost ? ' · ' + keyLabel('lobby', 'n', 'N') + ' twice: new run' : '');
+      fb.txt(41, 30, hint.slice(0, 79), DIM);
+    }
     const waiting = players.filter((p) => !p.ready && !p.bot).map((p) => p.name);
     if (waiting.length) {
       fb.txt(41, 31, 'waiting for ', DIM);
@@ -119,6 +139,7 @@ export class LobbyScreen implements Screen {
     const enterLabel = me?.ready ? (st.isHost ? 'start now' : 'unready') : 'ready up';
     const keys: [string, string][] = [['ENTER', enterLabel], ['C', 'change class'], ['I', 'copy invite link']];
     if (st.isHost) keys.push(['F', 'friendly fire'], ['D', 'difficulty'], ['B', 'add bot'], ['X', 'remove bot']);
+    if (st.isHost && sv) keys.push(['N', 'new run']);
     keys.push(['Q', 'leave']);
     keyChips(fb, 36, keys, 0);
     if (this.toast && now - this.toastAt < 4000) fb.ctxt(38, this.toast, MINT);
@@ -126,7 +147,7 @@ export class LobbyScreen implements Screen {
     let url = st.inviteUrl;
     if (!url || url.startsWith('/')) url = location.origin + '/r/' + st.code;
     fb.txt(2, 46, 'invite: ' + url, DIM);
-    const rt = 'v0.1 · 24-bit color · 160×48 min';
+    const rt = 'v' + VERSION + ' · 24-bit color · 160×48 min';
     fb.txt(W - 2 - rt.length, 46, rt, [88, 84, 118]);
   }
 }

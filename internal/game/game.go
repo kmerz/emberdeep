@@ -191,6 +191,7 @@ type heroSave struct {
 	Ranks                                 [TreeSize]int
 	Binds                                 [3]int
 	Points                                int
+	Oil                                   int
 }
 
 const monIDBase = 10000
@@ -427,7 +428,7 @@ func newHero(id int, name string, cls ClassID, connected bool) *Hero {
 	h := &Hero{ID: id, Name: name, Cls: cls, Lvl: 1, HPMax: def.HP, HP: def.HP, ResMax: def.ResMax, Res: def.ResStart,
 		Connected: connected, Facing: 2, PackCap: StartPackCap}
 	h.AddItem("potion", StartPotions)
-	h.AddItem("torch", StartTorches)
+	h.Oil = StartOil
 	h.resetTree() // the first skill on key 1
 	h.Points = 1  // and one point to spend
 	return h
@@ -655,8 +656,16 @@ func (g *Game) moveEntity(id int32, px, py *int, nx, ny int) {
 	g.occ[ny*LW+nx] = id
 }
 
+// applyPotion is the Q key: a healing potion, or a Resource Draught when that is what the hero needs (HP is
+// fine but the resource is low, or there are no potions left and the resource isn't full).
 func (g *Game) applyPotion(h *Hero) error {
-	slot := h.firstSlot("potion")
+	pot, dr := h.firstSlot("potion"), h.firstSlot("draught")
+	hpOK := float64(h.HP) >= float64(h.HPMax)*DraughtHPOK
+	resLow := float64(h.Res) < float64(h.ResMax)*DraughtResLow
+	slot := pot
+	if dr >= 0 && ((hpOK && resLow) || (pot < 0 && h.Res < h.ResMax)) {
+		slot = dr
+	}
 	if slot < 0 {
 		return ErrNoPotion
 	}
@@ -687,9 +696,6 @@ func (g *Game) applyUse(h *Hero, in Intent) error {
 		if err := g.openPortal(h); err != nil {
 			return err
 		}
-	case "torch":
-		h.TorchUntil = g.Now + TorchTicks // lighting a new one replaces the old
-		g.emit(Event{K: "use", Actor: h.ID, X: h.X, Y: h.Y, FX: def.ID})
 	case "orb":
 		if err := g.checkAim(h, in, def.Range); err != nil {
 			return err
@@ -758,6 +764,16 @@ func (g *Game) pickup(h *Hero) {
 			i--
 			g.splitGold(h, it.Amount)
 			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: it.Amount, FX: "gold", Text: "gold"})
+			continue
+		}
+		if it.Def == "oil" { // into the lantern, not the rucksack; a full lantern leaves it lying
+			if h.Oil+OilFlask > OilMax+OilFlask/2 {
+				continue
+			}
+			h.Oil = min(OilMax, h.Oil+OilFlask*it.Amount)
+			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: it.Amount, FX: it.Def, Text: Items[it.Def].Name})
+			g.Items = append(g.Items[:i], g.Items[i+1:]...)
+			i--
 			continue
 		}
 		n := h.AddItem(it.Def, it.Amount)

@@ -910,13 +910,13 @@ func TestRucksackOverTheRoom(t *testing.T) {
 		if m := lastMe(); m != nil {
 			me = m
 		}
-		return me != nil && len(me.Pack) == game.PackSlots && me.Pack[2].Item == "gem" && me.Pack[2].N == 2
+		return me != nil && len(me.Pack) == game.PackSlots && me.Pack[1].Item == "gem" && me.Pack[1].N == 2 && me.Oil > 0
 	})
 	if me.Potions != game.StartPotions || me.Pack[0].Item != "potion" {
 		t.Fatalf("expected the starting potions in slot 0: %+v", me.Pack[0])
 	}
 
-	r.Submit(a, proto.ClientMsg{T: "drop", Slot: 2, Seq: 1})
+	r.Submit(a, proto.ClientMsg{T: "drop", Slot: 1, Seq: 1})
 	waitFor(t, "gem dropped", func() bool {
 		gone := false
 		r.Inspect(func(g *game.Game, _ int) { gone = g.Hero(1).Count("gem") == 0 && len(g.Items) > 0 })
@@ -924,19 +924,19 @@ func TestRucksackOverTheRoom(t *testing.T) {
 	})
 }
 
-func TestBotsLightTorchesInTheDark(t *testing.T) {
+func TestBotsHaveLightInTheDark(t *testing.T) {
 	h := fastHub(t, func(c *Config) { c.Bots = 1; c.StartDepth = 7 })
 	r, _ := h.Create()
 	a, _ := join(t, r, "kmerz", "warrior")
 	r.Submit(a, proto.ClientMsg{T: "start"})
-	waitFor(t, "bot torch", func() bool {
+	waitFor(t, "bot lantern", func() bool {
 		lit := false
 		r.Inspect(func(g *game.Game, _ int) {
 			if g == nil || !g.Level.Theme.Dark {
 				return
 			}
 			for _, hh := range g.Heroes {
-				if strings.HasPrefix(hh.Name, "bot-") && hh.TorchUntil > g.Now {
+				if strings.HasPrefix(hh.Name, "bot-") && g.LanternLit(hh) {
 					lit = true
 				}
 			}

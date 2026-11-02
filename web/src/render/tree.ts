@@ -3,6 +3,8 @@
 import { Fb, Seg, DIM, TX, WH, GOLD, PINK, mul } from '../term/fb';
 import type { GameState } from '../state';
 import { CLS, SKILL_BY_ID } from '../classes';
+import { wrap } from '../story';
+import { keyLabel, lastInput } from '../gamepad';
 
 export const SKILL_TIERS = [1, 3, 8];
 export const MAX_RANK = 5;
@@ -64,13 +66,21 @@ export function treePanel(fb: Fb, st: GameState, sel: number, cls: keyof typeof 
   const y = TREE.y + 17;
   if (meta) {
     fb.segs(TREE.x + 2, y, [['▸ ', GOLD], [meta.name, c.col, null, 1], ['  rank ' + t.rank + '/' + MAX_RANK, TX]]);
-    fb.txt(TREE.x + 4, y + 1, meta.desc ?? '', DIM);
-    const lock = lockReason(st, i);
-    fb.txt(TREE.x + 4, y + 2, lock ? lock : t.rank > 0 ? 'ENTER: raise to rank ' + (t.rank + 1) + ' (+15% damage, −5% cooldown)' : 'ENTER: learn it', lock ? PINK : GOLD);
+    const w = TREE.w - 6;
+    let ly = y + 1;
+    for (const l of wrap(meta.desc ?? '', w).slice(0, 2)) fb.txt(TREE.x + 4, ly++, l, DIM);
+    const lock = lockReason(st, i), enter = keyLabel('panel', 'Enter');
+    fb.txt(TREE.x + 4, ly++, (lock ? lock : t.rank > 0 ? enter + ': rank ' + (t.rank + 1) + ' (+15% dmg, −5% cooldown)' : enter + ': learn it').slice(0, w), lock ? PINK : GOLD);
+    if (t.rank > 0) {
+      // how to put a learned skill on a key: the pad sends 1 2 3 with LB LT RT in panels
+      const [k1, k2, k3] = ['1', '2', '3'].map((k) => keyLabel('panel', k));
+      fb.segs(TREE.x + 4, ly++, [['press ', DIM], [k1, WH, null, 1], [', ', DIM], [k2, WH, null, 1], [' or ', DIM], [k3, WH, null, 1],
+        [' to use it with ' + (lastInput.pad ? keyLabel('world', '1') + ' / ' + keyLabel('world', '2') + ' / ' + keyLabel('world', '3') : 'that key'), DIM]]);
+    }
   }
-  const keys: Seg[] = [['ENTER', WH, null, 1], [' learn · ', DIM], ['1 2 3', WH, null, 1], [' put on key · ', DIM]];
-  if (m.respec) keys.push(['R', WH, null, 1], [' reset · ', DIM]);
-  keys.push(['T', WH, null, 1], [' close', DIM]);
+  const keys: Seg[] = [[keyLabel('panel', 'Enter'), WH, null, 1], [' learn · ', DIM], [lastInput.pad ? 'LB LT RT' : '1 2 3', WH, null, 1], [' put on a key · ', DIM]];
+  if (m.respec) keys.push([keyLabel('panel', 'r', 'R'), WH, null, 1], [' reset · ', DIM]);
+  keys.push([lastInput.pad ? 'B' : 'T', WH, null, 1], [' close', DIM]);
   fb.segs(TREE.x + 2, TREE.y + TREE.h - 2, keys);
-  if (m.respec) fb.txt(TREE.x + 2, TREE.y + TREE.h - 3, 'at the stairs: R resets every point for free', mul(GOLD, 0.8));
+  if (m.respec) fb.txt(TREE.x + 2, TREE.y + TREE.h - 3, 'at the stairs: ' + keyLabel('panel', 'r', 'R') + ' resets every point for free', mul(GOLD, 0.8));
 }

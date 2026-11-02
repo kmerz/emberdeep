@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -22,7 +24,8 @@ type Config struct {
 	Lag        time.Duration
 	Jitter     time.Duration
 	Bots       int
-	StartDepth int // runs start on this floor (dev: look at deeper floors); 0 or 1 = the top
+	StartDepth int    // runs start on this floor (dev: look at deeper floors); 0 or 1 = the top
+	SaveDir    string // where saved games go ("" = saves only last while the room is open)
 
 	TickEvery       time.Duration // default 50 ms (20 Hz)
 	HbEvery         time.Duration // default 2 s
@@ -73,6 +76,7 @@ func NewHub(cfg Config) *Hub {
 	if seed == 0 {
 		seed = time.Now().UnixNano()
 	}
+	pruneSaves(cfg.SaveDir, SaveMaxAge, cfg.Clock())
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Hub{cfg: cfg, rooms: map[string]*Room{}, rng: rand.New(rand.NewSource(seed)), ctx: ctx, cancel: cancel}
 }
@@ -87,11 +91,21 @@ func (h *Hub) Create() (*Room, error) {
 	var code string
 	for {
 		code = newCode(h.rng)
-		if _, ok := h.rooms[code]; !ok {
+		if _, ok := h.rooms[code]; !ok && !saveExists(h.cfg.SaveDir, code) { // never hand out a saved game's code
 			break
 		}
 	}
-	r := newRoom(h, code, h.rng.Uint32()&0xFFFFFF)
+	return h.startLocked(code, h.rng.Uint32()&0xFFFFFF, nil), nil
+}
+
+// startLocked creates and runs a room (h.mu held). With a save, the room opens in the lobby with it loaded.
+func (h *Hub) startLocked(code string, seed uint32, sf *saveFile) *Room {
+	r := newRoom(h, code, seed)
+	if sf != nil {
+		run := sf.Run
+		r.saved = &run
+		r.seed, r.settings = run.Seed, run.Settings
+	}
 	r.addBots(h.cfg.Bots)
 	h.rooms[code] = r
 	h.wg.Add(1)
@@ -99,7 +113,7 @@ func (h *Hub) Create() (*Room, error) {
 		defer h.wg.Done()
 		r.run(h.ctx)
 	}()
-	return r, nil
+	return r
 }
 
 func (h *Hub) nextSeed() uint32 {
@@ -108,11 +122,23 @@ func (h *Hub) nextSeed() uint32 {
 	return h.rng.Uint32() & 0xFFFFFF
 }
 
+// Get returns the open room with this code. If none is open but a saved game has the code (the room closed
+// or the server restarted), the room comes back in the lobby with the save loaded.
 func (h *Hub) Get(code string) *Room {
 	code = NormalizeCode(code)
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.rooms[code]
+	if r := h.rooms[code]; r != nil || code == "" || len(h.rooms) >= h.cfg.MaxRooms {
+		return r
+	}
+	sf, err := loadSave(h.cfg.SaveDir, code)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Printf("save %s: %v", code, err)
+		}
+		return nil
+	}
+	return h.startLocked(code, sf.Run.Seed, sf)
 }
 
 func (h *Hub) remove(code string) {

@@ -50,8 +50,8 @@ func heroStatuses(g *game.Game, h *game.Hero) []proto.Status {
 	if g.Now < h.CharmUntil {
 		st = append(st, proto.Status{K: "charmed", T: ceilSec(h.CharmUntil - g.Now)})
 	}
-	if g.Now < h.TorchUntil {
-		st = append(st, proto.Status{K: "torch", T: ceilSec(h.TorchUntil - g.Now)})
+	if g.LanternLit(h) {
+		st = append(st, proto.Status{K: "torch", T: ceilSec(h.Oil)}) // the lantern burns
 	}
 	return st
 }
@@ -257,6 +257,7 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 		me.Tree[i] = proto.TreeSkill{ID: s.ID, Rank: h.Ranks[i]}
 	}
 	me.Points, me.Respec, me.PackCap = h.Points, g.AtStairs(h), h.PackCap
+	me.Oil, me.OilMax = ceilSec(h.Oil), game.OilMax/game.TickHz
 	out = append(out, `,"ackSeq":`...)
 	out = strconv.AppendInt(out, int64(h.LastSeq), 10)
 	out = append(out, `,"me":`...)
