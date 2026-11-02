@@ -23,6 +23,9 @@ func (g *Game) applyCast(h *Hero, in Intent) error {
 		return ErrCooldown
 	}
 	if h.Res < sk.Cost {
+		if g.strike(h, in.X, in.Y) { // out of resource: a free weapon strike instead
+			return nil
+		}
 		return ErrResource
 	}
 	if in.X < 0 || in.Y < 0 || in.X >= LW || in.Y >= LH {

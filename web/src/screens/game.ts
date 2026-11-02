@@ -8,6 +8,7 @@ import { VW, VH, buildLights, drawEnts, drawMap } from '../render/map';
 import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
 import { inventoryPanel, slotAt, INV } from '../render/inventory';
+import { lorePanel } from '../render/lore';
 import { treePanel, PANEL_ORDER } from '../render/tree';
 import { shopPanel, sellSlots } from '../render/shop';
 import { questBoardPanel, journalPanel, giverQuests, journalQuests } from '../render/quests';
@@ -26,6 +27,16 @@ function loadItemKeys(): string[] {
 // lamp oil and torches no longer live in the rucksack: forget a key bound to them in an older version
 const RETIRED = new Set(['torch', 'oil']);
 
+/** How close a fight is, for the music: enemies within 10 cells (a boss counts as a fight on its own). */
+export function dangerAt(ents: { k: string; g: string; x: number; y: number; dead?: boolean }[], p: { x: number; y: number }): number {
+  let d = 0;
+  for (const e of ents) {
+    if (e.k !== 'm' || e.g === 'B' || Math.hypot(e.x - p.x, (e.y - p.y) * 2) > 20) continue;
+    d += 'KQD'.includes(e.g) ? 1 : 0.25;
+  }
+  return Math.min(1, d);
+}
+
 export class GameScreen implements Screen {
   fx = new Fx();
   pred: Predictor;
@@ -43,6 +54,7 @@ export class GameScreen implements Screen {
   private shopSide: 0 | 1 | 2 = 0; // buy, sell, quests
   private shopSel = 0;
   private boardOpen = false;
+  private loreOpen: { page: number; text: string } | null = null; // an inscription being read
   private boardSel = 0;
   private journalOpen = false;
   private journalSel = 0;
@@ -76,6 +88,7 @@ export class GameScreen implements Screen {
         sfx.event(e, st.youId, this.yp);
         if (e.k === 'shop' && e.actor === st.youId) { this.closePanels(); this.shopOpen = true; this.shopSel = 0; }
         if (e.k === 'questboard' && e.actor === st.youId) { this.closePanels(); this.boardOpen = true; this.boardSel = 0; }
+        if (e.k === 'lore' && e.actor === st.youId && e.text) { this.closePanels(); this.loreOpen = { page: e.amount ?? 0, text: e.text }; }
       }
     };
   }
@@ -85,7 +98,7 @@ export class GameScreen implements Screen {
   /** Gamepad button map to use: panels and the wipe overlay get menu-style buttons; chat gets none. */
   padContext(): PadContext {
     if (this.ui.chatActive) return 'chat';
-    if (this.invOpen || this.treeOpen || this.shopOpen || this.boardOpen || this.journalOpen) return 'panel';
+    if (this.invOpen || this.treeOpen || this.shopOpen || this.boardOpen || this.journalOpen || this.loreOpen) return 'panel';
     if (this.app.st.overlay === 'wipe') return 'overlay';
     return 'world';
   }
@@ -102,6 +115,10 @@ export class GameScreen implements Screen {
     }
     if (st.overlay === 'wipe' && ev.key === 'Enter') { if (st.isHost) net.send({ t: 'start' }); ev.preventDefault(); return; }
     const k = ev.key.toLowerCase();
+    if (this.loreOpen) { // reading: Esc or Enter closes; walking away closes it too
+      this.loreOpen = null;
+      if (ev.key === 'Escape' || ev.key === 'Enter' || k === ' ') { ev.preventDefault(); return; }
+    }
     if (this.boardOpen && this.questKey(ev, k, 'board')) { ev.preventDefault(); return; }
     if (this.journalOpen && this.journalKey(ev, k)) { ev.preventDefault(); return; }
     if (this.shopOpen && this.shopSide === 2 && ev.key !== 'Tab' && this.questKey(ev, k, 'grimble')) { ev.preventDefault(); return; }
@@ -119,8 +136,8 @@ export class GameScreen implements Screen {
     else if (k === 'q') { net.send({ t: 'potion', seq: this.pred.nextSeq() }); ev.preventDefault(); }
     else if (k === 'e') { this.startRevive(); ev.preventDefault(); }
     else if (k === 'm') {
-      const on = sfx.toggleMute();
-      st.pushLog([['Sound ' + (on ? 'on' : 'off'), TX], ['  (M toggles)', DIM]]);
+      const mode = sfx.cycleSound();
+      st.pushLog([[mode === 'all' ? 'Music and sound on' : mode === 'sfx' ? 'Music off, sound on' : 'Sound off', TX], ['  (M: music+sound → sound → off)', DIM]]);
       ev.preventDefault();
     }
   }
@@ -152,7 +169,7 @@ export class GameScreen implements Screen {
     if (ev.button === 0 && !this.ui.chatActive) this.cast(0);
   }
 
-  private closePanels() { this.invOpen = this.treeOpen = this.shopOpen = this.boardOpen = this.journalOpen = false; }
+  private closePanels() { this.invOpen = this.treeOpen = this.shopOpen = this.boardOpen = this.journalOpen = false; this.loreOpen = null; }
 
   /** Keys for a quest list (the notice board, or Grimble's QUESTS tab). */
   private questKey(ev: KeyboardEvent, k: string, giver: 'board' | 'grimble'): boolean {
@@ -295,7 +312,7 @@ export class GameScreen implements Screen {
       }
       else if (cmd === '/help') {
         st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/save', [214, 208, 234]], [' save + back to the lobby (host) · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['/help', [214, 208, 234]], [' · emberdeep v' + VERSION, DIM]]);
-        st.pushLog([['keys: WASD move · 1-3 skills · 4 5 items · Q potion · hold E revive · Alt+click ping · M sound on/off', DIM]]);
+        st.pushLog([['keys: WASD move · 1-3 skills · 4 5 items · Q potion · hold E revive · Alt+click ping · M music / sound / off', DIM]]);
         st.pushLog([['in the skill tree (T) press 1, 2 or 3 on a skill to put it on that key; in the rucksack (I) press 4 or 5, or right-click an item', DIM]]);
         st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · B A items · LB potion · hold LT revive · Select pack · Start journal · R3 skills · in panels A ok, B back, Y item key', DIM]]);
         return;
@@ -426,8 +443,10 @@ export class GameScreen implements Screen {
     const you = this.youEnt();
     const yp = you ? (this.pred.ready && !you.downed && !you.dead ? { x: this.pred.x, y: this.pred.y } : { x: you.x, y: you.y }) : null;
     this.yp = yp;
-    // sound: the floor's drone, ambient noises, a heartbeat at low hp, and a tick per second of the stairs countdown
-    sfx.setTheme(st.level?.theme ?? '');
+    // sound: the floor's music, ambient noises, a heartbeat at low hp, and a tick per second of the stairs countdown
+    const lv = st.level;
+    sfx.setTheme(lv?.theme ?? '', lv?.village ? 0 : lv?.depth ?? 0, lv?.seed ?? '');
+    sfx.setDanger(yp ? dangerAt(ents, yp) : 0);
     const pe = st.party.find((p) => p.id === st.youId);
     sfx.update(now, !!pe && !pe.downed && !pe.dead && pe.hp > 0 && pe.hp < pe.hpMax * 0.25);
     const sec = Math.ceil((st.obj?.stairsLeft ?? 0) / 20);
@@ -505,6 +524,7 @@ export class GameScreen implements Screen {
       else questBoardPanel(fb, st, 'board', this.boardSel);
     }
     if (this.journalOpen) journalPanel(fb, st, this.journalSel);
+    if (this.loreOpen) lorePanel(fb, this.loreOpen.page, this.loreOpen.text);
     depthBanner(fb, st, now);
     if (st.overlay) overlayBox(fb, st.overlay, st, now);
     void H; void SKILL_BY_ID;

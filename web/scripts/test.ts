@@ -1,6 +1,10 @@
 declare const process: { exit(n: number): never };
 // Unit tests for the pure client logic (interpolation, prediction, state handling). Run with: npm test
 import { GameState, LOG_W, wrapSegs } from '../src/state';
+import { FORM, STYLES, makeSong, noteOf } from '../src/music';
+import { journalQuests } from '../src/render/quests';
+import { loreTitle } from '../src/render/lore';
+import { dangerAt } from '../src/screens/game';
 import { displayEnts } from '../src/render/interp';
 import { Predictor, MOVE_MS } from '../src/render/predict';
 import type { Ent, Snap } from '../src/proto';
@@ -338,6 +342,54 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   eq(keyLabel('world', 'e'), 'LT', 'pad hints show the button');
   eq(keyLabel('world', 'm'), 'M', 'a key with no button falls back to the key');
   lastInput.pad = false;
+}
+
+// --- music: every floor has its own song, the same for the whole party; deeper floors play faster
+{
+  const a = makeSong('crypt', 3, 'ABC123'), b = makeSong('crypt', 3, 'ABC123'), c = makeSong('crypt', 5, 'ABC123');
+  eq(JSON.stringify(a), JSON.stringify(b), 'the same floor gives the same song');
+  eq(JSON.stringify(a?.melodies) !== JSON.stringify(c?.melodies), true, 'another floor gives another melody');
+  eq((c?.bpm ?? 0) > (a?.bpm ?? 0), true, 'deeper floors are faster');
+  eq(makeSong('nowhere', 1, 'x'), null, 'no song without a theme');
+  eq(makeSong('cathedral', 1, 'x')?.drums.every((d) => d.length === 0), true, 'the cathedral has no drums');
+  eq(makeSong('ember', 9, 'x')?.drums.some((d) => d.includes('kick')), true, 'the ember depths have drums');
+  const song = makeSong('hive', 4, 'x')!;
+  eq(song.melodies.every((m) => m.every((n) => n.step >= 0 && n.step + n.len <= 32)), true, 'melody notes stay inside their two bars');
+  eq(noteOf(STYLES.village, 0), 60, 'degree 0 is the root');
+  eq(noteOf(STYLES.village, 7), 72, 'degree 7 is an octave up');
+  eq(noteOf(STYLES.village, 2, -1), 52, 'octave shifts work');
+  eq(FORM.some((f) => f.drums) && FORM.some((f) => !f.drums), true, 'the song has quiet and full sections');
+  eq(dangerAt([], { x: 0, y: 0 }), 0, 'no monsters, no danger');
+  eq(dangerAt([{ k: 'm', g: 'z', x: 3, y: 0 }, { k: 'm', g: 'z', x: 4, y: 0 }], { x: 0, y: 0 }), 0.5, 'two monsters nearby: half');
+  eq(dangerAt([{ k: 'm', g: 'K', x: 3, y: 0 }], { x: 0, y: 0 }), 1, 'a boss is a fight');
+  eq(dangerAt([{ k: 'm', g: 'z', x: 60, y: 0 }, { k: 'm', g: 'B', x: 1, y: 0 }], { x: 0, y: 0 }), 0, 'far monsters and kegs do not count');
+}
+
+// --- story and gods: inscriptions open a page and land in the journal; a trial replaces the XP bar
+{
+  const st = new GameState();
+  st.youId = 1;
+  st.handle({ t: 'events', tick: 1, list: [{ k: 'lore', actor: 1, x: 0, y: 0, amount: 3, text: 'Scratched into a coffin lid.' }] }, 1000);
+  eq(st.lore.get(3), 'Scratched into a coffin lid.', 'reading an inscription keeps the page');
+  st.handle({ t: 'events', tick: 1, list: [{ k: 'lore', actor: 1, x: 0, y: 0, amount: 0, text: 'Spoonhollow.' }] }, 1000);
+  const j = journalQuests(st);
+  eq(j.map((q) => q.id), ['lore:3', 'lore:0'], 'the journal lists story pages in floor order (the village after floor 5)');
+  st.party = [{ id: 1, name: 'vela', cls: 'rogue', lvl: 4, hp: 10, hpMax: 10, res: 0, resMax: 100, connected: true }];
+  st.me = {
+    res: 0, resMax: 100, cd: [0, 0, 0], cdMax: [1, 1, 1], cost: [0, 0, 0], potions: 0, potCd: 0, gold: 0, xp: 500, xpNeed: 100, lvl: 4,
+    pack: [], packCap: 12, binds: ['stab', '', ''], tree: [], points: 0, respec: false, trial: { god: 'Vess Who Walks Unseen', need: 10, kills: 4 },
+  };
+  const row = (fb: Fb, y: number) => Array.from({ length: 160 }, (_, x) => fb.ch[y * 160 + x]).join('');
+  let fb = new Fb(160, 48, [0, 0, 0]);
+  hotbar(fb, st, 'rogue', []);
+  eq(row(fb, 43).includes("Vess's trial: 4/10 foes"), true, 'the hotbar shows the trial instead of the XP bar');
+  st.me.trial = { god: 'Vess Who Walks Unseen', need: 10, kills: 10 };
+  fb = new Fb(160, 48, [0, 0, 0]);
+  hotbar(fb, st, 'rogue', []);
+  eq(row(fb, 43).includes('pray at an altar'), true, 'a finished hunt says to pray');
+  st.handle({ t: 'events', tick: 1, list: [{ k: 'trial', actor: 1, x: 0, y: 0, amount: 10, fx: 'Vess Who Walks Unseen', text: 'Every shadow has a price.' }] }, 1000);
+  eq(st.log.some((l) => l.segs.some((s) => s[0].includes('slay 10 foes'))), true, 'the trial is explained in the log');
+  eq(loreTitle(0), 'SPOONHOLLOW', 'the village page has its name');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

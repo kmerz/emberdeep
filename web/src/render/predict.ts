@@ -1,6 +1,7 @@
 import { GameState } from '../state';
 
-const SOLID = new Set(['#', 'T', 'O', ' '].map((c) => c.charCodeAt(0)));
+// mirrors Solid in internal/game/dungeon.go: walls, torches, pillars, furniture and locked vault doors
+const SOLID = new Set(['#', 'T', 'O', '|', '_', 'P', 'L', ' '].map((c) => c.charCodeAt(0)));
 export const DIRS: [number, number][] = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
 export const MOVE_MS = 160; // a little slower than the server's 150 ms step so we never trip its speed check
 
@@ -24,7 +25,7 @@ export class Predictor {
     const t = this.st.tileAt(x, y);
     if (t === 0 || SOLID.has(t)) return true;
     const rec = this.st.recs[this.st.recs.length - 1];
-    if (rec) for (const e of rec.ents) if ((e.k === 'm' || (e.k === 'h' && e.id !== this.st.youId) || (e.k === 'i' && e.g === 'C') || e.k === 'n') && e.x === x && e.y === y) return true;
+    if (rec) for (const e of rec.ents) if ((e.k === 'm' || (e.k === 'h' && e.id !== this.st.youId) || (e.k === 'i' && (e.g === 'C' || e.g === 'V' || e.g === 'u')) || e.k === 'n') && e.x === x && e.y === y) return true;
     return false;
   }
 

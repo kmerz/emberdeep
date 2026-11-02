@@ -433,6 +433,7 @@ var Items = map[string]*ItemDef{
 	"coin":         {ID: "coin", Name: "Old Coin", Desc: "a coin of a kingdom nobody remembers; 15 gold to a trader", Glyph: 'c', MaxStack: 20, Value: 15, DropChance: 0.05},
 	"ring":         {ID: "ring", Name: "Silver Ring", Desc: "someone's wedding ring; 80 gold to a trader", Glyph: 'o', MaxStack: 10, Value: 80, DropChance: 0.012},
 	"idol":         {ID: "idol", Name: "Gold Idol", Desc: "heavy, grinning and very old; 200 gold to a trader", Glyph: 'I', MaxStack: 5, Value: 200, DropChance: 0.003},
+	"key":          {ID: "key", Name: "Vault Key", Desc: "opens this floor's locked vault door (walk into it)", Glyph: 'k', MaxStack: 1, Quest: true},
 }
 
 // ItemOrder fixes the order drops are rolled in (map order is random, the simulation must not be).

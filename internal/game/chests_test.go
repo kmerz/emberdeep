@@ -136,6 +136,11 @@ func TestFloorLoadsChestsAndMimics(t *testing.T) {
 	for d := 2; d <= MaxDepth; d++ {
 		g := NewAt(42, Settings{}, 2, d)
 		hidden := 0
+		for _, c := range g.Chests {
+			if c.Vault {
+				hidden-- // the vault chest is the game's, not the level's
+			}
+		}
 		for _, m := range g.Mons {
 			if m.Disguised {
 				hidden++

@@ -77,7 +77,11 @@ func LevelMsg(g *game.Game) []byte {
 	for i, p := range l.Glows {
 		glows[i] = [2]int{p.X, p.Y}
 	}
-	return mustJSON(proto.Level{T: "level", W: l.W, H: l.H, Seed: SeedString(g.Seed), Torches: tor,
+	var up *[2]int
+	if l.HasUp {
+		up = &[2]int{l.Up.X, l.Up.Y}
+	}
+	return mustJSON(proto.Level{T: "level", W: l.W, H: l.H, Seed: SeedString(g.Seed), Torches: tor, Up: up,
 		Stairs: [2]int{l.Stairs.X, l.Stairs.Y}, Start: [2]int{l.Start.X, l.Start.Y}, Depth: g.Depth, MaxDepth: game.MaxDepth,
 		Theme: l.Theme.ID, Glows: glows, Dark: l.Theme.Dark, Village: g.InVillage})
 }
@@ -148,7 +152,13 @@ func BuildShared(g *game.Game) []byte {
 	}
 	for _, n := range g.Npcs {
 		if g.IsVisible(n.X, n.Y) {
-			e := proto.Ent{ID: n.ID, K: "n", G: "g", X: n.X, Y: n.Y, Name: n.Name, Trader: n.Trader, Board: n.Board, Follow: n.Follower}
+			gl := "g"
+			if n.Altar {
+				gl = "A" // an altar of the Four
+			} else if n.Lore > 0 {
+				gl = "i" // an inscription
+			}
+			e := proto.Ent{ID: n.ID, K: "n", G: gl, X: n.X, Y: n.Y, Name: n.Name, Trader: n.Trader, Board: n.Board, Follow: n.Follower}
 			if n.Follower {
 				e.HP, e.HPMax = n.HP, n.HPMax
 			}
@@ -168,6 +178,8 @@ func BuildShared(g *game.Game) []byte {
 			gl := "C"
 			if c.Urn {
 				gl = "u"
+			} else if c.Vault {
+				gl = "V"
 			}
 			s.Ents = append(s.Ents, proto.Ent{ID: c.ID, K: "i", G: gl, X: c.X, Y: c.Y})
 		}
@@ -226,7 +238,7 @@ func BuildShared(g *game.Game) []byte {
 	if g.InVillage {
 		boss = 0
 	}
-	s.Obj = proto.Objectives{Boss: boss != 0, BossName: game.MonDefs[boss].Name, Village: g.InVillage, PortalAt: g.PortalAt, PortalNeed: g.PortalNeed, KingAlive: !g.KingKilled, StairsAt: g.StairsAt, StairsNeed: g.StairsNeed, StairsLeft: g.StairsLeft,
+	s.Obj = proto.Objectives{Boss: boss != 0, BossName: game.MonDefs[boss].Name, Village: g.InVillage, PortalAt: g.PortalAt, PortalNeed: g.PortalNeed, KingAlive: !g.KingKilled, StairsAt: g.StairsAt, StairsNeed: g.StairsNeed, StairsLeft: g.StairsLeft, StairsUp: g.StairsUp,
 		StairsFound: g.Explored[st.Y*game.LW+st.X], Gold: g.PartyGold(), Kills: g.Kills}
 	return mustJSON(s)
 }
@@ -258,6 +270,9 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 	}
 	me.Points, me.Respec, me.PackCap = h.Points, g.AtStairs(h), h.PackCap
 	me.Oil, me.OilMax = ceilSec(h.Oil), game.OilMax/game.TickHz
+	if h.TrialOn {
+		me.Trial = &proto.Trial{God: game.Gods[h.Cls].Name, Need: h.TrialNeed(), Kills: h.TrialKills}
+	}
 	out = append(out, `,"ackSeq":`...)
 	out = strconv.AppendInt(out, int64(h.LastSeq), 10)
 	out = append(out, `,"me":`...)

@@ -16,6 +16,7 @@ export const ITEMS: Record<string, ItemInfo> = {
   antegg: { name: 'Ant Egg', ch: 'o', col: [240, 230, 200], desc: 'warm and faintly ticking; for Grimble', usable: false },
   embershard: { name: 'Ember Shard', ch: '*', col: [255, 110, 40], desc: 'too hot to hold for long; for Grimble', usable: false },
   gem: { name: 'Garnet', ch: '♦', col: [230, 60, 90], desc: 'a trade good: Grimble pays 40 gold for one', usable: false },
+  key: { name: 'Vault Key', ch: '⌐', col: [255, 212, 92], desc: "opens this floor's locked vault door: walk into it", usable: false },
   coin: { name: 'Old Coin', ch: '¢', col: [214, 190, 120], desc: 'a coin of a kingdom nobody remembers; Grimble pays 15 gold', usable: false },
   ring: { name: 'Silver Ring', ch: '°', col: [210, 220, 235], desc: "someone's wedding ring; Grimble pays 80 gold", usable: false },
   idol: { name: 'Gold Idol', ch: '♀', col: [255, 200, 60], desc: 'heavy, grinning and very old; Grimble pays 200 gold', usable: false },

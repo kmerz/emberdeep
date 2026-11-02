@@ -113,6 +113,7 @@ type Level struct {
 	Seed     string   `json:"seed"`
 	Torches  [][2]int `json:"torches"`
 	Stairs   [2]int   `json:"stairs"`
+	Up       *[2]int  `json:"up,omitempty"` // the stairs up (none on floor 1)
 	Start    [2]int   `json:"start"`
 	Depth    int      `json:"depth"`
 	MaxDepth int      `json:"maxDepth"`
@@ -189,10 +190,18 @@ type Objectives struct {
 	KingAlive   bool   `json:"kingAlive"`
 	StairsAt    int    `json:"stairsAt"`
 	StairsNeed  int    `json:"stairsNeed"`
-	StairsLeft  int    `json:"stairsLeft"` // ticks until descent, 0 when not running
+	StairsLeft  int    `json:"stairsLeft"`         // ticks until descent, 0 when not running
+	StairsUp    bool   `json:"stairsUp,omitempty"` // the party is gathering at the stairs up
 	StairsFound bool   `json:"stairsFound"`
 	Gold        int    `json:"gold"`
 	Kills       int    `json:"kills"`
+}
+
+// Trial: the hero's god wants Need foes slain (Kills so far), then a prayer at an altar.
+type Trial struct {
+	God   string `json:"god"`
+	Need  int    `json:"need"`
+	Kills int    `json:"kills"`
 }
 
 type TreeSkill struct {
@@ -223,8 +232,9 @@ type Me struct {
 	XP      int         `json:"xp"`
 	XPNeed  int         `json:"xpNeed"`
 	Lvl     int         `json:"lvl"`
-	Oil     int         `json:"oil"`    // seconds of light left in the lantern
-	OilMax  int         `json:"oilMax"` // seconds in a full lantern
+	Trial   *Trial      `json:"trial,omitempty"` // a god's trial holds the next level
+	Oil     int         `json:"oil"`             // seconds of light left in the lantern
+	OilMax  int         `json:"oilMax"`          // seconds in a full lantern
 }
 
 // SnapShared is the part of a snapshot identical for every client of a room.

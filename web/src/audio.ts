@@ -1,37 +1,36 @@
-// Sound: a tiny WebAudio synth, no sample files. Game events trigger short effects; each floor theme has a
-// soft chord swell now and then, plus a few random ambient noises (drips in the crypt, crackles in the ember depths).
+// Sound: a tiny WebAudio synth, no sample files. Game events trigger short effects; each floor has its own
+// generated music (music.ts), plus a few random ambient noises (drips in the crypt, crackles in the ember depths).
 import type { GameEvent } from './proto';
+import { Music } from './music';
 
-const MUTE_KEY = 'emberdeep:muted';
+const SOUND_KEY = 'emberdeep:sound';
+const OLD_MUTE_KEY = 'emberdeep:muted';
+
+/** What plays: music and effects, effects only, or nothing. M cycles through them. */
+export type SoundMode = 'all' | 'sfx' | 'off';
+export const SOUND_MODES: SoundMode[] = ['all', 'sfx', 'off'];
+const MUSIC_VOL = 0.8;
 const BOSSES = 'KQD';
 
 type Wave = OscillatorType;
 
-// each theme's swell: root pitch (Hz), waveform, and the notes it picks from (semitones above the root)
-const SWELLS: Record<string, [number, Wave, number[]]> = {
-  cathedral: [110, 'triangle', [0, 3, 7, 10, 12]],   // minor seventh: old and sad
-  crypt: [98, 'sine', [0, 3, 7, 8, 12]],             // minor with a flat sixth: cold
-  caverns: [123, 'triangle', [0, 2, 7, 9, 14]],      // open, a little strange
-  dark: [82, 'sine', [0, 1, 6, 12]],                 // half steps and a tritone: wrong
-  hive: [147, 'triangle', [0, 1, 5, 6]],             // clustered: buzzing
-  village: [131, 'sine', [0, 4, 7, 11, 14]],         // major seventh: warm
-  abyss: [92, 'sawtooth', [0, 1, 6, 7]],             // tritones
-  ember: [73, 'sawtooth', [0, 3, 6, 10]],            // diminished: tense
-};
-
-function loadMuted(): boolean {
-  try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; }
+function loadMode(): SoundMode {
+  try {
+    const m = localStorage.getItem(SOUND_KEY) as SoundMode | null;
+    if (m && SOUND_MODES.includes(m)) return m;
+    return localStorage.getItem(OLD_MUTE_KEY) === '1' ? 'off' : 'all';
+  } catch { return 'all'; }
 }
 
 export class Sfx {
-  muted = loadMuted();
+  mode = loadMode();
+  get muted() { return this.mode === 'off'; }
+  private music: Music | null = null;
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private bus: GainNode | null = null;
-  private padBus: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private last = new Map<string, number>();
-  private nextSwell = 0;
   private theme = '';
   private nextAmbient = 0;
   private vol = 1; // loudness of the sound being played (distance falloff)
@@ -51,21 +50,22 @@ export class Sfx {
     this.master.connect(c.destination);
     this.bus = c.createGain();
     this.bus.connect(this.master);
-    this.padBus = c.createGain();
-    this.padBus.gain.value = 0.5;
-    this.padBus.connect(this.master);
     const n = c.sampleRate;
     this.noiseBuf = c.createBuffer(1, n, n);
     const d = this.noiseBuf.getChannelData(0);
     for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    this.music = new Music(c, this.master, this.noiseBuf);
+    this.music.setVolume(this.mode === 'all' ? MUSIC_VOL : 0);
+    if (this.floor) this.music.setFloor(...this.floor);
   }
 
-  /** Flips sound on or off (remembered in this browser). Returns true when sound is now on. */
-  toggleMute(): boolean {
-    this.muted = !this.muted;
-    try { localStorage.setItem(MUTE_KEY, this.muted ? '1' : '0'); } catch { /* private window */ }
+  /** M: music and effects → effects only → off → ... (remembered in this browser). Returns the new mode. */
+  cycleSound(): SoundMode {
+    this.mode = SOUND_MODES[(SOUND_MODES.indexOf(this.mode) + 1) % SOUND_MODES.length];
+    try { localStorage.setItem(SOUND_KEY, this.mode); } catch { /* private window */ }
     if (this.ctx && this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.45, this.ctx.currentTime, 0.05);
-    return !this.muted;
+    this.music?.setVolume(this.mode === 'all' ? MUSIC_VOL : 0);
+    return this.mode;
   }
 
   // ---- building blocks ----
@@ -188,6 +188,7 @@ export class Sfx {
         break;
       case 'kill': this.play(BOSSES.includes(e.fx ?? '') ? 'bosskill' : 'kill', BOSSES.includes(e.fx ?? '') ? 1 : k); break;
       case 'cast': this.play(castSound(e.fx ?? ''), k); break;
+      case 'strike': this.play(castSound('stab'), k * 0.7); break;
       case 'impact': this.play(e.fx === 'leap' ? 'thud' : 'boom', Math.max(k, 0.4)); break;
       case 'potion': case 'use': if (mine) this.play(e.fx === 'torch' ? 'whoosh' : e.fx === 'lightorb' ? 'chime' : 'gulp'); break;
       case 'pickup': if (mine) this.play(e.fx === 'gold' ? 'coin' : 'pick'); break;
@@ -209,7 +210,7 @@ export class Sfx {
       case 'questdone': this.play('fanfare'); break;
       case 'questnew': case 'questprogress': this.play('quest'); break;
       case 'questfail': this.play('fail'); break;
-      case 'descend': case 'village': this.play('descend'); break;
+      case 'descend': case 'village': case 'ascend': this.play('descend'); break;
       case 'alarm': this.play('alarm'); break;
       case 'portal': this.play('portal'); break;
       case 'packfull': if (mine) this.play('buzz'); break;
@@ -221,50 +222,27 @@ export class Sfx {
     }
   }
 
-  /** Sets the floor theme for ambience ('' = silence). The first swell comes a few seconds after arriving. */
-  setTheme(theme: string) {
+  private floor: [string, number, string] | null = null;
+
+  /** Sets the floor for ambience and music ('' theme = silence). */
+  setTheme(theme: string, depth = 0, seed = '') {
+    if (!this.floor || this.floor[0] !== theme || this.floor[1] !== depth || this.floor[2] !== seed) {
+      this.floor = [theme, depth, seed];
+      this.music?.setFloor(theme, depth, seed);
+    }
     if (theme === this.theme) return;
     this.theme = theme;
-    this.nextSwell = performance.now() + 3000;
     this.nextAmbient = performance.now() + 2000;
   }
 
-  /** A soft chord that fades in over a couple of seconds and dies away: 2-3 notes from the theme's scale. */
-  private swell() {
-    const c = this.ctx, bus = this.padBus, d = SWELLS[this.theme];
-    if (!c || !bus || !d) return;
-    const [root, wave, steps] = d;
-    const picks = steps.slice().sort(() => Math.random() - 0.5).slice(0, 2 + Math.floor(Math.random() * 2));
-    const t = c.currentTime, up = 1.5 + Math.random() * 1.5, hold = 1 + Math.random() * 2, down = 3 + Math.random() * 2;
-    const filt = c.createBiquadFilter(), g = c.createGain();
-    filt.type = 'lowpass';
-    filt.frequency.setValueAtTime(300, t);
-    filt.frequency.linearRampToValueAtTime(900 + Math.random() * 600, t + up); // opens as it swells: less static
-    filt.frequency.linearRampToValueAtTime(250, t + up + hold + down);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(wave === 'sine' ? 0.12 : 0.06, t + up);
-    g.gain.setValueAtTime(wave === 'sine' ? 0.12 : 0.06, t + up + hold);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + up + hold + down);
-    filt.connect(g).connect(bus);
-    for (const st of picks) {
-      const o = c.createOscillator();
-      o.type = wave;
-      o.frequency.value = root * Math.pow(2, st / 12) * (Math.random() < 0.3 ? 0.5 : 1);
-      o.detune.value = (Math.random() - 0.5) * 12;
-      o.connect(filt);
-      o.start(t + Math.random() * 0.4);
-      o.stop(t + up + hold + down + 0.5);
-    }
-  }
+  /** How close a fight is (0..1): the music's drums and bass follow it. */
+  setDanger(d: number) { this.music?.setDanger(d); }
 
   /** Call every frame: random ambient sounds for the current theme, and a heartbeat when hp is low. */
   update(now: number, lowHp: boolean) {
     if (!this.ctx || this.muted) return;
     if (lowHp) this.beat(now);
-    if (this.theme && now >= this.nextSwell) {
-      this.nextSwell = now + 10000 + Math.random() * 15000;
-      this.swell();
-    }
+    if (this.mode === 'all') this.music?.update();
     if (now < this.nextAmbient) return;
     this.nextAmbient = now + 2500 + Math.random() * 5000;
     const pick: Record<string, string[]> = {

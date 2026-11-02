@@ -20,6 +20,9 @@ type Monster struct {
 	Awake     bool
 	Disguised bool // a mimic still pretending to be a chest
 	Neutral   bool // an ant worker that hasn't been provoked
+	Spawn     int  // 1 + its index in Level.Mons (0 = not from the level: summons, quest targets, kegs)
+	ChestSpot int  // a mimic: 1 + its index in Level.Chests
+	HasKey    bool // carries this floor's vault key
 
 	NextAbility      int // breath, charm or blink ready again
 	BreathAt         int // tick the dragon's breath lands (0 = not winding up)
@@ -99,8 +102,18 @@ func (g *Game) killMonster(m *Monster, killer int) {
 		g.breakKeg(m, killer)
 		return
 	}
+	if m.Spawn > 0 {
+		g.memo().Dead = append(g.memo().Dead, m.Spawn-1) // stays dead if the party comes back
+	}
+	if m.ChestSpot > 0 {
+		g.memo().Opened = append(g.memo().Opened, m.ChestSpot-1)
+	}
 	g.Kills++
 	g.questKill(m)
+	g.trialKill()
+	if m.HasKey {
+		g.dropKey(m)
+	}
 	if m.Named != "" { // a named monster guards a little treasure
 		g.chestLoot(m.X, m.Y)
 	}

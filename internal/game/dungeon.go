@@ -30,7 +30,7 @@ const (
 )
 
 func Solid(t byte) bool {
-	return t == TWall || t == TTorch || t == TPillar || t == TCandle || t == TCoffin || t == TStalk || t == ' ' || t == 0
+	return t == TWall || t == TTorch || t == TPillar || t == TCandle || t == TCoffin || t == TStalk || t == TLocked || t == ' ' || t == 0
 }
 
 type MonSpawn struct {
@@ -48,6 +48,8 @@ type Level struct {
 	Start    Pt
 	StartRm  int
 	Stairs   Pt
+	Up       Pt // the stairs up (set when the game loads the floor; HasUp false on floor 1)
+	HasUp    bool
 	BossRoom int
 	Torches  []Pt
 	Mons     []MonSpawn

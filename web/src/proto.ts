@@ -17,13 +17,14 @@ export interface PartyEntry {
 }
 export interface Vis { x0: number; y0: number; w: number; h: number; b: string }
 export interface Objectives {
-  boss: boolean; bossName?: string; village?: boolean; portalAt?: number; portalNeed?: number; kingAlive: boolean; stairsAt: number; stairsNeed: number; stairsLeft: number; stairsFound: boolean; gold: number; kills: number;
+  boss: boolean; bossName?: string; village?: boolean; portalAt?: number; portalNeed?: number; kingAlive: boolean; stairsAt: number; stairsNeed: number; stairsLeft: number; stairsUp?: boolean; stairsFound: boolean; gold: number; kills: number;
 }
 export interface Me {
   res: number; resMax: number; cd: number[]; cdMax: number[]; cost: number[]; potions: number; potCd: number;
   gold: number; xp: number; xpNeed: number; lvl: number;
   pack: PackSlot[]; // always 16 entries; empty ones are { item: '', n: 0 }
   oil?: number; oilMax?: number; // seconds of light in the lantern, and in a full one
+  trial?: { god: string; need: number; kills: number }; // a god's trial holds the next level
   packCap: number;  // usable slots: 12, or 16 with the Gnome Satchel
   binds: string[];  // skill id on keys 1-3 ('' = empty)
   tree: { id: string; rank: number }[]; // the class's 6 skills in tree order
@@ -51,7 +52,7 @@ export interface LobbyMsg {
   t: 'lobby'; code: string; players: LobbyPlayer[]; inGame: boolean; save?: SaveInfo;
   settings: { difficulty: string; seed: string; loot: string; friendlyFire: boolean };
 }
-export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][]; dark?: boolean; village?: boolean }
+export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; up?: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][]; dark?: boolean; village?: boolean }
 export type ServerMsg =
   | { t: 'welcome'; you: number; token: string; code: string; inviteUrl: string; isHost: boolean }
   | LobbyMsg

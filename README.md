@@ -23,6 +23,7 @@ pages). The text lives in `web/src/story.ts`.
 | WASD / arrows | move (hold two for diagonals) |
 | `1` `2` `3` | class skills, aimed at the mouse cursor (or the nearest enemy / facing) |
 | left click | skill 1 |
+| walk into an enemy | a free weapon strike (also what `1` `2` `3` do when you lack the rage, energy, mana or ki: you can always fight back) |
 | `Q` | drink a healing potion, or a Resource Draught when your HP is fine (70%+) and your resource is low (or you have no potions left) |
 | `4` `5` | use the item on that key: firebombs and Scrolls of Light are thrown at the mouse cursor (or the nearest enemy). In the rucksack, `4` or `5` on an item puts it on that key; right-click puts it on `4` (again: `5`) |
 | `T` | open the skill tree (arrows pick, `ENTER` learn or rank up, `1` `2` `3` put the selected skill on that key, `R` reset at the stairs). Learned skills fill an empty key by themselves |
@@ -31,7 +32,7 @@ pages). The text lives in `web/src/story.ts`.
 | hold `E` | revive an adjacent downed ally (3 s) |
 | `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/save` save and go back to the lobby (host), `/leave` or `/quit` leave the game, `/help`) |
 | Alt+click or middle click | ping the map (4 s) |
-| `M` | sound on or off (remembered in this browser) |
+| `M` | music and sound → sound only → off (remembered in this browser). Every floor has its own generated music: the theme sets the mood, deeper floors play faster, and drums come in when enemies are near |
 | lobby: `ENTER` `C` `I` | ready, change class, copy invite link (host: `F` friendly fire, `D` difficulty, `B` add bot, `X` remove bot, `N` twice: drop the save for a new run) |
 
 ### Classes
@@ -77,6 +78,19 @@ Saves untouched for 30 days are deleted.
   that lights itself there and burns oil only on dark floors (5 minutes to start, 10 when full; the hotbar shows
   what is left). Lamp oil drops from monsters and chests and goes straight into the lantern, never into the
   rucksack; Grimble sells it too. A Scroll of Light lights the spot at the cursor for a minute, for everyone.
+- Every floor below the first has stairs up (`<`, a few steps from where you arrive). Gather the party there
+  like at the stairs down. Floors remember what happened: the dead stay dead, opened chests stay open and the
+  map stays explored. Up from floor 6 is the gnome village, and floor 5's stairs always lead to it.
+- Story: every floor has an inscription (`¶`). Walk into it to read a page of what happened to Ashfall; the
+  pages you've read are kept in the journal (`J`).
+- Gods: each class has a patron among the Four (Korrath the Anvil, Vess Who Walks Unseen, Ilun of the
+  Burning Eye, Sabe the Still Water). At levels 4, 7 and 10 your god sets a trial before you can level up:
+  slay 10 / 18 / 26 foes, then pray at an altar (`Ω`, one on every floor below the first and in the village).
+  XP earned meanwhile is kept, so the blessing grants every level it held back, and heals you. Bots pray from
+  wherever they are. Players who join a run late skip the trials below their level.
+- Vaults: from floor 2, one dead-end room may be locked (`▓`). An elite on the floor carries the key (or it lies
+  in a far room); walk into the door with it. The vault chest holds extra gold, items and a Silver Ring each.
+  Keys only fit their own floor.
 - Trade goods are only for selling: Old Coin (15 gold), Garnet (40), Silver Ring (80) and the rare Gold Idol
   (200). Picking one up says what Grimble pays for it.
 - Monsters differ: bone rats are faster than you but fragile, bone hulks are slow and hit hard, a Bone Caller

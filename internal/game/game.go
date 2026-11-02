@@ -97,13 +97,16 @@ type Item struct {
 	X, Y   int
 	Amount int
 	Owner  int // 0 = shared
+	Spawn  int // gold from the level: 1 + its index in Level.Golds
 }
 
 // Chest is a closed chest. It blocks its cell until a hero bumps it open. Mimics are monsters, not chests.
 type Chest struct {
-	ID   int
-	X, Y int
-	Urn  bool // a breakable urn rather than a treasure chest
+	ID    int
+	X, Y  int
+	Urn   bool // a breakable urn rather than a treasure chest
+	Spot  int  // 1 + its index in Level.Chests
+	Vault bool // the vault's treasure chest
 }
 
 type Patch struct {
@@ -178,7 +181,16 @@ type Game struct {
 	bfsPar    []int32
 	stamp     int32
 
-	arrival       map[int]heroSave // each hero as they arrived on this floor (a wipe retries from here)
+	arrival       map[int]heroSave   // each hero as they arrived on this floor (a wipe retries from here)
+	Floors        map[int]*floorMemo // what each visited floor remembers (by depth; the village is 0)
+	arrivalMemo   *floorMemo         // this floor's memory as the party arrived (a wipe goes back to it)
+	arriveDown    bool               // the party came up: they arrive at the stairs down, not the start
+	arrivedDown   bool               // ...and did on this floor (a wipe retry puts them there again)
+	upArmed       bool               // the stairs count only once nobody stands at them (arriving next to
+	downArmed     bool               // them must not start the countdown)
+	StairsUp      bool               // the party is gathering at the stairs up
+	Vault         *Rect              // this floor's vault room (nil = none)
+	VaultDoor     Pt
 	questsChanged bool
 	levelChanged  bool
 }
@@ -192,6 +204,8 @@ type heroSave struct {
 	Binds                                 [3]int
 	Points                                int
 	Oil                                   int
+	Blessed, TrialKills                   int
+	TrialOn                               bool
 }
 
 const monIDBase = 10000
@@ -225,6 +239,11 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 	n := g.N
 	g.Depth = depth
 	g.Level = lvl
+	g.placeUpStairs()
+	memo := g.memo()
+	g.arrivedDown, g.arriveDown = g.arriveDown, false
+	// coming up, the party arrives on the stairs down: those count only once everyone has stepped away
+	g.upArmed, g.downArmed, g.StairsUp = true, !g.arrivedDown, false
 	g.rng = NewRNG(uint64(seed)*31 + 5)
 	g.barkRng = NewRNG(uint64(seed)*17 + 99)
 	g.nextBark = 0
@@ -240,21 +259,27 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 	g.bfsStamp = make([]int32, LW*LH)
 	g.bfsPar = make([]int32, LW*LH)
 	g.monByID = map[int]*Monster{}
-	for _, s := range g.Level.Mons {
+	for si, s := range g.Level.Mons {
+		if has(memo.Dead, si) {
+			continue
+		}
 		def := MonDefs[s.Kind]
 		hp := float64(def.HP) * EnemyHPMult(n)
 		if s.Elite {
 			hp = float64(def.HP) * EliteHPMult(n)
 		}
 		hp *= DepthHPMult(depth) * Difficulties[g.Settings.Difficulty].HPMult
-		m := &Monster{ID: g.newID(), Kind: s.Kind, X: s.X, Y: s.Y, HP: int(math.Round(hp)), Elite: s.Elite, Facing: 6, Neutral: def.Neutral}
+		m := &Monster{ID: g.newID(), Kind: s.Kind, X: s.X, Y: s.Y, HP: int(math.Round(hp)), Elite: s.Elite, Facing: 6, Neutral: def.Neutral, Spawn: si + 1}
 		m.HPMax = m.HP
 		g.Mons = append(g.Mons, m)
 		g.monByID[m.ID] = m
 		g.occ[m.Y*LW+m.X] = int32(m.ID)
 	}
-	for _, gs := range g.Level.Golds {
-		g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '$', X: gs.X, Y: gs.Y, Amount: gs.Amount})
+	for gi, gs := range g.Level.Golds {
+		if has(memo.Gold, gi) {
+			continue
+		}
+		g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '$', X: gs.X, Y: gs.Y, Amount: gs.Amount, Spawn: gi + 1})
 	}
 	for _, ns := range lvl.Npcs {
 		c := &Npc{ID: g.newID(), X: ns.X, Y: ns.Y, Home: Pt{ns.X, ns.Y}, Name: ns.Name, Trader: ns.Trader}
@@ -272,27 +297,40 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 		}
 	}
 	g.chestByID = map[int]*Chest{}
-	for _, cs := range g.Level.Chests {
+	for ci, cs := range g.Level.Chests {
+		if has(memo.Opened, ci) {
+			continue
+		}
 		if cs.Mimic {
 			def := MonDefs['M']
 			hp := int(math.Round(float64(def.HP) * EnemyHPMult(n) * DepthHPMult(depth) * Difficulties[g.Settings.Difficulty].HPMult))
-			m := &Monster{ID: g.newID(), Kind: 'M', X: cs.X, Y: cs.Y, HP: hp, HPMax: hp, Facing: 6, Disguised: true}
+			m := &Monster{ID: g.newID(), Kind: 'M', X: cs.X, Y: cs.Y, HP: hp, HPMax: hp, Facing: 6, Disguised: true, ChestSpot: ci + 1}
 			g.Mons = append(g.Mons, m)
 			g.monByID[m.ID] = m
 			g.occ[m.Y*LW+m.X] = int32(m.ID)
 			continue
 		}
-		c := &Chest{ID: g.newID(), X: cs.X, Y: cs.Y, Urn: cs.Urn}
+		c := &Chest{ID: g.newID(), X: cs.X, Y: cs.Y, Urn: cs.Urn, Spot: ci + 1}
 		g.Chests = append(g.Chests, c)
 		g.chestByID[c.ID] = c
 		g.occ[c.Y*LW+c.X] = int32(c.ID)
 	}
+	g.Vault = nil
 	g.setupWorld()
 	g.questsOnFloor()
+	g.setupStory(memo)
+	g.restoreExplored(memo)
+	g.arrivalMemo = memo.clone()
+	g.KingKilled = g.KingKilled || g.bossDead(memo)
 	g.arrival = map[int]heroSave{}
 	for _, h := range g.Heroes {
 		h.freshOnFloor()
-		p, _ := g.Level.nearestFree(g.Level.Start, func(x, y int) bool { return g.occ[y*LW+x] == 0 })
+		for i, s := range h.Pack { // a vault key only fits its own floor's door
+			if s.Item == KeyItem {
+				h.Pack[i] = Stack{}
+			}
+		}
+		p, _ := g.Level.nearestFree(g.arrivalPoint(), func(x, y int) bool { return g.occ[y*LW+x] == 0 })
 		h.X, h.Y = p.X, p.Y
 		g.occ[h.Y*LW+h.X] = int32(h.ID)
 		g.arrival[h.ID] = h.save()
@@ -302,6 +340,7 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 
 // descend takes the party to the next floor. The fallen stand up with FallenHPFrac of their HP.
 func (g *Game) descend() {
+	g.rememberFloor()
 	g.questsOnLeave()
 	g.standUp()
 	switch {
@@ -312,7 +351,7 @@ func (g *Game) descend() {
 		}
 		g.ReturnDepth = 0
 		g.loadFloor(next)
-	case g.Depth == VillageAfter && !g.VillageSeen:
+	case g.Depth == VillageAfter: // the village is the floor between 5 and 6, both ways
 		g.loadVillage()
 		g.emit(Event{K: "village"})
 		return
@@ -345,6 +384,8 @@ func (g *Game) RetryFloor() {
 	}
 	g.Phase = PhasePlaying
 	g.WipedTick = 0
+	g.Floors[g.memoKey()] = g.arrivalMemo.clone()
+	g.arriveDown = g.arrivedDown
 	if g.InVillage {
 		g.loadVillage()
 	} else {
@@ -569,6 +610,13 @@ func (g *Game) applyMove(h *Hero, in Intent) error {
 		g.spendStep(h)
 		return nil
 	}
+	if m := g.monByID[int(g.occ[ny*LW+nx])]; m != nil && !m.Neutral && m.HP > 0 && m.Def().Role != "keg" { // walking into an enemy hits it
+		g.strike(h, nx, ny)
+		return nil
+	}
+	if g.bumpLocked(h, nx, ny) {
+		return nil
+	}
 	if !g.cellFree(nx, ny) {
 		return ErrBlocked
 	}
@@ -605,6 +653,9 @@ func (g *Game) bumpChest(h *Hero, x, y int) bool {
 }
 
 func (g *Game) openChest(h *Hero, c *Chest) {
+	if c.Spot > 0 {
+		g.memo().Opened = append(g.memo().Opened, c.Spot-1)
+	}
 	delete(g.chestByID, c.ID)
 	for i, o := range g.Chests {
 		if o == c {
@@ -620,6 +671,10 @@ func (g *Game) openChest(h *Hero, c *Chest) {
 		return
 	}
 	g.emit(Event{K: "chest", Actor: h.ID, Target: c.ID, X: c.X, Y: c.Y})
+	if c.Vault {
+		g.vaultLoot(c.X, c.Y)
+		return
+	}
 	g.chestLoot(c.X, c.Y)
 }
 
@@ -760,6 +815,9 @@ func (g *Game) pickup(h *Hero) {
 			continue
 		}
 		if it.Def == "" { // gold
+			if it.Spawn > 0 {
+				g.memo().Gold = append(g.memo().Gold, it.Spawn-1)
+			}
 			g.Items = append(g.Items[:i], g.Items[i+1:]...)
 			i--
 			g.splitGold(h, it.Amount)

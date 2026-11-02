@@ -1,5 +1,5 @@
 import type { App, Screen } from '../app';
-import { Fb, W, DIM, TX, WH, PINK, MINT, AMB, mul } from '../term/fb';
+import { Fb, RGB, W, DIM, TX, WH, PINK, MINT, AMB, mul } from '../term/fb';
 import { CLS, CLASS_LIST } from '../classes';
 import { drawTitle, keyChips } from '../render/title';
 import { STORY, STORY_TITLE, wrap } from '../story';
@@ -121,7 +121,7 @@ export class LobbyScreen implements Screen {
     if (sv) {
       fb.txt(41, 29, 'SAVED RUN', AMB, null, 1);
       const where = sv.village ? 'the gnome village' : 'depth ' + sv.depth;
-      const segs: [string, [number, number, number], null?, number?][] = [[where, WH, null, 1]];
+      const segs: [string, RGB, null?, number?][] = [[where, WH, null, 1]];
       for (const h of sv.heroes) segs.push([' · ', DIM], [h.name + ' ', TX], [CLS[h.cls]?.name.toLowerCase() ?? h.cls, CLS[h.cls]?.col ?? TX], [' ' + h.lvl, TX]);
       let x = 57;
       for (const sg of segs) { const t = sg[0].slice(0, Math.max(0, 119 - x)); fb.txt(x, 29, t, sg[1], null, sg[3] ?? 0); x += t.length; }

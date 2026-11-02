@@ -19,7 +19,11 @@ export const STORY: string[] = [
 
   'Below the gnomes, nothing is mapped. They speak of caverns where the fungus glows, of a hollow so black that ' +
     'light itself gets lost, and of a gate where things that smile at you want something in return. Never trust ' +
-    'a chest down there. Never walk anywhere without a torch.',
+    'a chest down there. Keep your lantern full.',
+
+  'Ashfall once prayed to the Four: Korrath the Anvil, Vess Who Walks Unseen, Ilun of the Burning Eye and Sabe ' +
+    'the Still Water. Their altars are still down there, cold and waiting. The gods are tired, not gone: prove ' +
+    'yourself in their trials and they will make you stronger. Somewhere, a chandler left a confession.',
 
   'At the very bottom the fire has a name: the Ember Dragon. It woke when the first black candle was lit, and ' +
     'every year since, Ashfall has grown warmer. The wells steam. The church bells have cracked. Last winter it ' +

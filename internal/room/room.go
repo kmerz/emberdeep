@@ -820,6 +820,10 @@ func (r *Room) botThink() {
 		if h == nil {
 			continue
 		}
+		// a god's trial: bots don't seek out altars, so a finished trial counts as prayed
+		if h.TrialDone() {
+			r.g.Bless(h)
+		}
 		// spend skill points (new skills land on the first free key, so keys 1-3 hold skills 0-2)
 		if h.Points > 0 {
 			if idx := game.NextSkill(h.Ranks, h.Lvl); idx >= 0 {

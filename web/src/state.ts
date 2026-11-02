@@ -6,6 +6,7 @@ import { VALUE, itemInfo } from './items';
 import { Remain, bleedFor, remainsFor, remainsOk } from './render/remains';
 
 const MINT_LOG: RGB = [126, 240, 178];
+const GOD: RGB = [255, 200, 90];
 const WH_LOG: RGB = [236, 232, 248];
 const CRIT_LOG: RGB = [255, 200, 60];
 const HURT_LOG: RGB = [255, 110, 110];
@@ -83,6 +84,7 @@ export class GameState {
   errors: string[] = [];
   remains = new Map<number, Remain>(); // corpses and blood on this floor, by tile index (client-only)
   barks = new Map<number, Bark>();     // speech bubbles, by the speaker's entity id
+  lore = new Map<number, string>();    // story pages read this run, by floor (0 = the village)
   // hooks wired by the screens
   onEvents: (evs: GameEvent[], now: number) => void = () => {};
   onPing: (p: PingMark) => void = () => {};
@@ -104,6 +106,7 @@ export class GameState {
     this.lastTarget = 0;
     this.remains.clear();
     this.barks.clear();
+    this.lore.clear();
   }
 
   /** Leaves corpses where monsters die and splatters on heavy hits. */
@@ -264,6 +267,17 @@ export class GameState {
           break;
         }
         case 'oillow': if (you) this.pushLog([['Your lantern is running low', PINK, 1], [': pick up lamp oil, or buy some from Grimble', DIM]], now); break;
+        case 'lore': if (you && e.text) { this.lore.set(e.amount ?? 0, e.text); this.pushLog([['You read an inscription', [226, 210, 170]], ['  (J: journal)', DIM]], now); } break;
+        case 'trial': if (you) {
+          this.pushLog([[e.fx + ': ', GOD, 1], [e.text || '', [255, 236, 170]]], now);
+          this.pushLog([['A trial: slay ' + (e.amount ?? 0) + ' foes, then pray at an altar (', DIM], ['Ω', [255, 236, 170], 1], ['). Your XP is kept meanwhile.', DIM]], now);
+        } break;
+        case 'trialready': if (you) this.pushLog([[e.fx + ': ', GOD, 1], [e.text || '', [255, 236, 170]]], now); break;
+        case 'blessed': if (you) this.pushLog([[e.fx + ': ', GOD, 1], [e.text || '', [255, 236, 170]], ['  (healed)', DIM]], now); break;
+        case 'altar': if (you) this.pushLog([[e.text || '', [255, 236, 170]]], now); break;
+        case 'locked': if (you) this.pushLog([['The vault door is locked.', [214, 170, 80], 1], [' Its key is somewhere on this floor: an elite may carry it.', DIM]], now); break;
+        case 'unlock': this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' unlock ' : ' unlocks ', DIM], ['the vault', [255, 212, 92], 1]], now); break;
+        case 'keydrop': this.pushLog([['The ' + (e.text || 'elite').replace(/^The /, '') + ' drops a ', DIM], ['Vault Key', [255, 212, 92], 1]], now); break;
         case 'trapseen': if (you) this.pushLog([['You spot a ', DIM], ['spike trap', [230, 70, 70], 1], [': step around it', DIM]], now); break;
         case 'fuse': if (you) this.pushLog([['The powder keg', [230, 120, 50], 1], [' starts to fizz…', DIM]], now); break;
         case 'shop': if (you) this.pushLog([['Grimble', [255, 212, 92], 1], [': Have a look, have a look!', [140, 220, 120]]], now); break;
@@ -302,6 +316,7 @@ export class GameState {
         case 'absorb': break;
         case 'msg': this.pushLog([[e.text || '', TX]], now); break;
         case 'descend': this.pushLog([['The party descends to ', DIM], ['depth ' + (e.amount || 0), GOLD, 1]], now); break;
+        case 'ascend': this.pushLog([['The party climbs back up to ', DIM], [this.level?.village ? 'the gnome village' : 'depth ' + (e.amount || 0), GOLD, 1], [': it is as you left it', DIM]], now); break;
       }
       if (e.k === 'hit' && e.actor === this.youId && e.target && e.target >= 10000) this.lastTarget = e.target;
     }

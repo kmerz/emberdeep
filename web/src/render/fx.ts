@@ -103,6 +103,7 @@ export class Fx {
     const base = { x: ev.x, y: ev.y, tx: ev.tx ?? ev.x, ty: ev.ty ?? ev.y, t0, actor: ev.actor ?? 0, r: ev.r ?? 0, pal: 'ember', amount: ev.amount ?? 0, seed: seedCtr++ };
     const push = (kind: string, dur: number, extra: Partial<Effect> = {}) => this.list.push({ ...base, kind, dur, ...extra });
     switch (ev.k) {
+      case 'strike': push('slash', 160, { text: 'stab' }); break; // the free weapon strike
       case 'cast':
         switch (ev.fx) {
           case 'nova': push('charge', Math.max(300, (ev.amount ?? 9) * 50), { pal: 'ember' }); break;

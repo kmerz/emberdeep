@@ -26,6 +26,9 @@ const GLY: Record<string, Glyph> = {
   't': { ch: '¡', fg: [255, 170, 70], b: true },   // lamp oil
   '?': { ch: '?', fg: [230, 230, 170], b: true },  // scroll of light
   '>': { ch: '>', fg: [120, 240, 255], b: true },
+  '<': { ch: '<', fg: [160, 220, 150], b: true }, // stairs up
+  'L': { ch: '▓', fg: [214, 170, 80], lit: true, b: true }, // a locked vault door
+  'V': { ch: '■', fg: [255, 220, 110], b: true },  // the vault's treasure chest
   '=': { ch: '≈', fg: [70, 140, 170], lit: true },
   '"': { ch: '♣', fg: [120, 230, 140], b: true },
   '^': { ch: '^', fg: [255, 120, 50], b: true },
@@ -138,6 +141,7 @@ export function drawMap(mb: Fb, st: GameState, cam: Cam, t: number, lights: Ligh
       if (c === '=') bg = add(bg, [0, 10, 18]);
       if (c === '^') bg = add(bg, [40 + 20 * Math.sin(t * 3 + wx * 0.7), 8, 0]);
       if (c === '>') bg = [10, 44, 58];
+      else if (c === '<') bg = [22, 44, 24];
       let scorched = false;
       for (const hh of heat) {
         const h = c01(1 - dist(wx, wy, hh.x, hh.y) / hh.rad) * hh.k;
@@ -232,7 +236,7 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
       if (e.el) mb.txt(x - 1, y - 1, (e.name || '').replace(/^The /, '').toUpperCase(), [255, 110, 150], null, 1);
     } else if (e.k === 'n') {
       const nm = e.name || '';
-      const hot = e.trader || e.board;
+      const hot = e.trader || e.board || e.g === 'A';
       mb.txt(x - Math.floor(nm.length / 2), y - 1, nm, hot ? GNOME_TRADER : mul(GNOME, 0.8), null, hot ? 1 : 0);
       if (e.follow && e.hpMax) mb.bar(x - 2, y - 2, 5, (e.hp ?? 0) / e.hpMax, [126, 240, 178], [20, 40, 30]);
     } else if (e.k === 'h') {
@@ -271,6 +275,8 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
     if (!inV(x, y)) continue;
     if (e.k === 'n') {
       if (e.board) mb.put(x, y, '≡', GNOME_TRADER, [60, 40, 16], 1);
+      else if (e.g === 'A') mb.put(x, y, 'Ω', [255, 236, 170], [50, 40, 20], 1); // an altar of the Four
+      else if (e.g === 'i') mb.put(x, y, '¶', [226, 210, 170], [40, 34, 26], 1); // an inscription
       else mb.put(x, y, 'g', e.trader ? GNOME_TRADER : GNOME, e.follow ? [20, 50, 30] : null, 1);
       continue;
     }

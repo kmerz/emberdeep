@@ -84,9 +84,9 @@ func (g *Game) checkWipe() {
 }
 
 // checkStairs: every living, connected hero must be on or next to '>' for StairsWindow ticks.
-func (g *Game) checkStairs() {
-	st := g.Level.Stairs
-	need, at := 0, 0
+// partyAt counts who must gather at a staircase (living, connected heroes and a gnome being rescued) and how
+// many of them stand next to it.
+func (g *Game) partyAt(st Pt) (need, at int) {
 	for _, h := range g.Heroes {
 		if h.Dead || !h.Connected {
 			continue
@@ -104,8 +104,37 @@ func (g *Game) checkStairs() {
 			}
 		}
 	}
+	return need, at
+}
+
+// checkStairs runs the countdown when the whole party stands at the stairs down (or up). A staircase only
+// counts once nobody stands at it, so arriving next to one never sends the party straight back.
+func (g *Game) checkStairs() {
+	need, at := g.partyAt(g.Level.Stairs)
+	if at == 0 {
+		g.downArmed = true
+	}
+	upNeed, upAt := 0, 0
+	if g.Level.HasUp {
+		upNeed, upAt = g.partyAt(g.Level.Up)
+		if upAt == 0 {
+			g.upArmed = true
+		}
+	}
+	up := upAt > at
+	if up {
+		need, at = upNeed, upAt
+	}
+	if up != g.StairsUp { // the party changed its mind: start over
+		g.StairsUp, g.stairsSince = up, -1
+	}
+	st := g.Level.Stairs
+	armed := g.downArmed
+	if up {
+		st, armed = g.Level.Up, g.upArmed
+	}
 	g.StairsNeed, g.StairsAt = need, at
-	if need == 0 || at < need {
+	if need == 0 || at < need || !armed {
 		g.stairsSince, g.StairsLeft = -1, 0
 		return
 	}
@@ -114,6 +143,10 @@ func (g *Game) checkStairs() {
 	}
 	g.StairsLeft = max(1, StairsWindow-(g.Now-g.stairsSince))
 	if g.Now-g.stairsSince >= StairsWindow {
+		if up {
+			g.ascend()
+			return
+		}
 		if g.Depth < MaxDepth || g.InVillage {
 			g.descend()
 			return

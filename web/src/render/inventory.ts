@@ -32,8 +32,8 @@ export function inventoryPanel(fb: Fb, st: GameState, sel: number, itemKeys: str
       const it = itemInfo(s.item);
       fb.put(x + 1, y, it.ch, it.col, null, 1);
       fb.txt(x + 2, y, ('×' + s.n).padEnd(4), on ? WH : TX);
-      const on = itemKeys.indexOf(s.item); // this item is on item key 4 or 5
-      if (on >= 0) fb.put(x + 5, y, keyLabel('world', String(4 + on))[0], GOLD, null, 1);
+      const bound = itemKeys.indexOf(s.item); // this item is on item key 4 or 5
+      if (bound >= 0) fb.put(x + 5, y, keyLabel('world', String(4 + bound))[0], GOLD, null, 1);
     } else fb.txt(x + 3, y, '·', [70, 66, 96]);
   }
   const s = pack[sel];

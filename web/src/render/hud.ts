@@ -117,6 +117,7 @@ export function minimap(fb: Fb, st: GameState, cam: Cam, ents: Ent[], now: numbe
   for (let k = 0; k < 900; k++) cls[k] = vi[k] > 0 ? 3 : fl[k] > 0 ? 2 : wl[k] > 0 ? 1 : 0;
   const lv = st.level;
   if (lv && st.tileAt(lv.stairs[0], lv.stairs[1])) ov.set(mpx(lv.stairs[0], lv.stairs[1]), [95, 230, 255]);
+  if (lv?.up && st.tileAt(lv.up[0], lv.up[1])) ov.set(mpx(lv.up[0], lv.up[1]), [160, 220, 150]);
   for (const e of ents) if (e.k === 'm' && e.el) ov.set(mpx(e.x, e.y), [255, 61, 110]);
   for (const p of st.pings) {
     const age = (now - p.t0) / 1000;
@@ -158,8 +159,11 @@ export function objectives(fb: Fb, st: GameState) {
   fb.txt(115, 40, '◆ Find the stairs', TX);
   fb.txt(o.stairsFound ? 154 : 157, 40, o.stairsFound ? 'found' : '?', o.stairsFound ? [95, 230, 255] : DIM);
   const need = o.stairsNeed, all = o.stairsAt >= need && need > 0;
-  fb.txt(115, 41, (all ? '◆ ' : '◇ ') + o.stairsAt + '/' + need + ' at the stairs', all ? TX : DIM);
-  if (o.stairsLeft > 0) fb.txt(150, 41, ('descending ' + (o.stairsLeft / 20).toFixed(1)).padStart(10), GOLD, null, 1);
+  fb.txt(115, 41, (all ? '◆ ' : '◇ ') + o.stairsAt + '/' + need + (o.stairsUp ? ' at the stairs up' : ' at the stairs'), all ? TX : DIM);
+  if (o.stairsLeft > 0) {
+    const t = (o.stairsUp ? 'up ' : 'down ') + (o.stairsLeft / 20).toFixed(1);
+    fb.txt(159 - t.length, 41, t, GOLD, null, 1);
+  }
   if (o.portalNeed) fb.segs(115, 42, [['◎ ', [150, 230, 255]], [o.portalAt + '/' + o.portalNeed + ' at the portal', TX]]);
   else {
     const active = st.quests.filter((q) => q.state === 'active').length;
@@ -241,9 +245,16 @@ export function hotbar(fb: Fb, st: GameState, youCls: keyof typeof CLS | null, i
     fb.txt(x + Math.floor((w - nm.length) / 2), y + 3, nm, s.st === 2 ? DIM : TX, null, s.st === 1 ? 1 : 0);
     fb.txt(x + Math.floor((w - sub.length) / 2), y + 4, sub, s.st === 1 ? GOLD : DIM);
   });
-  fb.txt(67, 43, 'XP', DIM);
-  fb.bar(70, 43, 34, m.xp / Math.max(1, m.xpNeed), [177, 120, 255], [30, 22, 48]);
-  fb.txt(106, 43, (Math.round((100 * m.xp) / Math.max(1, m.xpNeed)) + '%').padStart(4), TX);
+  if (m.trial) { // a god holds the next level: show the trial instead of the XP bar
+    const t = m.trial, done = t.kills >= t.need, god = t.god.split(' ')[0];
+    fb.segs(67, 43, done
+      ? [['Ω ', [255, 236, 170], null, 1], [god + ' waits: pray at an altar', [255, 236, 170]]]
+      : [['Ω ', [255, 236, 170], null, 1], [god + "'s trial: ", [255, 200, 90]], [t.kills + '/' + t.need + ' foes', TX, null, 1], [' · XP kept', DIM]]);
+  } else {
+    fb.txt(67, 43, 'XP', DIM);
+    fb.bar(70, 43, 34, Math.min(1, m.xp / Math.max(1, m.xpNeed)), [177, 120, 255], [30, 22, 48]);
+    fb.txt(106, 43, (Math.min(100, Math.round((100 * m.xp) / Math.max(1, m.xpNeed))) + '%').padStart(4), TX);
+  }
   if (m.oilMax) { // the lantern: it burns by itself on dark floors
     const sec = m.oil ?? 0, low = sec <= 30;
     fb.segs(96, 45, [['lantern ', DIM], [Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'), low ? PINK : [255, 170, 70], null, low ? 1 : 0]]);

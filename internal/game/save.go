@@ -17,6 +17,7 @@ type RunSave struct {
 	Kills       int
 	Quests      []QuestSave
 	Heroes      map[string]SavedHero // by player name
+	Floors      map[int]*floorMemo   // what each visited floor remembers
 }
 
 type QuestSave struct {
@@ -36,7 +37,12 @@ func (s SavedHero) Lvl() int { return s.Hero.Lvl }
 // Save returns the run as it is now. Heroes in prev that are not in the game are kept. A hero who is down
 // (or the whole party after a wipe) is saved as they arrived on this floor.
 func (g *Game) Save(prev map[string]SavedHero) RunSave {
-	s := RunSave{Seed: g.Seed, Settings: g.Settings, Depth: g.Depth, InVillage: g.InVillage, VillageSeen: g.VillageSeen,
+	g.rememberFloor()
+	floors := map[int]*floorMemo{}
+	for k, m := range g.Floors { // a copy: the game keeps changing its own
+		floors[k] = m.clone()
+	}
+	s := RunSave{Floors: floors, Seed: g.Seed, Settings: g.Settings, Depth: g.Depth, InVillage: g.InVillage, VillageSeen: g.VillageSeen,
 		ReturnDepth: g.ReturnDepth, Kills: g.Kills, Heroes: map[string]SavedHero{}}
 	for name, h := range prev {
 		s.Heroes[name] = h
@@ -72,6 +78,12 @@ func Load(s RunSave, n int) *Game {
 		}
 	}
 	g.VillageSeen, g.ReturnDepth, g.Kills = s.VillageSeen, s.ReturnDepth, s.Kills
+	g.Floors = map[int]*floorMemo{}
+	for k, m := range s.Floors {
+		if m != nil {
+			g.Floors[k] = m.clone()
+		}
+	}
 	depth := min(max(s.Depth, 1), MaxDepth)
 	if s.InVillage {
 		g.Depth = depth
@@ -111,5 +123,6 @@ func (g *Game) CatchUp(h *Hero) {
 		h.HPMax += HPPerLevel(h.Def().HP)
 	}
 	h.HP = h.HPMax
+	h.Blessed = max(h.Blessed, target-1) // the trials on the way are taken as passed
 	g.arrival[h.ID] = h.save()
 }

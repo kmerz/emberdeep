@@ -48,8 +48,13 @@ type Hero struct {
 	BellUntil  int
 	SlowUntil  int
 	BleedUntil int
-	Oil        int // ticks of light left in the lantern (it burns by itself on dark floors)
-	CharmUntil int // charmed by a succubus: can't act, drifts toward her
+	Oil        int  // ticks of light left in the lantern (it burns by itself on dark floors)
+	NextStrike int  // tick the next free weapon strike is ready
+	Blessed    int  // the highest trial level the hero's god has blessed
+	TrialOn    bool // a god's trial is running (the hero is held at a trial level)
+	TrialKills int  // foes slain for it
+	lockedAt   int  // last "the door is locked" message
+	CharmUntil int  // charmed by a succubus: can't act, drifts toward her
 	CharmBy    int
 	LastDamage int // tick of last damage taken (for display)
 
@@ -63,12 +68,13 @@ func (h *Hero) Def() *ClassDef { return Classes[h.Cls] }
 
 func (h *Hero) save() heroSave {
 	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Pack: h.Pack, PackCap: h.PackCap,
-		Ranks: h.Ranks, Binds: h.Binds, Points: h.Points, Oil: h.Oil}
+		Ranks: h.Ranks, Binds: h.Binds, Points: h.Points, Oil: h.Oil, Blessed: h.Blessed, TrialOn: h.TrialOn, TrialKills: h.TrialKills}
 }
 
 func (h *Hero) restore(s heroSave) {
 	h.Lvl, h.XP, h.HP, h.HPMax, h.Res, h.ResMax, h.Gold, h.Pack = s.Lvl, s.XP, s.HP, s.HPMax, s.Res, s.ResMax, s.Gold, s.Pack
 	h.Ranks, h.Binds, h.Points, h.PackCap, h.Oil = s.Ranks, s.Binds, s.Points, s.PackCap, s.Oil
+	h.Blessed, h.TrialOn, h.TrialKills = s.Blessed, s.TrialOn, s.TrialKills
 	for i, st := range h.Pack { // saves from before the lantern: torches become oil, unknown items go
 		if st.Item == "torch" {
 			h.Oil = min(OilMax, h.Oil+st.N*OilFlask)
@@ -226,17 +232,7 @@ func (g *Game) gainXP(amount int) {
 			continue
 		}
 		h.XP += amount
-		for h.XP >= XPNeed(h.Lvl) {
-			h.XP -= XPNeed(h.Lvl)
-			h.Lvl++
-			h.Points++
-			inc := HPPerLevel(h.Def().HP)
-			h.HPMax += inc
-			if !h.Downed {
-				h.HP = min(h.HPMax, h.HP+inc+h.HPMax/4)
-			}
-			g.emit(Event{K: "levelup", Actor: h.ID, X: h.X, Y: h.Y, Amount: h.Lvl})
-		}
+		g.levelUps(h)
 	}
 }
 
