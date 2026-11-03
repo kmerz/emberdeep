@@ -23,12 +23,13 @@ export interface PadLike {
 }
 
 // standard-mapping button indices
-const A = 0, B = 1, X = 2, Y = 3, LB = 4, RB = 5, LT = 6, RT = 7, SELECT = 8, START = 9, R3 = 11;
+const A = 0, B = 1, X = 2, Y = 3, LB = 4, RB = 5, LT = 6, RT = 7, SELECT = 8, START = 9, L3 = 10, R3 = 11;
 const DPAD: Array<[number, string]> = [[12, 'ArrowUp'], [13, 'ArrowDown'], [14, 'ArrowLeft'], [15, 'ArrowRight']];
 
 type BtnMap = Partial<Record<number, string>>;
 
-const COMMON: BtnMap = { [SELECT]: 'i', [START]: 'j', [R3]: 't' };
+// START opens the game menu (Esc) in the world and closes a panel; L3 is the journal
+const COMMON: BtnMap = { [SELECT]: 'i', [START]: 'Escape', [L3]: 'j', [R3]: 't' };
 
 const MAPS: Record<PadContext, BtnMap> = {
   chat: {},
@@ -42,7 +43,7 @@ const MAPS: Record<PadContext, BtnMap> = {
   lobby: { [A]: 'Enter', [LT]: 'c', [X]: 'f', [Y]: 'd', [RB]: 'b', [LB]: 'x', [B]: 'n' },
 };
 
-const BTN_NAMES: Record<number, string> = { [A]: 'A', [B]: 'B', [X]: 'X', [Y]: 'Y', [LB]: 'LB', [RB]: 'RB', [LT]: 'LT', [RT]: 'RT', [SELECT]: 'SEL', [START]: 'START', [R3]: 'R3' };
+const BTN_NAMES: Record<number, string> = { [A]: 'A', [B]: 'B', [X]: 'X', [Y]: 'Y', [LB]: 'LB', [RB]: 'RB', [LT]: 'LT', [RT]: 'RT', [SELECT]: 'SEL', [START]: 'START', [L3]: 'L3', [R3]: 'R3' };
 
 /** Which input the player used last. While it is the pad, on-screen hints name pad buttons instead of keys. */
 export const lastInput = { pad: false };

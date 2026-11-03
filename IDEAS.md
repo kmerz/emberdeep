@@ -32,7 +32,7 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [x] [M] Run summary: per-hero stats at the end (damage, kills, revives, times downed) and a funny title each
 - [x] [S] Hall of Fame: the best runs on the landing page
 - [x] [S] Death recap: "Downed by an Imp's firebolt, 34 dmg"
-- [ ] [S] Pause menu for gamepads (so a pad can `/save`)
+- [x] [S] Pause menu for gamepads (so a pad can `/save`)
 - [ ] [M] Pressure plates and secret walls
 
 ## 4. Progression

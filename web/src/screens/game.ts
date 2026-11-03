@@ -12,6 +12,7 @@ import { lorePanel, LORE_BOX } from '../render/lore';
 import { treePanel, PANEL_ORDER, TREE, treeSelAt } from '../render/tree';
 import { shopPanel, sellSlots, buyCount, wareAt, SHOP_BOX, shopAt } from '../render/shop';
 import { forgePanel, forgeRows, forgeAt, FORGE_BOX } from '../render/forge';
+import { menuPanel, menuRows, menuAt, MENU_BOX } from '../render/menu';
 import { questBoardPanel, journalPanel, giverQuests, journalQuests, QUEST_BOX, questRowAt } from '../render/quests';
 import { itemInfo, packCap, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner, compactHud, OVERLAY_BOX } from '../render/hud';
@@ -77,6 +78,9 @@ export class GameScreen implements Screen {
   private shopSel = 0;
   private boardOpen = false;
   private forgeOpen = false;
+  private menuOpen = false;
+  private menuSel = 0;
+  private menuConfirm = false;
   private forgeSel = 0;
   private loreOpen: { page: number; text: string } | null = null; // an inscription being read
   private boardSel = 0;
@@ -99,7 +103,7 @@ export class GameScreen implements Screen {
     this.held.clear();
     this.invOpen = false;
     this.treeOpen = false;
-    this.shopOpen = this.forgeOpen = false;
+    this.shopOpen = this.forgeOpen = this.menuOpen = false;
     this.boardOpen = this.journalOpen = false;
     st.onSnap = () => this.pred.onSnap();
     this.fx.onStreak = (actor, n) => {
@@ -123,7 +127,7 @@ export class GameScreen implements Screen {
   /** Gamepad button map to use: panels and the wipe overlay get menu-style buttons; chat gets none. */
   padContext(): PadContext {
     if (this.ui.chatActive) return 'chat';
-    if (this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || this.loreOpen) return 'panel';
+    if (this.menuOpen || this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || this.loreOpen) return 'panel';
     if (this.app.st.overlay) return 'overlay';
     return 'world';
   }
@@ -139,6 +143,7 @@ export class GameScreen implements Screen {
       return;
     }
     // the summary screens: the host restarts the floor (wipe) or goes back to the lobby (cleared)
+    if (this.menuOpen && this.menuKey(ev, ev.key.toLowerCase())) { ev.preventDefault(); return; }
     if (st.overlay && ev.key === 'Enter') { if (st.isHost) net.send({ t: 'start' }); ev.preventDefault(); return; }
     const k = ev.key.toLowerCase();
     if (this.loreOpen) { // reading: Esc or Enter closes; walking away closes it too
@@ -155,6 +160,7 @@ export class GameScreen implements Screen {
     if (this.invOpen && this.invKey(ev, k)) { ev.preventDefault(); return; }
     if (k === 'i' && !ev.repeat) { this.invOpen = true; this.treeOpen = false; this.held.clear(); ev.preventDefault(); return; }
     if (k === 't' && !ev.repeat) { this.treeOpen = true; this.invOpen = false; this.held.clear(); ev.preventDefault(); return; }
+    if (ev.key === 'Escape' && !ev.repeat) { this.closePanels(); this.held.clear(); this.menuOpen = true; this.menuSel = 0; this.menuConfirm = false; ev.preventDefault(); return; }
     if (ev.key === 'Enter') { this.openChat(); ev.preventDefault(); return; }
     if (ev.key === 'Tab' && !ev.repeat) { this.mapOpen = !this.mapOpen; ev.preventDefault(); return; }
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) { this.held.add(k); ev.preventDefault(); return; }
@@ -233,6 +239,10 @@ export class GameScreen implements Screen {
       const i = treeSelAt(cx, cy);
       return i >= 0 && pick(this.treeSel, i, (v) => { this.treeSel = v; });
     }
+    if (this.menuOpen) {
+      const i = menuAt(cx, cy, this.menu().length);
+      return i >= 0 && pick(this.menuSel, i, (v) => { this.menuSel = v; this.menuConfirm = false; });
+    }
     if (this.forgeOpen) {
       const i = forgeAt(cx, cy);
       return i >= 0 && pick(this.forgeSel, i, (v) => { this.forgeSel = v; });
@@ -252,11 +262,12 @@ export class GameScreen implements Screen {
   }
 
   private panelOpen(): boolean {
-    return this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || !!this.loreOpen;
+    return this.menuOpen || this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || !!this.loreOpen;
   }
 
   /** The box of the panel that is open (for the zoomed view), or null. */
   private panelRect(): Rect | null {
+    if (this.menuOpen) return pad1(MENU_BOX);
     if (this.loreOpen) return pad1(LORE_BOX);
     if (this.invOpen) return pad1(INV);
     if (this.treeOpen) return pad1(TREE);
@@ -268,6 +279,7 @@ export class GameScreen implements Screen {
 
   view(compact: boolean): Rect {
     if (!compact) return FULL;
+    if (this.menuOpen) return pad1(MENU_BOX);
     if (this.app.st.overlay) return pad1(OVERLAY_BOX);
     const p = this.panelRect();
     if (p) return p;
@@ -313,11 +325,11 @@ export class GameScreen implements Screen {
     b.push({ key: 'i', label: 'BAG', area: 'top' }, { key: 't', label: 'TREE', sub: pts > 0 ? '+' + pts : undefined, area: 'top' },
       { key: 'j', label: 'QST', area: 'top' });
     if (layout.compact) b.push({ key: 'Tab', label: this.mapOpen ? 'BACK' : 'MAP', area: 'top' });
-    b.push({ key: 'Enter', label: 'SAY', area: 'top' }, { key: 'm', label: '♪', area: 'top' });
+    b.push({ key: 'Enter', label: 'SAY', area: 'top' }, { key: 'Escape', label: '☰', area: 'top' });
     return b;
   }
 
-  private closePanels() { this.invOpen = this.treeOpen = this.shopOpen = this.forgeOpen = this.boardOpen = this.journalOpen = false; this.loreOpen = null; }
+  private closePanels() { this.menuOpen = this.invOpen = this.treeOpen = this.shopOpen = this.forgeOpen = this.boardOpen = this.journalOpen = false; this.loreOpen = null; }
 
   /** Keys for a quest list (the notice board, or Grimble's QUESTS tab). */
   private questKey(ev: KeyboardEvent, k: string, giver: 'board' | 'grimble'): boolean {
@@ -368,6 +380,31 @@ export class GameScreen implements Screen {
       return true;
     }
     return false;
+  }
+
+  private menu() { return menuRows(this.app.st.isHost, sfx.mode, this.menuConfirm); }
+
+  /** Keys while the game menu is open. Returns true when the key was used by the panel. */
+  private menuKey(ev: KeyboardEvent, k: string): boolean {
+    const rows = this.menu(), n = rows.length;
+    if (ev.key === 'Escape') { if (!ev.repeat) this.menuOpen = false; return true; }
+    if (k === 'arrowup') { this.menuSel = (this.menuSel + n - 1) % n; this.menuConfirm = false; return true; }
+    if (k === 'arrowdown') { this.menuSel = (this.menuSel + 1) % n; this.menuConfirm = false; return true; }
+    if (ev.repeat || (ev.key !== 'Enter' && k !== 'u' && k !== ' ')) return true; // the world waits behind the menu
+    const r = rows[this.menuSel];
+    if (!r || r.off) return true;
+    switch (r.id) {
+      case 'resume': this.menuOpen = false; break;
+      case 'journal': this.closePanels(); this.journalOpen = true; this.journalSel = 0; break;
+      case 'sound': sfx.cycleSound(); break;
+      case 'save': this.menuOpen = false; this.app.net.send({ t: 'save' }); break;
+      case 'leave':
+        if (!this.menuConfirm) { this.menuConfirm = true; break; }
+        this.menuOpen = false;
+        this.app.setScreen('landing');
+        break;
+    }
+    return true;
   }
 
   /** Keys while Bramwick's forge is open. Returns true when the key was used by the panel. */
@@ -493,10 +530,10 @@ export class GameScreen implements Screen {
         return;
       }
       else if (cmd === '/help') {
-        st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/save', [214, 208, 234]], [' save + back to the lobby (host) · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['/help', [214, 208, 234]], [' · emberdeep v' + VERSION, DIM]]);
+        st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/save', [214, 208, 234]], [' save + back to the lobby (host) · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['Esc', [214, 208, 234]], [' menu · ', DIM], ['/help', [214, 208, 234]], [' · emberdeep v' + VERSION, DIM]]);
         st.pushLog([['keys: WASD move · 1-3 skills · 4 5 items · Q potion · hold E revive · Alt+click ping · M music / sound / off', DIM]]);
         st.pushLog([['in the skill tree (T) press 1, 2 or 3 on a skill to put it on that key; in the rucksack (I) press 4 or 5, or right-click an item', DIM]]);
-        st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · B A items · LB potion · hold LT revive · Select pack · Start journal · R3 skills · in panels A ok, B back, Y item key', DIM]]);
+        st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · B A items · LB potion · hold LT revive · Select pack · Start menu (save, leave) · L3 journal · R3 skills · in panels A ok, B back, Y item key', DIM]]);
         return;
       } else { st.pushLog([['unknown command ' + cmd + ' (try /help)', PINK]]); return; }
       if (!text) return;
@@ -730,6 +767,7 @@ export class GameScreen implements Screen {
     if (compact && !this.mapOpen && !this.panelRect() && !st.overlay) compactHud(fb, st, cols, COMPACT_ROWS, target, this.ui, now);
     depthBanner(fb, st, now, cols);
     if (st.overlay) overlayBox(fb, st.overlay, st, now);
+    if (this.menuOpen) menuPanel(fb, this.menu(), this.menuSel); // over the wipe screen too: leaving from there is fine
     void H; void SKILL_BY_ID;
   }
 }

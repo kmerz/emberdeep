@@ -13,6 +13,7 @@ import { questRowAt } from '../src/render/quests';
 import { shopAt } from '../src/render/shop';
 import { SHOP, modText, temperPrice, reforgePrice, itemInfo } from '../src/items';
 import { forgeRows, forgeAt, FORGE_BOX } from '../src/render/forge';
+import { menuRows, menuAt, MENU_BOX } from '../src/render/menu';
 import { compactCols, landscapeScale } from '../src/mobile';
 import { displayEnts } from '../src/render/interp';
 import { Predictor, MOVE_MS } from '../src/render/predict';
@@ -558,6 +559,20 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   eq(forgeAt(FORGE_BOX.x + 5, FORGE_BOX.y + 13), 2, 'tap the third job');
   eq(forgeAt(FORGE_BOX.x + 5, FORGE_BOX.y + 3), -1, 'the gear lines are not jobs');
   for (const id of ['batwing', 'gnomebell', 'abysssilk']) eq(itemInfo(id).name !== id, true, id + ' has a name');
+}
+
+{ // the game menu
+  eq(padLabel('world', 'Escape'), 'START', 'START opens the menu');
+  eq(padLabel('world', 'j'), 'L3', 'the journal moved to L3');
+  const host = menuRows(true, 'all', false), guest = menuRows(false, 'off', true);
+  eq(host.map((r) => r.id).join(','), 'resume,journal,sound,save,leave', 'menu rows in order');
+  eq(!!host[3].off, false, 'the host can save');
+  eq(!!guest[3].off, true, 'a guest cannot');
+  eq(guest[2].label, 'Sound: off', 'the sound row says the mode');
+  eq(guest[4].label.startsWith('Leave?'), true, 'leaving asks again');
+  eq(menuAt(MENU_BOX.x + 6, MENU_BOX.y + 3, 5), 0, 'tap the first row');
+  eq(menuAt(MENU_BOX.x + 6, MENU_BOX.y + 11, 5), 4, 'tap the last row');
+  eq(menuAt(MENU_BOX.x + 6, MENU_BOX.y + 4, 5), -1, 'between rows is nothing');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

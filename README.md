@@ -31,6 +31,7 @@ pages). The text lives in `web/src/story.ts`.
 | `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use or wear, `X` drop, `4`/`5` put on that key, `I`/`Esc` close). The two rows on top are your worn weapon and trinket: `ENTER` there takes it off |
 | hold `E` | revive an adjacent downed ally (3 s) |
 | `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/save` save and go back to the lobby (host), `/leave` or `/quit` leave the game, `/help`) |
+| `Esc` | the game menu: resume, journal, sound, save and go back to the lobby (host), leave (press twice). The game keeps running behind it |
 | Alt+click or middle click | ping the map (4 s) |
 | `M` | music and sound → sound only → off (remembered in this browser). Every floor has its own generated music: the theme sets the mood, deeper floors play faster, and drums come in when enemies are near |
 | lobby: `ENTER` `C` `I` | ready, change class, copy invite link (host: `F` friendly fire, `D` difficulty, `B` add bot, `X` remove bot, `N` twice: drop the save for a new run) |
@@ -53,8 +54,9 @@ the stairs lets you reset it for free.
 All numbers live in `internal/game/balance.go`.
 
 With a gamepad, every on-screen hint shows pad buttons instead of keys (as soon as you press a button):
-skills `X` `Y` `RB`, items `B` and `A`, potion `LB`, hold `LT` to revive, `SELECT` rucksack, `R3` skill tree, `START`
-journal. In panels, `LB` `LT` `RT` put a skill on key 1 2 3 and `Y` puts an item on `B` (again: `A`).
+skills `X` `Y` `RB`, items `B` and `A`, potion `LB`, hold `LT` to revive, `SELECT` rucksack, `R3` skill tree, `L3`
+journal, `START` the game menu (resume, journal, sound, save and return to the lobby for the host, leave), so a pad
+never needs a keyboard. The game keeps running behind the menu; `Esc` opens it from the keyboard and `☰` on touch. In panels, `LB` `LT` `RT` put a skill on key 1 2 3 and `Y` puts an item on `B` (again: `A`).
 
 ### Phones and tablets
 
@@ -63,7 +65,7 @@ Touch the screen and on-screen controls appear (a key press or gamepad hides the
 - **left thumb**: a stick that appears where you touch the left part of the screen (8 directions; in panels it moves the selection)
 - **right thumb**: skills 1 2 3 (with cooldowns), `!` potion, items 4 and 5, `✚` revive (hold)
 - **tap the map** to aim skills and thrown items there for 4 s (otherwise they aim at the nearest enemy); **hold** a finger on the map to ping
-- **top row**: BAG (rucksack), TREE, QST (journal), MAP, SAY (chat, opens the phone keyboard), `♪` sound, `⛶` fullscreen
+- **top row**: BAG (rucksack), TREE, QST (journal), MAP, SAY (chat, opens the phone keyboard), `☰` the game menu (sound, save, leave), `⛶` fullscreen
 - panels get OK, BACK and their own keys (DROP, USE, → 4, RESET, ...). Tap a row or slot to pick it, tap it again to
   use, learn, buy, sell or accept it (this works with the mouse too); tap a field on the start screen to type your name or a code
 
