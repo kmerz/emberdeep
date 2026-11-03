@@ -22,6 +22,7 @@ type Hero struct {
 	Weapon     *Gear
 	Trinket    *Gear
 	leechAcc   float64
+	regenAcc   int // regen gear: HP owed, in 1/TickHz steps
 
 	CDReady [TreeSize]int // per skill, so moving a skill to another key doesn't reset it
 	Ranks   [TreeSize]int // 0 = not learned
@@ -297,6 +298,9 @@ func (g *Game) damageHero(h *Hero, dmg int, srcID int) {
 	}
 	h.HP -= dmg
 	h.LastDamage = g.Now
+	if t := h.GearStat("thorns"); t > 0 && g.monByID[srcID] != nil {
+		g.thorns = append(g.thorns, thorn{h.ID, srcID, max(1, dmg*t/100)})
+	}
 	if gt := h.Def().GainTaken; gt > 0 {
 		h.gainRes(int(math.Round(h.resGain(float64(gt)))))
 	}
@@ -407,5 +411,5 @@ func (g *Game) IsVisible(x, y int) bool {
 
 // LanternLit: every hero carries a lantern; it burns by itself on dark floors while it has oil.
 func (g *Game) LanternLit(h *Hero) bool {
-	return h.Oil > 0 && !h.Dead && g.Level.Theme != nil && g.Level.Theme.Dark && !g.InVillage
+	return (h.Oil > 0 || h.GearStat("lantern") > 0) && !h.Dead && g.Level.Theme != nil && g.Level.Theme.Dark && !g.InVillage
 }

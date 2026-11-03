@@ -228,6 +228,7 @@ type GearView struct {
 	Mods  []GearMod `json:"mods"`            // the base stat first
 	Value int       `json:"value"`           // what Grimble pays
 	Price int       `json:"price,omitempty"` // Grimble's wares: what he asks
+	Lore  string    `json:"lore,omitempty"`  // uniques: a line of flavour
 }
 
 type GearMod struct {
@@ -240,7 +241,7 @@ func ViewGear(g *game.Gear) *GearView {
 	if g == nil {
 		return nil
 	}
-	v := &GearView{Slot: g.Slot, Base: g.Base, Name: g.Name, Rar: g.Rarity, Lvl: g.Lvl, Value: g.Value(), Mods: make([]GearMod, len(g.Mods))}
+	v := &GearView{Slot: g.Slot, Base: g.Base, Name: g.Name, Rar: g.Rarity, Lvl: g.Lvl, Value: g.Value(), Lore: g.Lore, Mods: make([]GearMod, len(g.Mods))}
 	for i, m := range g.Mods {
 		v.Mods[i] = GearMod{m.K, m.V}
 	}

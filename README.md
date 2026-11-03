@@ -81,6 +81,9 @@ Saves untouched for 30 days are deleted.
   bonuses are damage, crit chance, life steal, shorter cooldowns, resource gain, armor and max HP (numbers in
   `internal/game/gear.go`). Gear goes straight on when the slot is empty, else into the rucksack, where the panel
   compares it with what you wear. Grimble buys gear; bots wear whatever is better.
+- Uniques (orange): each boss also drops its own trinket for every hero, with an effect random gear never has.
+  The Ant Queen's Royal Jelly Locket regenerates HP; the Tallow King's Wick deals 40% of damage taken back and is
+  a lantern that never runs out; the Heart of the Ember Dragon adds damage against bosses and hunt targets.
 - Floor 7, The Black Hollow, is pitch black: you see only what a light reaches. Every hero carries a lantern
   that lights itself there and burns oil only on dark floors (5 minutes to start, 10 when full; the hotbar shows
   what is left). Lamp oil drops from monsters and chests and goes straight into the lantern, never into the

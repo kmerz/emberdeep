@@ -150,6 +150,7 @@ type Game struct {
 
 	InVillage   bool
 	Wares       map[int][]*Gear // Grimble's gear for each hero, this visit (gear.go)
+	thorns      []thorn
 	VillageSeen bool
 	ReturnDepth int // where the village stairs lead after a Scroll of Return (0 = the floor after the village)
 	PortalAt    int

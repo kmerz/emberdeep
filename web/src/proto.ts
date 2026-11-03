@@ -43,6 +43,7 @@ export interface GearView {
   lvl: number; mods: { k: string; v: number }[]; // the base stat first
   value: number; // what Grimble pays
   price?: number; // Grimble's wares: what he asks
+  lore?: string;  // uniques: a line of flavour
 }
 export interface Snap {
   t: 'snap'; tick: number; ackSeq?: number; vis: Vis; ents: Ent[]; party: PartyEntry[]; obj: Objectives;

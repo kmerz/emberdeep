@@ -63,6 +63,9 @@ func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 		g.alarm(m, actor)
 	}
 	a := g.heroByID[actor]
+	if s := a.slayer(); s > 0 && (m.Elite || m.Named != "") {
+		dmg = int(math.Round(float64(dmg) * (1 + float64(s)/100)))
+	}
 	if a != nil && !crit && m.Def().Role != "keg" && g.critRoll(a) {
 		dmg, crit = dmg*2, true
 	}
@@ -153,8 +156,9 @@ func (g *Game) killMonster(m *Monster, killer int) {
 		if h.Dead || !h.Connected {
 			continue
 		}
-		if m.Elite { // a boss always drops a rare for everyone
+		if m.Elite { // a boss always drops a rare for everyone, and its unique if it has one
 			g.dropGear(h, m.X, m.Y, Rare)
+			g.dropUnique(h, m)
 		} else if g.rng.Chance(GearKillChance) {
 			g.dropGear(h, m.X, m.Y, Common)
 		}

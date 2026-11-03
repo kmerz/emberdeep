@@ -85,6 +85,7 @@ export function inventoryPanel(fb: Fb, st: GameState, sel: number, itemKeys: str
   if (g) {
     fb.segs(INV.x + 2, y++, [['▸ ', GOLD], [g.name, rarityCol(g.rar), null, 1]]);
     fb.txt(INV.x + 4, y++, RARITY[g.rar] + ' ' + g.slot + ' · level ' + g.lvl + ' · Grimble pays ' + g.value, DIM);
+    if (g.lore) fb.txt(INV.x + 4, y++, ('"' + g.lore + '"').slice(0, INV.w - 6), mul(rarityCol(g.rar), 0.75));
     for (const m of g.mods) fb.txt(INV.x + 4, y++, modText(m), TX);
     if (sel >= 0) {
       const worn = me?.[g.slot];

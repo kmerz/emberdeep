@@ -218,3 +218,56 @@ func TestGrimbleSellsGearForYourClass(t *testing.T) {
 		t.Fatalf("no such ware: %v", err)
 	}
 }
+
+func TestBossUniques(t *testing.T) {
+	g := arena(1)
+	h := hero(g, 1, Sorcerer, 40, 25)
+	m := g.addMon('K', 42, 25, 1)
+	m.Elite = true
+	g.killMonster(m, h.ID)
+	var wick *Gear
+	for _, it := range g.Items {
+		if it.G != nil && it.G.Rarity == Unique {
+			wick = it.G
+		}
+	}
+	if wick == nil || wick.Name != "The Tallow King's Wick" {
+		t.Fatal("the Tallow King should drop his wick")
+	}
+	h.wear("trinket", wick)
+	// thorns land after the monsters act
+	z := g.addMon('h', 41, 25, 1)
+	hp := z.HP
+	g.damageHero(h, 20, z.ID)
+	if z.HP != hp {
+		t.Fatal("thorns must wait for the end of the tick")
+	}
+	g.payThorns()
+	if z.HP != hp-7 { // 20 less the wick's 12% armor is 18; 40% of that is 7
+		t.Fatalf("40%% of the 18 damage taken should be dealt back: %d -> %d", hp, z.HP)
+	}
+	// a lantern that never runs out
+	g.Level.Theme = Themes["dark"]
+	h.Oil = 0
+	if !g.LanternLit(h) {
+		t.Fatal("the wick lights the dark without oil")
+	}
+	// the dragon's heart: slayer
+	h.wear("trinket", uniqueFor(FinalBoss))
+	boss := g.addMon('K', 44, 26, 1)
+	boss.Elite = true
+	hp = boss.HP
+	g.damageMonster(boss, 100, h.ID, true)
+	if hp-boss.HP != 130 {
+		t.Fatalf("+30%% against a boss: dealt %d", hp-boss.HP)
+	}
+	// the locket: HP regeneration
+	h.wear("trinket", uniqueFor('Q'))
+	h.HP = 10
+	for i := 0; i < TickHz; i++ {
+		h.regenHP()
+	}
+	if h.HP != 12 {
+		t.Fatalf("2 HP a second: hp %d", h.HP)
+	}
+}

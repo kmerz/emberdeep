@@ -23,6 +23,7 @@ func (g *Game) Tick() []Event {
 				g.monsterAI(m)
 			}
 		}
+		g.payThorns()
 	}
 	g.updateVision()
 	if g.Phase == PhasePlaying {
@@ -41,7 +42,8 @@ func (g *Game) tickHero(h *Hero) {
 	if h.Dead {
 		return
 	}
-	if g.LanternLit(h) {
+	h.regenHP()
+	if g.LanternLit(h) && h.GearStat("lantern") == 0 {
 		h.Oil--
 		if h.Oil == OilWarn {
 			g.emit(Event{K: "oillow", Actor: h.ID, X: h.X, Y: h.Y})

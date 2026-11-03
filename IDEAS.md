@@ -23,7 +23,8 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 ## 3b. Gear and loot
 - [x] [L] Gear: a weapon and a trinket slot, common/magic/rare with 0-2 bonuses, class weapons, loot beams for rare drops
 - [x] [M] Grimble sells a few rolled pieces per visit (answers "what do the gnomes trade?")
-- [ ] [S] Unique items: hand-made named pieces from bosses (e.g. the Tallow King's candle-staff)
+- [x] [S] Unique items: one hand-made trinket per boss (regen, thorns + endless lantern, slayer)
+- [ ] [S] More uniques: rare world drops on deep floors, and one weapon per class
 - [ ] [M] Shrines: a random short buff (haste, life steal, more gold) or a gamble
 
 ## 3c. Run feel

@@ -22,7 +22,8 @@ type Gear struct {
 	Name   string
 	Rarity int
 	Lvl    int
-	Mods   []Mod // the base stat first, then the bonuses
+	Mods   []Mod  // the base stat first, then the bonuses
+	Lore   string `json:",omitempty"` // uniques: a line of flavour
 }
 
 type Mod struct {
@@ -64,6 +65,11 @@ var GearStats = map[string]GearStat{
 	"res":   {"Fervent", "of Zeal", 8, 1.5},       // % more resource gained (and regenerated)
 	"armor": {"Warded", "of Iron", 3, 0.8},        // % less damage taken
 	"hp":    {"Sturdy", "of the Bear", 8, 4},      // max HP
+	// only on uniques (never in a bonus pool); the sizes are for comparing gear
+	"regen":   {"Mending", "of Mending", 1, 0.2}, // HP per second
+	"thorns":  {"Thorned", "of Thorns", 10, 2},   // % of damage taken dealt back
+	"slayer":  {"Slaying", "of the Hunt", 10, 2}, // % more damage to bosses and hunt targets
+	"lantern": {"Bright", "of Light", 1, 0},      // a lantern that never runs out
 }
 
 // Caps on the hero's totals.
@@ -113,10 +119,10 @@ const (
 	GearValueLvl    = 4
 )
 
-var GearValueMult = [3]int{1, 3, 8}
+var GearValueMult = [4]int{1, 3, 8, 15}
 
 // RarityName is shown in descriptions.
-var RarityName = [3]string{"common", "magic", "rare"}
+var RarityName = [4]string{"common", "magic", "rare", "unique"}
 
 // rollGear makes a new piece of gear for a hero of class cls, at item level lvl, of at least rarity minRar.
 func (g *Game) rollGear(cls ClassID, lvl, minRar int) *Gear {
@@ -377,4 +383,82 @@ func (g *Game) buyWare(h *Hero, id string) error {
 	h.Gold -= price
 	g.emit(Event{K: "trade", Actor: h.ID, X: h.X, Y: h.Y, FX: gr.Slot, Amount: -price, Text: gr.Name})
 	return nil
+}
+
+// Uniques: hand-made pieces, one per boss. Every hero gets one when the boss dies. They carry effects random
+// gear never rolls: "regen" (HP per second), "thorns" (% of melee damage taken dealt back), "slayer" (% more
+// damage to bosses and hunt targets) and "lantern" (a light that never runs out).
+const Unique = Rare + 1
+
+type UniqueDef struct {
+	ID, Name, Base, Lore string
+	Boss                 byte
+	Lvl                  int
+	Mods                 []Mod
+}
+
+var Uniques = []UniqueDef{
+	{ID: "jelly", Name: "Royal Jelly Locket", Base: "amulet", Boss: 'Q', Lvl: 4, Lore: "Still warm. The hive would very much like it back.",
+		Mods: []Mod{{"hp", 40}, {"regen", 2}, {"res", 15}}},
+	{ID: "wick", Name: "The Tallow King's Wick", Base: "charm", Boss: 'K', Lvl: 5, Lore: "It burns without burning down. He never shared it.",
+		Mods: []Mod{{"armor", 12}, {"thorns", 40}, {"lantern", 1}}},
+	{ID: "heart", Name: "Heart of the Ember Dragon", Base: "talisman", Boss: FinalBoss, Lvl: 10, Lore: "It still beats, slowly, when you are angry.",
+		Mods: []Mod{{"dmg", 25}, {"crit", 12}, {"slayer", 30}}},
+}
+
+// uniqueFor makes the boss's unique, or nil if it has none.
+func uniqueFor(boss byte) *Gear {
+	for _, u := range Uniques {
+		if u.Boss == boss {
+			gr := &Gear{Slot: GearBases[u.Base].Slot, Base: u.Base, Name: u.Name, Rarity: Unique, Lvl: u.Lvl, Lore: u.Lore, Mods: append([]Mod(nil), u.Mods...)}
+			return gr
+		}
+	}
+	return nil
+}
+
+// dropUnique drops the boss's unique for h, if it has one. It reports whether it did.
+func (g *Game) dropUnique(h *Hero, m *Monster) bool {
+	gr := uniqueFor(m.Kind)
+	if gr == nil {
+		return false
+	}
+	g.Items = append(g.Items, &Item{ID: g.newID(), Kind: Items[gr.Slot].Glyph, Def: gr.Slot, X: m.X, Y: m.Y, Amount: 1, Owner: h.ID, G: gr})
+	g.emit(Event{K: "raredrop", Actor: h.ID, X: m.X, Y: m.Y, Text: gr.Name, Amount: gr.Rarity})
+	return true
+}
+
+// thorn is thorns damage owed to a monster; it lands after the monsters have acted (tick.go), so a monster
+// never dies in the middle of its own attack.
+type thorn struct{ hero, mon, dmg int }
+
+func (g *Game) payThorns() {
+	q := g.thorns
+	g.thorns = nil
+	for _, t := range q {
+		if m := g.monByID[t.mon]; m != nil && m.HP > 0 {
+			g.damageMonster(m, t.dmg, t.hero, false)
+		}
+	}
+}
+
+// regenHP heals a hero with "regen" gear a little every tick.
+func (h *Hero) regenHP() {
+	r := h.GearStat("regen")
+	if r <= 0 || h.Downed || h.Dead || h.HP >= h.HPMax {
+		return
+	}
+	h.regenAcc += r
+	if n := h.regenAcc / TickHz; n > 0 {
+		h.regenAcc -= n * TickHz
+		h.HP = min(h.HPMax, h.HP+n)
+	}
+}
+
+// slayer is the hero's bonus against bosses and hunt targets (0 for no hero).
+func (h *Hero) slayer() int {
+	if h == nil {
+		return 0
+	}
+	return h.GearStat("slayer")
 }

@@ -51,8 +51,8 @@ export function sellPrice(id: string): number {
 
 // ---- gear (mirrors internal/game/gear.go) ----
 
-export const RARITY = ['common', 'magic', 'rare'];
-export const RARITY_COL: RGB[] = [[200, 196, 186], [110, 160, 255], [255, 205, 70]];
+export const RARITY = ['common', 'magic', 'rare', 'unique'];
+export const RARITY_COL: RGB[] = [[200, 196, 186], [110, 160, 255], [255, 205, 70], [255, 120, 40]];
 export function rarityCol(r: number | undefined): RGB { return RARITY_COL[r ?? 0] ?? RARITY_COL[0]; }
 
 /** Glyph for a piece of gear by its base. */
@@ -65,9 +65,12 @@ export function gearCh(g: GearView | undefined, slot = 'weapon'): string { retur
 const STAT: Record<string, [string, boolean]> = { // label, shown as a percentage
   dmg: ['damage', true], crit: ['critical hit chance', true], leech: ['of damage healed', true], cdr: ['shorter cooldowns', true],
   res: ['resource gain', true], armor: ['less damage taken', true], hp: ['max HP', false],
+  regen: ['HP per second', false], thorns: ['of damage taken dealt back', true], slayer: ['damage to bosses and hunt targets', true],
+  lantern: ['', false],
 };
 /** "+12% damage", "+20 max HP". */
 export function modText(m: { k: string; v: number }): string {
+  if (m.k === 'lantern') return m.v > 0 ? 'a lantern that never runs out' : 'no endless lantern';
   const [label, pct] = STAT[m.k] ?? [m.k, false];
   return (m.v >= 0 ? '+' : '') + m.v + (pct ? '% ' : ' ') + label;
 }
