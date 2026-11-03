@@ -1,0 +1,10 @@
+{
+  "name": "Emberdeep",
+  "short_name": "Emberdeep",
+  "description": "Co-op terminal-style dungeon crawler for 1-4 players",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#050508",
+  "theme_color": "#050508"
+}

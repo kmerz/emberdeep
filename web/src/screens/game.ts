@@ -1,5 +1,5 @@
 import type { App, Screen } from '../app';
-import { Fb, RGB, W, H, DIM, PINK, WH, TX } from '../term/fb';
+import { Fb, RGB, W, H, DIM, PINK, WH, TX, mix } from '../term/fb';
 import { LW, LH, BARK_MS } from '../state';
 import { Fx, streakLabel } from '../render/fx';
 import { sfx } from '../audio';
@@ -8,15 +8,19 @@ import { VW, VH, buildLights, drawEnts, drawMap } from '../render/map';
 import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
 import { inventoryPanel, slotAt, wornAt, INV, WORN_WEAPON, WORN_TRINKET } from '../render/inventory';
-import { lorePanel } from '../render/lore';
-import { treePanel, PANEL_ORDER } from '../render/tree';
-import { shopPanel, sellSlots, buyCount, wareAt } from '../render/shop';
-import { questBoardPanel, journalPanel, giverQuests, journalQuests } from '../render/quests';
+import { lorePanel, LORE_BOX } from '../render/lore';
+import { treePanel, PANEL_ORDER, TREE } from '../render/tree';
+import { shopPanel, sellSlots, buyCount, wareAt, SHOP_BOX } from '../render/shop';
+import { questBoardPanel, journalPanel, giverQuests, journalQuests, QUEST_BOX } from '../render/quests';
 import { itemInfo, packCap, SHOP } from '../items';
-import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
+import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner, compactHud, OVERLAY_BOX } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
 import { keyLabel, lastInput, type PadContext } from '../gamepad';
+import { FULL, type Rect } from '../term/canvas';
+import { layout, COMPACT_ROWS } from '../mobile';
+import type { TouchBtn } from '../touch';
+import * as kbd from '../kbd';
 
 /** The two item keys (4 and 5) and where this browser remembers what is on them. */
 export const ITEM_KEYS = ['4', '5'];
@@ -37,6 +41,18 @@ export function dangerAt(ents: { k: string; g: string; x: number; y: number; dea
   return Math.min(1, d);
 }
 
+/** One camera axis: center on p, kept inside the level (lim cells) for a view of `size` cells. */
+export function camAxis(p: number, half: number, size: number, lim: number): number {
+  return Math.max(0, Math.min(lim - size, p - half));
+}
+
+/** The zoomed phone view's map: fb rows 1.. hold the map; rows 0-1 are HUD, so the hero sits at row ~12. */
+const C_MAP_ROWS = COMPACT_ROWS - 1;
+/** The minimap and objectives, shown on their own when MAP is tapped in the zoomed view. */
+const MAP_RECT: Rect = { x: 113, y: 26, w: 47, h: 21 };
+const AIM_MS = 4000;
+const pad1 = (r: { x: number; y: number; w: number; h: number }): Rect => ({ x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 });
+
 export class GameScreen implements Screen {
   fx = new Fx();
   pred: Predictor;
@@ -45,6 +61,11 @@ export class GameScreen implements Screen {
   held = new Set<string>();
   mouse: [number, number] = [-1, -1];
   reviving = 0;
+  /** zoomed view: show the minimap instead of the world */
+  mapOpen = false;
+  /** a tap on the map aims skills there until this time */
+  private aimUntil = 0;
+  private chatAt = 0;
   private lastRevSend = 0;
   private invOpen = false;
   private invSel = 0;
@@ -128,7 +149,8 @@ export class GameScreen implements Screen {
     if (this.invOpen && this.invKey(ev, k)) { ev.preventDefault(); return; }
     if (k === 'i' && !ev.repeat) { this.invOpen = true; this.treeOpen = false; this.held.clear(); ev.preventDefault(); return; }
     if (k === 't' && !ev.repeat) { this.treeOpen = true; this.invOpen = false; this.held.clear(); ev.preventDefault(); return; }
-    if (ev.key === 'Enter') { this.ui.chatActive = true; this.ui.chatText = ''; this.held.clear(); ev.preventDefault(); return; }
+    if (ev.key === 'Enter') { this.openChat(); ev.preventDefault(); return; }
+    if (ev.key === 'Tab' && !ev.repeat) { this.mapOpen = !this.mapOpen; ev.preventDefault(); return; }
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) { this.held.add(k); ev.preventDefault(); return; }
     if (ev.repeat) return;
     if (k === '1' || k === '2' || k === '3') { this.cast(parseInt(k) - 1); ev.preventDefault(); }
@@ -153,7 +175,27 @@ export class GameScreen implements Screen {
 
   onMouseMove(_ev: MouseEvent, cell: [number, number]) { this.mouse = cell; }
 
+  private openChat() {
+    this.ui.chatActive = true; this.ui.chatText = ''; this.held.clear(); this.chatAt = performance.now();
+    if (!layout.touch) return;
+    kbd.request({ // the phone keyboard
+      value: '', max: 120,
+      onInput: (v) => { this.ui.chatText = v; },
+      onDone: (enter) => { if (!this.ui.chatActive) return; if (enter) this.sendChat(); else { this.ui.chatActive = false; this.ui.chatText = ''; } },
+    });
+  }
+
+  onLongPress(cell: [number, number]) {
+    const w = this.cellToWorld(cell);
+    if (w && !this.panelOpen()) this.app.net.send({ t: 'ping', cell: w });
+  }
+
   onMouseDown(ev: MouseEvent, cell: [number, number]) {
+    const tap = (ev as PointerEvent).pointerType === 'touch';
+    if (tap && !this.panelOpen()) { // a tap aims, it does not cast: skills go where the finger was for a few seconds
+      if (this.cellToWorld(cell)) { this.mouse = cell; this.aimUntil = performance.now() + AIM_MS; }
+      return;
+    }
     this.mouse = cell;
     if (this.invOpen && ev.button === 0) {
       const s = slotAt(cell[0], cell[1], packCap(this.app.st.me));
@@ -165,10 +207,76 @@ export class GameScreen implements Screen {
       const s = slotAt(cell[0], cell[1], packCap(this.app.st.me));
       if (s >= 0) { this.invSel = s; this.bindItem(s); ev.preventDefault(); return; }
     }
+    if (tap) return;
     const w = this.cellToWorld(cell);
     if (!w) return;
     if (ev.altKey || ev.button === 1) { this.app.net.send({ t: 'ping', cell: w }); ev.preventDefault(); return; }
     if (ev.button === 0 && !this.ui.chatActive) this.cast(0);
+  }
+
+  private panelOpen(): boolean {
+    return this.invOpen || this.treeOpen || this.shopOpen || this.boardOpen || this.journalOpen || !!this.loreOpen;
+  }
+
+  /** The box of the panel that is open (for the zoomed view), or null. */
+  private panelRect(): Rect | null {
+    if (this.loreOpen) return pad1(LORE_BOX);
+    if (this.invOpen) return pad1(INV);
+    if (this.treeOpen) return pad1(TREE);
+    if (this.shopOpen) return pad1(this.shopSide === 2 ? QUEST_BOX : SHOP_BOX);
+    if (this.boardOpen || this.journalOpen) return pad1(QUEST_BOX);
+    return null;
+  }
+
+  view(compact: boolean): Rect {
+    if (!compact) return FULL;
+    if (this.app.st.overlay) return pad1(OVERLAY_BOX);
+    const p = this.panelRect();
+    if (p) return p;
+    if (this.mapOpen) return MAP_RECT;
+    return { x: 0, y: 0, w: layout.cols, h: COMPACT_ROWS };
+  }
+
+  touchStick(): boolean { const c = this.padContext(); return c === 'world' || c === 'panel'; }
+
+  touchButtons(): TouchBtn[] {
+    const st = this.app.st, m = st.me, ctx = this.padContext();
+    if (ctx === 'overlay') return st.overlay === 'wipe' && st.isHost ? [{ key: 'Enter', label: 'RESTART', area: 'ok' }] : [];
+    if (ctx === 'panel') {
+      const b: TouchBtn[] = [{ key: 'Enter', label: 'OK', area: 'ok' }, { key: 'Escape', label: 'BACK', area: 'back' }];
+      const side = (key: string, label: string, sub?: string, off?: boolean) => b.push({ key, label, sub, off, area: 'side' });
+      if (this.invOpen) { side('x', 'DROP'); side('u', 'USE'); side('4', '→ 4'); side('5', '→ 5'); }
+      else if (this.treeOpen) { side('1', '→ 1'); side('2', '→ 2'); side('3', '→ 3'); side('r', 'RESET', 'stairs', !m?.respec); }
+      else if (this.shopOpen) side('Tab', 'TAB', this.shopSide === 0 ? 'buy' : this.shopSide === 1 ? 'sell' : 'quests');
+      else if (this.boardOpen) side('j', 'JOURNAL');
+      return b;
+    }
+    if (ctx !== 'world' || !m) return [];
+    const me = st.party.find((p) => p.id === st.youId);
+    const cls = me ? CLS[me.cls] : null;
+    const b: TouchBtn[] = (['a1', 'a2', 'a3'] as const).map((area, i) => {
+      const sk = SKILL_BY_ID[m.binds?.[i] ?? '']?.meta;
+      if (!sk) return { key: String(i + 1), label: '·', sub: 'empty', off: true, area };
+      const cd = m.cd[i] ?? 0, cost = m.cost[i] ?? 0;
+      return { key: String(i + 1), label: sk.short, sub: cd > 0 ? (cd / 20).toFixed(1) + 's' : m.res < cost ? 'no ' + (cls?.rl ?? '') : '', off: cd > 0 || m.res < cost, area };
+    });
+    const count = (id: string) => (m.pack ?? []).reduce((a, s) => a + (s.item === id ? s.n : 0), 0);
+    b.push({ key: 'q', label: '!', sub: m.potCd > 0 ? (m.potCd / 20).toFixed(0) + 's' : '×' + m.potions, off: m.potCd > 0 || m.potions + count('draught') <= 0, area: 'aq' });
+    (['a4', 'a5'] as const).forEach((area, i) => {
+      const id = this.itemKeys[i] ?? '';
+      if (!id) { b.push({ key: ITEM_KEYS[i], label: ITEM_KEYS[i], sub: 'empty', off: true, area }); return; }
+      const it = itemInfo(id), n = count(id);
+      b.push({ key: ITEM_KEYS[i], label: it.ch, sub: '×' + n, off: n <= 0, area });
+    });
+    const rec = st.recs[st.recs.length - 1];
+    const ally = rec?.ents.some((e) => e.k === 'h' && e.id !== st.youId && e.downed && Math.max(Math.abs(e.x - this.pred.x), Math.abs(e.y - this.pred.y)) <= 1);
+    b.push({ key: 'e', label: '✚', sub: 'revive', off: !ally, area: 'ae' });
+    const pts = m.points ?? 0;
+    b.push({ key: 'i', label: 'BAG', area: 'top' }, { key: 't', label: 'TREE', sub: pts > 0 ? '+' + pts : undefined, area: 'top' },
+      { key: 'j', label: 'QST', area: 'top' });
+    if (layout.compact) b.push({ key: 'Tab', label: this.mapOpen ? 'BACK' : 'MAP', area: 'top' });
+    b.push({ key: 'Enter', label: 'SAY', area: 'top' }, { key: 'm', label: '♪', area: 'top' });
+    return b;
   }
 
   private closePanels() { this.invOpen = this.treeOpen = this.shopOpen = this.boardOpen = this.journalOpen = false; this.loreOpen = null; }
@@ -428,7 +536,7 @@ export class GameScreen implements Screen {
   }
 
   /** Speech bubbles over whoever is talking; they follow the speaker and fade out. */
-  private drawBarks(mb: Fb, ents: Ent[], now: number) {
+  private drawBarks(mb: Fb, ents: Ent[], now: number, vw = VW) {
     const st = this.app.st;
     for (const [id, b] of st.barks) {
       const age = now - b.at;
@@ -441,7 +549,7 @@ export class GameScreen implements Screen {
       const boss = !!b.kind && 'KQD'.includes(b.kind) || !!e?.el;
       const fg: RGB = b.kind === 'g' ? [170, 240, 150] : boss ? [255, 150, 180] : [236, 230, 250];
       const bg: RGB = b.kind === 'g' ? [18, 40, 22] : boss ? [50, 10, 26] : [30, 28, 44];
-      const x = Math.max(0, Math.min(VW - s.length, wx - this.cam.x - Math.floor(s.length / 2)));
+      const x = Math.max(0, Math.min(vw - s.length, wx - this.cam.x - Math.floor(s.length / 2)));
       const y = Math.max(0, wy - this.cam.y - 2);
       mb.txt(x, y, s, fg.map((v) => v * fd) as RGB, bg.map((v) => v * fd) as RGB, boss ? 1 : 0);
     }
@@ -451,6 +559,9 @@ export class GameScreen implements Screen {
   render(fb: Fb, now: number) {
     const st = this.app.st;
     const t = now / 1000;
+    // touch chat whose keyboard never opened (or a real Enter on a touch device that then typed nothing): keep the chat
+    // line only while there is a way to type into it
+    if (this.ui.chatActive && layout.touch && !kbd.busy() && !this.ui.chatText && now - this.chatAt > 1500) this.ui.chatActive = false;
     this.pumpMovement(now);
     void this.lastRevSend;
     fb.reset([9, 9, 14]);
@@ -472,10 +583,17 @@ export class GameScreen implements Screen {
     // camera: follow ourselves, or a living party member when we are dead
     let fx0 = yp;
     if (!fx0 || you?.dead) { const o = ents.find((e) => e.k === 'h' && !e.dead); if (o) fx0 = { x: o.x, y: o.y }; }
+    const compact = layout.compact, cols = compact ? layout.cols : VW;
     if (fx0) {
-      this.cam.x = Math.max(0, Math.min(LW - VW, fx0.x - (VW >> 1)));
-      this.cam.y = Math.max(0, Math.min(LH - VH, fx0.y - (VH >> 1)));
+      if (compact) { // the zoomed view: the hero in the middle of what the phone shows
+        this.cam.x = camAxis(fx0.x, cols >> 1, cols, LW);
+        this.cam.y = camAxis(fx0.y, C_MAP_ROWS >> 1, C_MAP_ROWS, LH);
+      } else {
+        this.cam.x = camAxis(fx0.x, VW >> 1, VW, LW);
+        this.cam.y = camAxis(fx0.y, VH >> 1, VH, LH);
+      }
     }
+    if (this.aimUntil && now > this.aimUntil) { this.aimUntil = 0; this.mouse = [-1, -1]; }
     this.fx.prune(now);
     const heroes = ents.filter((e) => e.k === 'h' && !e.dead).map((e) => {
       const torch = !!e.st?.some((s) => s.k === 'torch');
@@ -509,7 +627,7 @@ export class GameScreen implements Screen {
       mb.put(p.x - this.cam.x, p.y - this.cam.y, '◇', c.map((v) => v * pulse), null, 1);
     }
     this.fx.drawOver(mb, this.cam, now, st);
-    this.drawBarks(mb, ents, now);
+    this.drawBarks(mb, ents, now, cols);
     // compose with camera shake
     const [ox, oy] = yp ? this.fx.shake(now, yp.x, yp.y) : [0, 0];
     for (let y = 0; y < VH; y++) for (let x = 0; x < VW; x++) {
@@ -519,9 +637,14 @@ export class GameScreen implements Screen {
       fb.ch[di] = mb.ch[si];
       fb.setFg(di, mb.getFg(si)); fb.setBg(di, mb.getBg(si)); fb.bold[di] = mb.bold[si];
     }
+    if (this.aimUntil) { // where a tap aimed
+      const [ax, ay] = this.mouse, i = ay * W + ax;
+      if (ax >= 0 && ay >= 0 && ax < VW && ay <= VH) fb.setBg(i, mix(fb.getBg(i), PINK, 0.45 + 0.15 * Math.sin(t * 8)));
+    }
     statusBar(fb, st);
     partyPanel(fb, st);
-    targetPanel(fb, st, pickTarget(st, ents, yp));
+    const target = pickTarget(st, ents, yp);
+    targetPanel(fb, st, target);
     minimap(fb, st, this.cam, ents.map((e) => (e.id === st.youId && yp ? { ...e, x: yp.x, y: yp.y } : e)), now);
     objectives(fb, st);
     logPanel(fb, st, now);
@@ -543,7 +666,8 @@ export class GameScreen implements Screen {
     }
     if (this.journalOpen) journalPanel(fb, st, this.journalSel);
     if (this.loreOpen) lorePanel(fb, this.loreOpen.page, this.loreOpen.text);
-    depthBanner(fb, st, now);
+    if (compact && !this.mapOpen && !this.panelRect() && !st.overlay) compactHud(fb, st, cols, COMPACT_ROWS, target, this.ui, now);
+    depthBanner(fb, st, now, cols);
     if (st.overlay) overlayBox(fb, st.overlay, st, now);
     void H; void SKILL_BY_ID;
   }

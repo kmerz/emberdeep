@@ -56,6 +56,21 @@ With a gamepad, every on-screen hint shows pad buttons instead of keys (as soon 
 skills `X` `Y` `RB`, items `B` and `A`, potion `LB`, hold `LT` to revive, `SELECT` rucksack, `R3` skill tree, `START`
 journal. In panels, `LB` `LT` `RT` put a skill on key 1 2 3 and `Y` puts an item on `B` (again: `A`).
 
+### Phones and tablets
+
+Touch the screen and on-screen controls appear (a key press or gamepad hides them again):
+
+- **left thumb**: a stick that appears where you touch the left part of the screen (8 directions; in panels it moves the selection)
+- **right thumb**: skills 1 2 3 (with cooldowns), `!` potion, items 4 and 5, `✚` revive (hold)
+- **tap the map** to aim skills and thrown items there for 4 s (otherwise they aim at the nearest enemy); **hold** a finger on the map to ping
+- **top row**: BAG (rucksack), TREE, QST (journal), MAP, SAY (chat, opens the phone keyboard), `♪` sound, `⛶` fullscreen
+- panels get OK, BACK and their own keys (DROP, USE, → 4, RESET, ...); tap a field on the start screen to type your name or a code
+
+On phones the game shows a zoomed view: the map around your hero with a two-line HUD on top, and each panel on its own
+(MAP shows the minimap and objectives). Tablets keep the full screen. Play in landscape; on an iPhone use
+"Add to Home Screen" to play without the browser bars. To try the phone layout on a desktop, open `/?layout=compact`
+(`?layout=full` forces the full grid, `?layout=auto` goes back to detecting it).
+
 ### Saving
 
 The game saves by itself on every new floor, when a player leaves, and when the server stops. The host can

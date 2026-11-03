@@ -7,10 +7,27 @@ const FONT = "'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace";
 const q = (v: number) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
 const css = (n: number) => '#' + (n | 0x1000000).toString(16).slice(1);
 
+/** A rectangle of cells. */
+export interface Rect { x: number; y: number; w: number; h: number }
+export const FULL: Rect = { x: 0, y: 0, w: W, h: H };
+
+/** Map a point on the canvas (client coordinates) to a framebuffer cell, through the shown view. */
+export function viewCell(view: Rect, box: { left: number; top: number; width: number; height: number }, cx: number, cy: number): [number, number] {
+  return [view.x + Math.floor(((cx - box.left) / box.width) * view.w), view.y + Math.floor(((cy - box.top) / box.height) * view.h)];
+}
+
+/** The size of the visible page area in CSS px (shrinks while a phone keyboard is open). */
+export function pageSize(): { w: number; h: number } {
+  const vv = window.visualViewport;
+  return vv ? { w: vv.width, h: vv.height } : { w: window.innerWidth, h: window.innerHeight };
+}
+
 /** Blits a framebuffer to a canvas, redrawing only the cells that changed since the last frame. */
 export class TermCanvas {
   ctx: CanvasRenderingContext2D;
   dpr = 1;
+  /** The part of the framebuffer that is shown (the whole grid, or a crop on phones). */
+  view: Rect = { ...FULL };
   private lastCh: string[] = new Array(W * H).fill('');
   private lastFg = new Int32Array(W * H).fill(-1);
   private lastBg = new Int32Array(W * H).fill(-1);
@@ -20,12 +37,29 @@ export class TermCanvas {
     this.ctx = canvas.getContext('2d', { alpha: false })!;
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    window.addEventListener('orientationchange', () => this.resize());
+    window.visualViewport?.addEventListener('resize', () => this.resize());
+    window.visualViewport?.addEventListener('scroll', () => this.resize());
+  }
+
+  /** Show only this rectangle of the framebuffer, scaled up to fit the page. */
+  setView(r: Rect) {
+    const v = this.view;
+    if (v.x === r.x && v.y === r.y && v.w === r.w && v.h === r.h) return;
+    this.view = { ...r };
+    this.resize();
   }
 
   resize() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const cssW = W * CELL_W, cssH = H * CELL_H;
-    const scale = Math.min(window.innerWidth / cssW, window.innerHeight / cssH);
+    const cssW = this.view.w * CELL_W, cssH = this.view.h * CELL_H;
+    const page = pageSize();
+    // follow the visible area (a phone keyboard shrinks and scrolls it), so the canvas stays in sight above it
+    const wrap = this.canvas.parentElement, vv = window.visualViewport;
+    if (wrap && vv) {
+      Object.assign(wrap.style, { top: vv.offsetTop + 'px', left: vv.offsetLeft + 'px', width: vv.width + 'px', height: vv.height + 'px', right: 'auto', bottom: 'auto' });
+    }
+    const scale = Math.min(page.w / cssW, page.h / cssH);
     this.dpr = dpr;
     this.canvas.width = Math.ceil(cssW * dpr);
     this.canvas.height = Math.ceil(cssH * dpr);
@@ -37,8 +71,7 @@ export class TermCanvas {
 
   /** Map a mouse event to a cell coordinate. */
   cellAt(ev: MouseEvent): [number, number] {
-    const r = this.canvas.getBoundingClientRect();
-    return [Math.floor(((ev.clientX - r.left) / r.width) * W), Math.floor(((ev.clientY - r.top) / r.height) * H)];
+    return viewCell(this.view, this.canvas.getBoundingClientRect(), ev.clientX, ev.clientY);
   }
 
   draw(fb: Fb) {
@@ -46,13 +79,17 @@ export class TermCanvas {
     c.textBaseline = 'middle';
     c.textAlign = 'center';
     let lastFont = '';
-    for (let i = 0; i < W * H; i++) {
+    const v = this.view;
+    for (let vy = 0; vy < v.h; vy++) for (let vx = 0; vx < v.w; vx++) {
+      const fx = v.x + vx, fy = v.y + vy;
+      if (fx < 0 || fy < 0 || fx >= W || fy >= H) continue;
+      const i = fy * W + fx;
       const bg = (q(fb.bg[i * 3]) << 16) | (q(fb.bg[i * 3 + 1]) << 8) | q(fb.bg[i * 3 + 2]);
       const fg = (q(fb.fg[i * 3]) << 16) | (q(fb.fg[i * 3 + 1]) << 8) | q(fb.fg[i * 3 + 2]);
       const ch = fb.ch[i], b = fb.bold[i];
       if (bg === this.lastBg[i] && ch === this.lastCh[i] && (ch === ' ' || (fg === this.lastFg[i] && b === this.lastB[i]))) continue;
       this.lastBg[i] = bg; this.lastCh[i] = ch; this.lastFg[i] = fg; this.lastB[i] = b;
-      const x = (i % W) * CELL_W * d, y = Math.floor(i / W) * CELL_H * d;
+      const x = vx * CELL_W * d, y = vy * CELL_H * d;
       const cw = CELL_W * d, chh = CELL_H * d;
       const x0 = Math.floor(x), y0 = Math.floor(y), x1 = Math.floor(x + cw), y1 = Math.floor(y + chh);
       c.fillStyle = css(bg);

@@ -2,19 +2,68 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#050508">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
 <title>Emberdeep</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
 <style>
-html,body{margin:0;height:100%;background:#050508;overflow:hidden}
+html,body{margin:0;height:100%;background:#050508;overflow:hidden;overscroll-behavior:none}
+body{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
-canvas{background:#09090e;image-rendering:auto;display:block}
+canvas{background:#09090e;image-rendering:auto;display:block;touch-action:none}
+
+/* the phone keyboard's hidden input */
+#kbd{position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0;pointer-events:none}
+
+/* touch controls */
+#touch{position:fixed;inset:0;pointer-events:none;z-index:2;font-family:'JetBrains Mono',ui-monospace,monospace}
+#touch>*{pointer-events:none}
+.t-zone{position:absolute;left:0;bottom:0;width:45%;top:56px;pointer-events:auto!important;touch-action:none}
+.t-base{position:fixed;display:none;width:116px;height:116px;margin:-58px 0 0 -58px;border-radius:50%;
+  border:2px solid rgba(240,236,255,.25);background:rgba(20,18,32,.35)}
+.t-knob{position:absolute;left:32px;top:32px;width:52px;height:52px;border-radius:50%;background:rgba(255,46,136,.55);border:2px solid rgba(255,255,255,.4)}
+.t-top,.t-bot,.t-side,.t-abs{position:absolute}
+.t-top{top:calc(env(safe-area-inset-top) + 6px);right:calc(env(safe-area-inset-right) + 8px);display:flex;gap:6px}
+.t-bot{bottom:calc(env(safe-area-inset-bottom) + 6px);left:50%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:max-content;max-width:96vw}
+.t-side{right:calc(env(safe-area-inset-right) + 14px);bottom:calc(env(safe-area-inset-bottom) + 112px);display:grid;grid-template-columns:repeat(2,52px);gap:6px}
+.t-abs{right:env(safe-area-inset-right);bottom:env(safe-area-inset-bottom);width:0;height:0}
+.t-btn{pointer-events:auto;touch-action:none;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:#f0ecff;background:rgba(20,18,32,.55);border:1.5px solid rgba(240,236,255,.28);border-radius:12px;line-height:1.1;overflow:hidden}
+.t-btn b{font-size:13px;font-weight:700;white-space:nowrap}
+.t-btn i{font-style:normal;font-size:10px;opacity:.75;white-space:nowrap}
+.t-btn i:empty{display:none}
+.t-btn.on{background:rgba(255,46,136,.6);border-color:#ff2e88}
+.t-btn.off{opacity:.45}
+.t-top .t-btn{min-width:40px;height:34px;padding:0 6px}
+.t-bot .t-btn{min-width:58px;height:40px;padding:0 8px}
+.t-side .t-btn{height:44px}
+.t-abs .t-btn{position:absolute;border-radius:50%}
+.a1{right:18px;bottom:18px;width:76px;height:76px}
+.a2{right:104px;bottom:14px;width:60px;height:60px}
+.a3{right:14px;bottom:104px;width:60px;height:60px}
+.aq{right:98px;bottom:92px;width:50px;height:50px}
+.ae{right:168px;bottom:78px;width:48px;height:48px}
+.a4{right:178px;bottom:12px;width:48px;height:48px}
+.a5{right:12px;bottom:178px;width:48px;height:48px}
+.ok{right:20px;bottom:24px;width:72px;height:72px}
+.back{right:104px;bottom:18px;width:58px;height:58px}
+
+/* phones held upright: the game needs landscape */
+#turn{display:none;position:fixed;inset:0;z-index:5;background:#09090e;color:#f0ecff;font:700 16px 'JetBrains Mono',monospace;
+  align-items:center;justify-content:center;text-align:center;padding:24px;flex-direction:column;gap:12px}
+#turn span{font-size:40px;color:#ff2e88}
+@media (orientation:portrait){body.touch.compact #turn{display:flex}}
 </style>
 </head>
 <body>
 <div id="wrap"><canvas id="screen"></canvas></div>
+<div id="turn"><span>⟳</span>Turn your phone sideways to play</div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

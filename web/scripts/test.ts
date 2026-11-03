@@ -4,12 +4,16 @@ import { GameState, LOG_W, wrapSegs } from '../src/state';
 import { FORM, STYLES, makeSong, noteOf } from '../src/music';
 import { journalQuests } from '../src/render/quests';
 import { loreTitle } from '../src/render/lore';
-import { dangerAt } from '../src/screens/game';
+import { dangerAt, camAxis } from '../src/screens/game';
+import { LandingScreen } from '../src/screens/landing';
+import { viewCell } from '../src/term/canvas';
+import { stickKeys } from '../src/touch';
+import { compactCols, landscapeScale } from '../src/mobile';
 import { displayEnts } from '../src/render/interp';
 import { Predictor, MOVE_MS } from '../src/render/predict';
 import type { Ent, Snap } from '../src/proto';
 import { Fx, streakLabel } from '../src/render/fx';
-import { depthBanner, hotbar, pickTarget } from '../src/render/hud';
+import { depthBanner, hotbar, pickTarget, compactHud } from '../src/render/hud';
 import { Fb } from '../src/term/fb';
 import { VW, VH } from '../src/render/map';
 import { GamepadInput, keyLabel, lastInput, padLabel, type PadLike, type PadContext } from '../src/gamepad';
@@ -390,6 +394,57 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   st.handle({ t: 'events', tick: 1, list: [{ k: 'trial', actor: 1, x: 0, y: 0, amount: 10, fx: 'Vess Who Walks Unseen', text: 'Every shadow has a price.' }] }, 1000);
   eq(st.log.some((l) => l.segs.some((s) => s[0].includes('slay 10 foes'))), true, 'the trial is explained in the log');
   eq(loreTitle(0), 'SPOONHOLLOW', 'the village page has its name');
+}
+
+// --- phones: the view crop, the touch stick, the zoomed camera and HUD, tapping the landing form
+{
+  const box = { left: 100, top: 50, width: 800, height: 240 };
+  eq(viewCell({ x: 0, y: 0, w: 160, h: 48 }, box, 100, 50), [0, 0], 'full view: top left corner');
+  eq(viewCell({ x: 0, y: 0, w: 160, h: 48 }, box, 899, 289), [159, 47], 'full view: bottom right corner');
+  eq(viewCell({ x: 34, y: 4, w: 48, h: 27 }, box, 500, 170), [58, 17], 'a cropped view maps into its rectangle');
+  eq(stickKeys(5, 5), [], 'stick: small moves are ignored');
+  eq(stickKeys(40, 0), ['ArrowRight'], 'stick: right');
+  eq(stickKeys(30, 30), ['ArrowRight', 'ArrowDown'], 'stick: down-right is a diagonal');
+  eq(stickKeys(0, -40), ['ArrowUp'], 'stick: up');
+  eq(stickKeys(-30, -30), ['ArrowLeft', 'ArrowUp'], 'stick: up-left');
+  eq(stickKeys(-40, 2), ['ArrowLeft'], 'stick: left');
+  eq(stickKeys(30, 30, true).length, 1, 'stick in menus: one arrow at a time');
+  eq(camAxis(5, 40, 80, 176), 0, 'camera stops at the left edge');
+  eq(camAxis(100, 40, 80, 176), 60, 'camera centers the hero');
+  eq(camAxis(175, 40, 80, 176), 96, 'camera stops at the right edge, the hero stays on screen');
+  eq(landscapeScale(390, 844) < 0.6, true, 'a phone gets the zoomed layout');
+  eq(landscapeScale(768, 1024) >= 0.6, true, 'a tablet keeps the full grid');
+  eq(compactCols(844, 390), 104, 'zoomed view width follows a wide phone');
+  eq(compactCols(400, 400), 64, 'zoomed view is at least 64 columns');
+  const land = Object.create(LandingScreen.prototype) as LandingScreen;
+  land.fixedCode = null;
+  eq(land.fieldAt(60, 19), 'name', 'tap on the name row');
+  eq(land.fieldAt(60, 22), 'class', 'tap just under the class row');
+  eq(land.fieldAt(60, 24), 'new', 'tap on NEW GAME');
+  eq(land.fieldAt(60, 30), 'join', 'tap on JOIN');
+  eq(land.fieldAt(20, 19), null, 'tap beside the form');
+  land.fixedCode = 'ASH-7Q2';
+  eq(land.fieldAt(60, 24), 'join', 'invite link: JOIN sits under the class');
+
+  const st = new GameState();
+  st.youId = 1;
+  st.party = [{ id: 1, name: 'vela', cls: 'rogue', lvl: 3, hp: 7, hpMax: 10, res: 40, resMax: 100, connected: true },
+    { id: 2, name: 'bo', cls: 'monk', lvl: 3, hp: 0, hpMax: 10, res: 0, resMax: 100, connected: true, downed: true }];
+  st.me = { res: 40, resMax: 100, cd: [0, 0, 0], cdMax: [1, 1, 1], cost: [0, 0, 0], potions: 1, potCd: 0, gold: 77, xp: 5, xpNeed: 10, lvl: 3,
+    pack: [], packCap: 12, binds: ['stab', '', ''], tree: [], points: 0, respec: false };
+  st.pushLog([['You found a key', [255, 255, 255]]], 1000);
+  const fb = new Fb(160, 48, [0, 0, 0]);
+  const row = (y: number, w = 160) => Array.from({ length: w }, (_, x) => fb.ch[y * 160 + x]).join('');
+  const rat: Ent = { id: 30001, k: 'm', g: 'r', x: 9, y: 5, face: 0, name: 'cave rat', hp: 3, hpMax: 6 };
+  compactHud(fb, st, 104, 24, rat, { chatActive: false, chatText: '' }, 2000);
+  eq(row(0).includes('7/10'), true, 'zoomed HUD: your HP');
+  eq(row(0).includes('LV 3') && row(0).includes('77g'), true, 'zoomed HUD: level and gold');
+  eq(row(1).includes('cave rat'), true, 'zoomed HUD: the target');
+  eq(row(1).includes('▼'), true, 'zoomed HUD: a downed ally');
+  eq(row(23).includes('You found a key'), true, 'zoomed HUD: the newest log line');
+  eq(row(0).slice(104).trim() + row(23).slice(104).trim(), '', 'zoomed HUD stays inside its columns');
+  compactHud(fb, st, 104, 24, null, { chatActive: true, chatText: 'hi all' }, 2000);
+  eq(row(23).includes('» hi all'), true, 'zoomed HUD: the chat being typed');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

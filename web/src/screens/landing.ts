@@ -4,6 +4,13 @@ import { CLS, CLASS_LIST } from '../classes';
 import { drawTitle, keyChips } from '../render/title';
 import type { ClassId } from '../proto';
 import { VERSION } from '../version';
+import { fakeKey } from '../gamepad';
+import type { Rect } from '../term/canvas';
+import { FULL } from '../term/canvas';
+import * as kbd from '../kbd';
+
+/** Where the form box sits on the grid. */
+export const FORM = { x: 50, y: 16, w: 60 };
 
 type Field = 'name' | 'class' | 'new' | 'code' | 'join';
 
@@ -37,6 +44,52 @@ export class LandingScreen implements Screen {
   }
 
   onEnter() { this.busy = false; }
+
+  /** The row of each field on the grid (the same rows render() draws them on). */
+  fieldRows(): [Field, number][] {
+    const y = FORM.y;
+    const r: [Field, number][] = [['name', y + 3], ['class', y + 5]];
+    if (this.fixedCode) r.push(['join', y + 8]);
+    else r.push(['new', y + 8], ['code', y + 12], ['join', y + 14]);
+    return r;
+  }
+
+  /** The field under a cell (a row either side counts: fingers are big), or null. */
+  fieldAt(cx: number, cy: number): Field | null {
+    if (cx < FORM.x || cx >= FORM.x + FORM.w) return null;
+    let best: Field | null = null, bd = 2;
+    for (const [f, row] of this.fieldRows()) {
+      const d = Math.abs(cy - row);
+      if (d < bd) { best = f; bd = d; }
+    }
+    return best;
+  }
+
+  view(compact: boolean): Rect {
+    if (!compact) return FULL;
+    const h = this.fixedCode ? 15 : 19;
+    return { x: FORM.x - 2, y: FORM.y - 1, w: FORM.w + 4, h: h + 4 };
+  }
+
+  onMouseDown(ev: MouseEvent, cell: [number, number]) {
+    if (ev.button !== 0) return;
+    const f = this.fieldAt(cell[0], cell[1]);
+    if (!f) { kbd.close(); return; }
+    this.focus = this.fields().indexOf(f);
+    if (f === 'name' || f === 'code') {
+      if ((ev as PointerEvent).pointerType !== 'touch') return; // a mouse click just focuses it: the keyboard types as before
+      kbd.request({ // opens the phone keyboard
+        value: f === 'name' ? this.name : this.code, max: f === 'name' ? 12 : 7,
+        onInput: (v) => { if (f === 'name') this.name = v; else this.code = v.toUpperCase(); this.error = ''; },
+        onDone: (enter) => { if (enter) this.onKey(fakeKey('Enter')); },
+      });
+      return;
+    }
+    kbd.close();
+    if (f === 'class') this.onKey(fakeKey(cell[0] < FORM.x + FORM.w / 2 ? 'ArrowLeft' : 'ArrowRight'));
+    else if (f === 'new') this.submit('create');
+    else this.submit('join');
+  }
 
   private submit(mode: 'create' | 'join') {
     if (this.busy) return;
@@ -90,7 +143,7 @@ export class LandingScreen implements Screen {
     const t = now / 1000;
     fb.reset([9, 8, 14]);
     drawTitle(fb, t);
-    const x = 50, y = 16, w = 60, h = this.fixedCode ? 15 : 19;
+    const { x, y, w } = FORM, h = this.fixedCode ? 15 : 19;
     fb.box(x, y, w, h, this.fixedCode ? 'JOIN ' + this.fixedCode : 'ENTER THE DESCENT', PINK);
     const fields = this.fields();
     const foc = (f: Field) => fields[this.focus] === f;

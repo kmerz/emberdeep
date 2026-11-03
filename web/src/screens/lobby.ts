@@ -5,6 +5,9 @@ import { drawTitle, keyChips } from '../render/title';
 import { STORY, STORY_TITLE, wrap } from '../story';
 import { keyLabel, type PadContext } from '../gamepad';
 import { VERSION } from '../version';
+import { FULL, type Rect } from '../term/canvas';
+import { layout } from '../mobile';
+import type { TouchBtn } from '../touch';
 
 const STORY_BOX = { x: 22, y: 39, w: 116, h: 7 };
 const TYPE_CPS = 70;      // story letters per second
@@ -46,6 +49,37 @@ export class LobbyScreen implements Screen {
 
   padContext(): PadContext { return 'lobby'; }
 
+  /** Phones: the lobby box, its keys and the toast line (the story is left out). */
+  view(compact: boolean): Rect { return compact ? { x: 36, y: 15, w: 88, h: 27 } : FULL; }
+
+  touchButtons(): TouchBtn[] {
+    const st = this.app.st, lob = st.lobby;
+    const me = lob?.players.find((p) => p.id === st.youId);
+    const b: TouchBtn[] = [
+      { key: 'Enter', label: me?.ready ? (st.isHost ? 'START' : 'UNREADY') : 'READY', area: 'bot' },
+      { key: 'c', label: 'CLASS', area: 'bot' },
+      { key: 'i', label: 'INVITE', area: 'bot', tap: () => this.invite() },
+    ];
+    if (st.isHost) {
+      b.push({ key: 'f', label: 'FF', sub: lob?.settings?.friendlyFire ? 'on' : 'off', area: 'bot' }, { key: 'd', label: 'DIFF', area: 'bot' },
+        { key: 'b', label: '+BOT', area: 'bot' }, { key: 'x', label: '−BOT', area: 'bot' });
+      if (lob?.save) b.push({ key: 'n', label: 'NEW RUN', sub: 'tap twice', area: 'bot' });
+    }
+    b.push({ key: 'q', label: 'LEAVE', area: 'bot' });
+    return b;
+  }
+
+  /** Copy the invite link, or open the share sheet on phones. */
+  invite() {
+    const st = this.app.st;
+    let url = st.inviteUrl;
+    if (!url || url.startsWith('/')) url = location.origin + '/r/' + st.code;
+    if (layout.touch && navigator.share) { navigator.share({ title: 'Emberdeep', text: 'Join my Emberdeep game: ' + st.code, url }).catch(() => {}); return; }
+    const done = () => this.say('invite link copied: ' + url);
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done, () => this.say('copy failed — ' + url));
+    else this.say(url);
+  }
+
   private say(msg: string) { this.toast = msg; this.toastAt = performance.now(); }
 
   onKey(ev: KeyboardEvent) {
@@ -61,13 +95,8 @@ export class LobbyScreen implements Screen {
     } else if (k === 'c' && me) {
       const i = CLASS_LIST.indexOf(me.cls);
       net.send({ t: 'setClass', cls: CLASS_LIST[(i + 1) % CLASS_LIST.length] });
-    } else if (k === 'i') {
-      let url = st.inviteUrl;
-      if (!url || url.startsWith('/')) url = location.origin + '/r/' + st.code;
-      const done = () => this.say('invite link copied: ' + url);
-      if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done, () => this.say('copy failed — ' + url));
-      else this.say(url);
-    } else if (k === 'f' && st.isHost) net.send({ t: 'setting', key: 'friendlyFire' });
+    } else if (k === 'i') this.invite();
+    else if (k === 'f' && st.isHost) net.send({ t: 'setting', key: 'friendlyFire' });
     else if (k === 'd' && st.isHost) net.send({ t: 'setting', key: 'difficulty' });
     else if (k === 'b' && st.isHost) net.send({ t: 'setting', key: 'addBot' });
     else if (k === 'x' && st.isHost) net.send({ t: 'setting', key: 'removeBot' });
@@ -143,7 +172,7 @@ export class LobbyScreen implements Screen {
     keys.push(['Q', 'leave']);
     keyChips(fb, 36, keys, 0);
     if (this.toast && now - this.toastAt < 4000) fb.ctxt(38, this.toast, MINT);
-    this.drawStory(fb, now);
+    if (!layout.compact) this.drawStory(fb, now);
     let url = st.inviteUrl;
     if (!url || url.startsWith('/')) url = location.origin + '/r/' + st.code;
     fb.txt(2, 46, 'invite: ' + url, DIM);

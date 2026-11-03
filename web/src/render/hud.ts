@@ -291,7 +291,7 @@ export function commandLine(fb: Fb, ui: UiState, now: number) {
 }
 
 /** "DEPTH N" in the middle of the map for a moment after a new floor arrives. */
-export function depthBanner(fb: Fb, st: GameState, now: number) {
+export function depthBanner(fb: Fb, st: GameState, now: number, vw = VW) {
   if (!st.level || !st.levelAt) return;
   const age = now - st.levelAt;
   if (age > BANNER_MS) return;
@@ -300,7 +300,7 @@ export function depthBanner(fb: Fb, st: GameState, now: number) {
   const txt = st.level.village ? ' SAFE HAVEN ' : ' DEPTH ' + String(st.level.depth).padStart(2, '0') + ' ';
   const name = pal.name.toUpperCase().split('').join(' ');
   const width = Math.max(name.length, pal.tagline.length) + 8;
-  const x0 = Math.floor((VW - width) / 2);
+  const x0 = Math.floor((vw - width) / 2);
   // a dark band behind the card so it reads over a lit room
   for (let y = 6; y <= 14; y++) for (let x = x0; x < x0 + width; x++) {
     const i = y * W + x;
@@ -308,20 +308,22 @@ export function depthBanner(fb: Fb, st: GameState, now: number) {
   }
   // the rules grow out from the depth label, the name types itself in, the flavor line follows
   const grow = c01(age / 400), rule = Math.floor(((width - txt.length) / 2 - 2) * grow);
-  const tx = Math.floor((VW - txt.length) / 2);
+  const tx = Math.floor((vw - txt.length) / 2);
   fb.txt(tx - rule - 1, 8, '─'.repeat(rule), mul(GOLD, 0.6 * fade));
   fb.txt(tx + txt.length + 1, 8, '─'.repeat(rule), mul(GOLD, 0.6 * fade));
   fb.txt(tx, 8, txt, mul([24, 6, 20], fade), mul(GOLD, fade), 1);
   const shown = name.slice(0, Math.floor(c01((age - 250) / 700) * name.length));
-  fb.txt(Math.floor((VW - name.length) / 2), 10, shown, mul(WH, fade), null, 1);
+  fb.txt(Math.floor((vw - name.length) / 2), 10, shown, mul(WH, fade), null, 1);
   const tagA = c01((age - 1000) / 600) * fade;
-  if (tagA > 0) fb.txt(Math.floor((VW - pal.tagline.length) / 2), 12, pal.tagline, mul(DIM, 0.4 + 0.8 * tagA), null, 0);
+  if (tagA > 0) fb.txt(Math.floor((vw - pal.tagline.length) / 2), 12, pal.tagline, mul(DIM, 0.4 + 0.8 * tagA), null, 0);
 }
 
 const BANNER_MS = 4500;
 
+export const OVERLAY_BOX = { x: 50, y: 17, w: 60, h: 11 };
+
 export function overlayBox(fb: Fb, kind: 'wipe' | 'cleared', st: GameState, now: number) {
-  const x = 50, y = 17, w = 60, h = 11;
+  const { x, y, w, h } = OVERLAY_BOX;
   const wipe = kind === 'wipe';
   fb.box(x, y, w, h, wipe ? 'PARTY WIPED' : 'DEPTH CLEARED', wipe ? PINK : MINT);
   const blink = Math.floor(now / 500) % 2 === 0;
@@ -335,4 +337,81 @@ export function overlayBox(fb: Fb, kind: 'wipe' | 'cleared', st: GameState, now:
     fb.ctxt(y + 7, 'Returning to the lobby…', blink ? MINT : mul(MINT, 0.6), PAN, 1);
   }
   void ramp; void c01;
+}
+
+/** Columns the touch buttons cover at the top right of the zoomed view (the HUD stays left of them). */
+export const COMPACT_TOP_BTNS = 36;
+const HUD_BG: RGB = [12, 11, 20];
+
+/**
+ * The HUD of the zoomed phone view (cols × rows from the top left of the grid): your bars, level, gold and depth
+ * on row 0; the target (or the stairs) and the party on row 1; the newest log line, or the chat being typed,
+ * on the bottom row. Skills and items are on the touch buttons.
+ */
+export function compactHud(fb: Fb, st: GameState, cols: number, rows: number, target: Ent | null, ui: UiState, now: number, reserve = COMPACT_TOP_BTNS) {
+  const me = st.party.find((p) => p.id === st.youId), m = st.me;
+  const hw = Math.max(30, cols - reserve);
+  fb.fill(0, 0, cols, 2, HUD_BG);
+  if (me) {
+    const c = CLS[me.cls];
+    let x = 1;
+    fb.put(x, 0, '♥', [255, 77, 109], null, 1); x += 2;
+    fb.bar(x, 0, 12, me.hp / Math.max(1, me.hpMax), me.downed ? [140, 40, 80] : [255, 77, 109], [40, 20, 34]); x += 13;
+    const hp = me.hp + '/' + me.hpMax;
+    fb.txt(x, 0, hp, TX); x += hp.length + 2;
+    fb.bar(x, 0, 8, me.res / Math.max(1, me.resMax), c.resCol, mul(c.resCol, 0.14)); x += 9;
+    const res = String(me.res);
+    fb.txt(x, 0, res, TX); x += res.length + 2;
+    if (m) {
+      x = fb.segs(x, 0, [['LV ' + m.lvl, WH, null, 1], [' ' + Math.min(99, Math.round((100 * m.xp) / Math.max(1, m.xpNeed))) + '%', [177, 120, 255]], ['  ' + m.gold + 'g', GOLD, null, 1]]) + 2;
+    }
+    const lv = st.level;
+    const depth = lv?.village ? 'HAVEN' : 'D' + String(lv?.depth ?? 1).padStart(2, '0');
+    if (x + depth.length < hw) fb.txt(x, 0, depth, [196, 186, 230], [44, 36, 68], 1);
+  }
+  // row 1: what you are fighting, or the way down; then the rest of the party
+  let x = 1;
+  if (me?.downed) x = fb.segs(x, 1, [['▼ DOWNED ' + (me.downT ?? 0) + 's', PINK, null, 1], [' · wait for a revive', DIM]]) + 2;
+  else if (me?.dead) x = fb.segs(x, 1, [['✖ FALLEN', PINK, null, 1]]) + 2;
+  else if (target) {
+    const name = (target.name || '').slice(0, 16);
+    fb.txt(x, 1, name, target.el ? [255, 120, 160] : TX, null, 1); x += name.length + 1;
+    fb.bar(x, 1, 10, (target.hp ?? 0) / Math.max(1, target.hpMax ?? 1), [255, 150, 90], [50, 24, 20]); x += 12;
+  } else if (st.obj) {
+    const o = st.obj, need = o.stairsNeed;
+    const t = o.stairsLeft > 0 ? ' ' + Math.ceil(o.stairsLeft / 20) + 's' : '';
+    const goal = o.boss && o.kingAlive ? '◆ slay ' + (o.bossName || 'the boss') : o.stairsFound ? '◆ stairs ' + o.stairsAt + '/' + need + t : '◇ find the stairs';
+    fb.txt(x, 1, goal.slice(0, 30), o.stairsLeft > 0 ? GOLD : DIM); x += Math.min(30, goal.length) + 2;
+  }
+  for (const p of st.party) {
+    if (p.id === st.youId || x + 8 > hw) continue;
+    const c = CLS[p.cls], gone = p.dead || p.downed || !p.connected;
+    fb.put(x, 1, '@', gone ? mul(c.col, 0.45) : c.col, null, 1);
+    if (p.dead) fb.txt(x + 1, 1, '✖', PINK);
+    else if (p.downed) fb.txt(x + 1, 1, '▼', PINK, null, 1);
+    else fb.bar(x + 1, 1, 5, p.hp / Math.max(1, p.hpMax), [255, 77, 109], [40, 20, 34]);
+    x += 8;
+  }
+  // bottom row: chat input, else the newest log line for a few seconds
+  const y = rows - 1, lw = Math.max(20, cols - 32);
+  if (ui.chatActive) {
+    fb.fill(0, y, cols, 1, [14, 13, 22]);
+    fb.txt(1, y, '»', PINK, null, 1);
+    const t = ui.chatText.slice(-(cols - 5));
+    fb.txt(3, y, t, WH);
+    if (Math.floor(now / 400) % 2 === 0) fb.put(3 + t.length, y, '█', PINK);
+    return;
+  }
+  const ln = st.log[st.log.length - 1];
+  if (ln && now - ln.at < 6000) {
+    const fade = c01((6000 - (now - ln.at)) / 800);
+    let lx = 1;
+    fb.fill(0, y, Math.min(cols, lw + 2), 1, mul(HUD_BG, fade));
+    for (const sg of ln.segs) {
+      if (lx >= lw) break;
+      const part = sg[0].slice(0, lw - lx);
+      fb.txt(lx, y, part, mul(sg[1], fade), null, sg[2] ?? 0);
+      lx += part.length;
+    }
+  }
 }
