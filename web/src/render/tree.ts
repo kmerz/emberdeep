@@ -84,3 +84,11 @@ export function treePanel(fb: Fb, st: GameState, sel: number, cls: keyof typeof 
   fb.segs(TREE.x + 2, TREE.y + TREE.h - 2, keys);
   if (m.respec) fb.txt(TREE.x + 2, TREE.y + TREE.h - 3, 'at the stairs: ' + keyLabel('panel', 'r', 'R') + ' resets every point for free', mul(GOLD, 0.8));
 }
+
+/** Screen cell → the panel selection (0-5, in PANEL_ORDER) of the skill box under it, or -1. */
+export function treeSelAt(cx: number, cy: number): number {
+  const row = Math.floor((cy - (TREE.y + 2)) / 5), ry = (cy - (TREE.y + 2)) % 5;
+  const col = Math.floor((cx - (TREE.x + 9)) / (BOX_W + 1)), rx = (cx - (TREE.x + 9)) % (BOX_W + 1);
+  if (row < 0 || row > 2 || ry > 3 || col < 0 || col > 1 || rx >= BOX_W || cy < TREE.y + 2 || cx < TREE.x + 9) return -1;
+  return row * 2 + col;
+}

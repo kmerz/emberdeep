@@ -64,7 +64,8 @@ Touch the screen and on-screen controls appear (a key press or gamepad hides the
 - **right thumb**: skills 1 2 3 (with cooldowns), `!` potion, items 4 and 5, `✚` revive (hold)
 - **tap the map** to aim skills and thrown items there for 4 s (otherwise they aim at the nearest enemy); **hold** a finger on the map to ping
 - **top row**: BAG (rucksack), TREE, QST (journal), MAP, SAY (chat, opens the phone keyboard), `♪` sound, `⛶` fullscreen
-- panels get OK, BACK and their own keys (DROP, USE, → 4, RESET, ...); tap a field on the start screen to type your name or a code
+- panels get OK, BACK and their own keys (DROP, USE, → 4, RESET, ...). Tap a row or slot to pick it, tap it again to
+  use, learn, buy, sell or accept it (this works with the mouse too); tap a field on the start screen to type your name or a code
 
 On phones the game shows a zoomed view: the map around your hero with a two-line HUD on top, and each panel on its own
 (MAP shows the minimap and objectives). Tablets keep the full screen. Play in landscape; on an iPhone use

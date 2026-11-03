@@ -8,6 +8,10 @@ import { dangerAt, camAxis } from '../src/screens/game';
 import { LandingScreen } from '../src/screens/landing';
 import { viewCell } from '../src/term/canvas';
 import { stickKeys } from '../src/touch';
+import { treeSelAt } from '../src/render/tree';
+import { questRowAt } from '../src/render/quests';
+import { shopAt } from '../src/render/shop';
+import { SHOP } from '../src/items';
 import { compactCols, landscapeScale } from '../src/mobile';
 import { displayEnts } from '../src/render/interp';
 import { Predictor, MOVE_MS } from '../src/render/predict';
@@ -445,6 +449,27 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   eq(row(0).slice(104).trim() + row(23).slice(104).trim(), '', 'zoomed HUD stays inside its columns');
   compactHud(fb, st, 104, 24, null, { chatActive: true, chatText: 'hi all' }, 2000);
   eq(row(23).includes('» hi all'), true, 'zoomed HUD: the chat being typed');
+}
+
+// --- tapping panels: which row or box is under a finger
+{
+  eq(treeSelAt(40, 6), 0, 'tree: top left skill box');
+  eq(treeSelAt(70, 6), 1, 'tree: top right skill box');
+  eq(treeSelAt(40, 16), 4, 'tree: bottom left skill box');
+  eq(treeSelAt(40, 10), -1, 'tree: the gap between tiers');
+  eq(treeSelAt(33, 6), -1, 'tree: the tier labels');
+  eq(questRowAt(3, 40, 6), 0, 'quests: first row');
+  eq(questRowAt(3, 40, 8), 2, 'quests: last row');
+  eq(questRowAt(3, 40, 9), -1, 'quests: below the list');
+  const st = new GameState();
+  st.me = { res: 0, resMax: 1, cd: [0, 0, 0], cdMax: [1, 1, 1], cost: [0, 0, 0], potions: 0, potCd: 0, gold: 0, xp: 0, xpNeed: 1, lvl: 1,
+    pack: [{ item: 'potion', n: 1 }], packCap: 12, binds: ['', '', ''], tree: [], points: 0, respec: false };
+  eq(shopAt(st, 40, 6), { kind: 'tab', side: 0, sel: 0 }, 'shop: the BUY header');
+  eq(shopAt(st, 62, 6), { kind: 'tab', side: 1, sel: 0 }, 'shop: the SELL header');
+  eq(shopAt(st, 40, 9), { kind: 'row', side: 0, sel: 1 }, 'shop: a buy row');
+  eq(shopAt(st, 62, 8), { kind: 'row', side: 1, sel: 0 }, 'shop: the one thing to sell');
+  eq(shopAt(st, 62, 9), null, 'shop: below the sell list');
+  eq(shopAt(st, 40, 8 + SHOP.length), null, 'shop: past the goods, no gear on offer');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

@@ -9,14 +9,14 @@ import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
 import { inventoryPanel, slotAt, wornAt, INV, WORN_WEAPON, WORN_TRINKET } from '../render/inventory';
 import { lorePanel, LORE_BOX } from '../render/lore';
-import { treePanel, PANEL_ORDER, TREE } from '../render/tree';
-import { shopPanel, sellSlots, buyCount, wareAt, SHOP_BOX } from '../render/shop';
-import { questBoardPanel, journalPanel, giverQuests, journalQuests, QUEST_BOX } from '../render/quests';
+import { treePanel, PANEL_ORDER, TREE, treeSelAt } from '../render/tree';
+import { shopPanel, sellSlots, buyCount, wareAt, SHOP_BOX, shopAt } from '../render/shop';
+import { questBoardPanel, journalPanel, giverQuests, journalQuests, QUEST_BOX, questRowAt } from '../render/quests';
 import { itemInfo, packCap, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner, compactHud, OVERLAY_BOX } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
-import { keyLabel, lastInput, type PadContext } from '../gamepad';
+import { keyLabel, lastInput, fakeKey, type PadContext } from '../gamepad';
 import { FULL, type Rect } from '../term/canvas';
 import { layout, COMPACT_ROWS } from '../mobile';
 import type { TouchBtn } from '../touch';
@@ -197,12 +197,7 @@ export class GameScreen implements Screen {
       return;
     }
     this.mouse = cell;
-    if (this.invOpen && ev.button === 0) {
-      const s = slotAt(cell[0], cell[1], packCap(this.app.st.me));
-      if (s >= 0) { this.invSel = s; ev.preventDefault(); return; }
-      const w = wornAt(cell[0], cell[1]);
-      if (w) { this.invSel = w; ev.preventDefault(); return; }
-    }
+    if (ev.button === 0 && this.panelClick(cell[0], cell[1])) { ev.preventDefault(); return; }
     if (this.invOpen && ev.button === 2) { // right-click a slot: put that item on key 4 (again: key 5)
       const s = slotAt(cell[0], cell[1], packCap(this.app.st.me));
       if (s >= 0) { this.invSel = s; this.bindItem(s); ev.preventDefault(); return; }
@@ -212,6 +207,38 @@ export class GameScreen implements Screen {
     if (!w) return;
     if (ev.altKey || ev.button === 1) { this.app.net.send({ t: 'ping', cell: w }); ev.preventDefault(); return; }
     if (ev.button === 0 && !this.ui.chatActive) this.cast(0);
+  }
+
+  /** A click or tap in an open panel: the first one selects a row, one on the selected row acts like Enter. */
+  private panelClick(cx: number, cy: number): boolean {
+    const st = this.app.st;
+    const pick = (cur: number, hit: number, set: (v: number) => void) => {
+      if (cur === hit) this.onKey(fakeKey('Enter')); else set(hit);
+      return true;
+    };
+    if (this.loreOpen) { this.onKey(fakeKey('Enter')); return true; } // reading done
+    if (this.invOpen) {
+      const s = slotAt(cx, cy, packCap(st.me));
+      if (s >= 0) return pick(this.invSel, s, (v) => { this.invSel = v; });
+      const w = wornAt(cx, cy);
+      return w ? pick(this.invSel, w, (v) => { this.invSel = v; }) : false;
+    }
+    if (this.treeOpen) {
+      const i = treeSelAt(cx, cy);
+      return i >= 0 && pick(this.treeSel, i, (v) => { this.treeSel = v; });
+    }
+    if (this.shopOpen && this.shopSide !== 2) {
+      const h = shopAt(st, cx, cy);
+      if (!h) return false;
+      if (h.kind === 'tab' || h.side !== this.shopSide) { this.shopSide = h.side; this.shopSel = h.kind === 'row' ? h.sel : 0; return true; }
+      return pick(this.shopSel, h.sel, (v) => { this.shopSel = v; });
+    }
+    const list = this.shopOpen ? giverQuests(st, 'grimble') : this.boardOpen ? giverQuests(st, 'board') : this.journalOpen ? journalQuests(st) : null;
+    if (!list) return false;
+    const i = questRowAt(list.length, cx, cy);
+    if (i < 0) return false;
+    if (this.journalOpen) { this.journalSel = i; return true; } // nothing to accept in the journal
+    return pick(this.shopOpen ? this.shopSel : this.boardSel, i, (v) => { if (this.shopOpen) this.shopSel = v; else this.boardSel = v; });
   }
 
   private panelOpen(): boolean {

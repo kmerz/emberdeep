@@ -103,6 +103,7 @@ export class TouchControls {
         if (!cur) return;
         el.setPointerCapture?.(e.pointerId);
         el.classList.add('on');
+        try { navigator.vibrate?.(8); } catch { /* not allowed here */ }
         if (cur.tap) { this.pressed.set(e.pointerId, ''); return; }
         this.pressed.set(e.pointerId, cur.key);
         this.sink.down(cur.key, false);

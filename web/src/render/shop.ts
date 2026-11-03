@@ -57,3 +57,18 @@ export function shopPanel(fb: Fb, st: GameState, side: 0 | 1 | 2, sel: number) {
   const keys: Seg[] = [['ENTER', WH, null, 1], [side === 0 ? ' buy · ' : ' sell · ', DIM], ['TAB', WH, null, 1], [' sell / errands · ', DIM], ['Esc', WH, null, 1], [' close', DIM]];
   fb.segs(b.x + 2, b.y + b.h - 2, keys);
 }
+
+/** Screen cell → what it hits in the shop: a side's header ('tab'), a row on a side ('row'), or null. */
+export function shopAt(st: GameState, cx: number, cy: number): { kind: 'tab' | 'row'; side: 0 | 1; sel: number } | null {
+  const b = SHOP_BOX;
+  if (cx < b.x + 1 || cx >= b.x + b.w - 1) return null;
+  const side: 0 | 1 = cx >= b.x + 25 ? 1 : 0;
+  if (cy === b.y + 1) return { kind: 'tab', side, sel: 0 };
+  if (side === 1) {
+    const i = cy - (b.y + 3);
+    return i >= 0 && i < Math.min(12, sellSlots(st).length) ? { kind: 'row', side, sel: i } : null;
+  }
+  if (cy >= b.y + 3 && cy < b.y + 3 + SHOP.length) return { kind: 'row', side, sel: cy - (b.y + 3) };
+  const w = cy - (b.y + 5 + SHOP.length);
+  return w >= 0 && w < (st.me?.wares?.length ?? 0) ? { kind: 'row', side, sel: SHOP.length + w } : null;
+}

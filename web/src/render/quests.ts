@@ -77,3 +77,9 @@ export function journalPanel(fb: Fb, st: GameState, sel: number) {
   drawList(fb, list, sel, 'JOURNAL · ' + list.filter((q) => q.state === 'active').length + ' active',
     'Nothing yet. The notice board on floor 1 has quests.', [['↑↓', WH, null, 1], [' pick · ', DIM], ['J', WH, null, 1], [' / ', DIM], ['Esc', WH, null, 1], [' close', DIM]]);
 }
+
+/** Screen cell → the row of a quest list with n entries, or -1. */
+export function questRowAt(n: number, cx: number, cy: number): number {
+  const b = QUEST_BOX, i = cy - (b.y + 2);
+  return cx > b.x && cx < b.x + b.w - 1 && i >= 0 && i < n ? i : -1;
+}
