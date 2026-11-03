@@ -1,9 +1,15 @@
 // Grimble's shop: buy on the left, sell from your rucksack on the right. Opens when you walk into him.
 import { Fb, Seg, DIM, TX, WH, GOLD, PINK } from '../term/fb';
+import type { GearView } from '../proto';
 import type { GameState } from '../state';
-import { SHOP, itemInfo, sellPrice, rarityCol } from '../items';
+import { SHOP, itemInfo, sellPrice, rarityCol, gearCh, modText } from '../items';
+import { gearDiff } from './inventory';
 
-export const SHOP_BOX = { x: 34, y: 6, w: 46, h: 16 };
+export const SHOP_BOX = { x: 34, y: 5, w: 46, h: 24 };
+
+/** The buy side: Grimble's goods, then his gear for you (sold pieces stay as empty rows). */
+export function buyCount(st: GameState): number { return SHOP.length + (st.me?.wares?.length ?? 0); }
+export function wareAt(st: GameState, sel: number): GearView | null | undefined { return st.me?.wares?.[sel - SHOP.length]; }
 
 /** Rucksack slots that hold something (what the sell side lists). */
 export function sellSlots(st: GameState): number[] {
@@ -21,9 +27,27 @@ export function shopPanel(fb: Fb, st: GameState, side: 0 | 1 | 2, sel: number) {
     fb.txt(b.x + 4, y, it.name.slice(0, 16), gold >= s.price ? (on ? WH : TX) : DIM, null, on ? 1 : 0);
     fb.txt(b.x + 21, y, String(s.price).padStart(3), gold >= s.price ? GOLD : PINK);
   });
+  const wares = st.me?.wares ?? [];
+  if (wares.length) fb.txt(b.x + 2, b.y + 4 + SHOP.length, 'GEAR FOR YOU', side === 0 ? GOLD : DIM, null, 1);
+  wares.forEach((g, i) => {
+    const on = side === 0 && SHOP.length + i === sel, y = b.y + 5 + SHOP.length + i;
+    fb.txt(b.x + 2, y, on ? '▸' : ' ', GOLD);
+    if (!g) { fb.txt(b.x + 4, y, '· sold', DIM); return; }
+    const price = g.price ?? 0;
+    fb.put(b.x + 4, y, gearCh(g, g.slot), rarityCol(g.rar), null, 1);
+    fb.txt(b.x + 6, y, g.name.slice(0, 13), on ? WH : rarityCol(g.rar), null, on ? 1 : 0);
+    fb.txt(b.x + 20, y, String(price).padStart(4), gold >= price ? GOLD : PINK);
+  });
+  const g = side === 0 ? wareAt(st, sel) : undefined;
+  if (g) { // the selected piece, in full
+    let y = b.y + 6 + SHOP.length + wares.length;
+    fb.segs(b.x + 2, y++, [[g.name, rarityCol(g.rar), null, 1], [' · level ' + g.lvl + ' ' + g.slot, DIM]]);
+    fb.txt(b.x + 4, y++, g.mods.map(modText).join(' · ').slice(0, b.w - 6), TX);
+    for (const line of gearDiff(g, st.me?.[g.slot], b.w - 6).slice(0, 2)) fb.segs(b.x + 4, y++, line);
+  }
   const slots = sellSlots(st), pack = st.me?.pack ?? [];
   if (!slots.length) fb.txt(b.x + 26, b.y + 3, 'nothing to sell', DIM);
-  slots.slice(0, 10).forEach((slot, i) => {
+  slots.slice(0, 12).forEach((slot, i) => {
     const s = pack[slot], it = itemInfo(s.item), on = side === 1 && i === sel, y = b.y + 3 + i;
     fb.txt(b.x + 25, y, on ? '▸' : ' ', GOLD);
     if (s.g) fb.txt(b.x + 27, y, s.g.name.slice(0, 13).padEnd(14), on ? WH : rarityCol(s.g.rar), null, on ? 1 : 0);

@@ -115,10 +115,13 @@ export function inventoryPanel(fb: Fb, st: GameState, sel: number, itemKeys: str
 
 /** One or two lines: how wearing g instead of worn changes the hero's stats. Returns the next free row. */
 function compare(fb: Fb, y: number, g: GearView, worn: GearView | undefined): number {
-  if (!worn) {
-    fb.txt(INV.x + 4, y++, 'you wear no ' + g.slot + ': all of it is a gain', UP);
-    return y;
-  }
+  for (const line of gearDiff(g, worn, INV.w - 6)) fb.segs(INV.x + 4, y++, line);
+  return y;
+}
+
+/** How wearing g instead of worn changes the hero's stats, as lines of at most width cells. */
+export function gearDiff(g: GearView, worn: GearView | undefined, width: number): Seg[][] {
+  if (!worn) return [[['you wear no ' + g.slot + ': all of it is a gain', UP]]];
   const d: Record<string, number> = {};
   for (const m of g.mods) d[m.k] = (d[m.k] ?? 0) + m.v;
   for (const m of worn.mods) d[m.k] = (d[m.k] ?? 0) - m.v;
@@ -131,14 +134,14 @@ function compare(fb: Fb, y: number, g: GearView, worn: GearView | undefined): nu
     any = true;
   }
   if (!any) segs.push(['the same', DIM]);
-  // wrap by hand: segments onto lines of the panel's width
+  // wrap by hand: segments onto lines of the given width
+  const lines: Seg[][] = [];
   let line: Seg[] = [], w = 0;
-  const flush = () => { if (line.length) fb.segs(INV.x + 4, y++, line); line = []; w = 0; };
   for (const sg of segs) {
-    if (w + sg[0].length > INV.w - 6 && w > 0) flush();
+    if (w + sg[0].length > width && w > 0) { lines.push(line); line = []; w = 0; }
     line.push(sg);
     w += sg[0].length;
   }
-  flush();
-  return y;
+  if (line.length) lines.push(line);
+  return lines;
 }

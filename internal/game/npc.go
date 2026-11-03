@@ -1,5 +1,7 @@
 package game
 
+import "strings"
+
 // The gnome village: friendly gnomes, Grimble the trader, and the Scroll of Return's portal.
 
 // Npc is a friendly gnome. Like a chest it fills its cell, so attacks and paths treat it as an obstacle;
@@ -201,6 +203,9 @@ func (g *Game) nextToTrader(h *Hero) bool {
 func (g *Game) applyBuy(h *Hero, id string) error {
 	if !g.nextToTrader(h) {
 		return ErrNotHere
+	}
+	if strings.HasPrefix(id, "gear") {
+		return g.buyWare(h, id)
 	}
 	price := -1
 	for _, s := range ShopStock {

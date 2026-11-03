@@ -110,6 +110,8 @@ Saves untouched for 30 days are deleted.
   trade: he sells potions, draughts, lamp oil, Scrolls of Light, firebombs, Scrolls of Return and a Gnome Satchel
   (+4 rucksack slots, 200 gold, one per hero), and buys
   anything (trade goods for their value, everything else for half its price). Everyone shops with their own gold.
+  Each visit he also has three pieces of gear for each hero (magic or rare, for your class and the next floor),
+  at twice what he would pay for them.
 - A Scroll of Return, read anywhere below the village, opens a portal for 30 s. When the whole party stands in it
   for 3 s you go back to the village; its stairs then lead back down to a fresh copy of the floor you left.
 - Deep monsters: Shades (floors 6-8) stay invisible until they're within 3 cells. Floor 8, the Abyss Gate, adds

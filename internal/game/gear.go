@@ -1,6 +1,9 @@
 package game
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // Gear: every hero has a weapon slot and a trinket slot. A piece of gear is rolled when it drops: a base
 // (picked for the class of the hero it drops for), an item level (the floor), a rarity, and 0-2 bonuses.
@@ -318,4 +321,60 @@ func (h *Hero) leech(dmg int) {
 // resGain scales a resource gain by the hero's gear.
 func (h *Hero) resGain(n float64) float64 {
 	return n * (1 + float64(h.GearStat("res"))/100)
+}
+
+// Grimble's gear: each visit to the village he has a few rolled pieces for every hero, made for their class
+// and the floor below. They are bought with IntBuy, Skill "gear0", "gear1", ...
+const (
+	WaresPerHero = 3
+	WaresBuyMult = 2 // he sells for this many times what he pays
+)
+
+// WarePrice is what Grimble asks for a piece.
+func WarePrice(gr *Gear) int { return gr.Value() * WaresBuyMult }
+
+// stockWares rolls a hero's wares if they have none for this visit.
+func (g *Game) stockWares(h *Hero) {
+	if !g.InVillage || g.Wares[h.ID] != nil {
+		return
+	}
+	lvl := g.ReturnDepth
+	if lvl == 0 {
+		lvl = g.Depth + 1 // the floor after the village
+	}
+	w := make([]*Gear, WaresPerHero)
+	for i := range w {
+		w[i] = g.rollGear(h.Cls, lvl, Magic)
+	}
+	g.Wares[h.ID] = w
+}
+
+// buyWare buys ware i ("gear0"...) of the hero's own wares. It goes on if the slot is empty, else into the rucksack.
+func (g *Game) buyWare(h *Hero, id string) error {
+	var i int
+	if _, err := fmt.Sscanf(id, "gear%d", &i); err != nil {
+		return ErrNoItem
+	}
+	w := g.Wares[h.ID]
+	if i < 0 || i >= len(w) || w[i] == nil {
+		return ErrNoItem
+	}
+	gr := w[i]
+	price := WarePrice(gr)
+	if h.Gold < price {
+		return ErrNoGold
+	}
+	worn := h.Weapon
+	if gr.Slot == "trinket" {
+		worn = h.Trinket
+	}
+	if worn == nil {
+		h.wear(gr.Slot, gr)
+	} else if !h.addGear(gr) {
+		return ErrPackFull
+	}
+	w[i] = nil
+	h.Gold -= price
+	g.emit(Event{K: "trade", Actor: h.ID, X: h.X, Y: h.Y, FX: gr.Slot, Amount: -price, Text: gr.Name})
+	return nil
 }

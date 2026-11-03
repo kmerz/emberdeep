@@ -183,3 +183,38 @@ func TestBotsWearBetterGear(t *testing.T) {
 		t.Fatal("and not swap back")
 	}
 }
+
+func TestGrimbleSellsGearForYourClass(t *testing.T) {
+	g, h := villageWithTrader(t)
+	w := g.Wares[h.ID]
+	if len(w) != WaresPerHero {
+		t.Fatalf("expected %d wares, got %d", WaresPerHero, len(w))
+	}
+	for _, gr := range w {
+		if b := GearBases[gr.Base]; gr.Rarity < Magic || gr.Lvl != VillageAfter+1 || (b.Slot == "weapon" && b.Class != Monk) {
+			t.Fatalf("wares should be magic or better, level %d, for a monk: %+v", VillageAfter+1, gr)
+		}
+	}
+	gr := w[0]
+	h.Gold = WarePrice(gr) - 1
+	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "gear0"}); err != ErrNoGold {
+		t.Fatalf("too poor: %v", err)
+	}
+	h.Gold++
+	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "gear0"}); err != nil {
+		t.Fatal(err)
+	}
+	worn := h.Weapon
+	if gr.Slot == "trinket" {
+		worn = h.Trinket
+	}
+	if h.Gold != 0 || worn != gr || w[0] != nil {
+		t.Fatalf("the piece should be worn and paid for: gold %d", h.Gold)
+	}
+	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "gear0"}); err != ErrNoItem {
+		t.Fatalf("a sold piece is gone: %v", err)
+	}
+	if err := g.Apply(1, Intent{Kind: IntBuy, Skill: "gear9"}); err != ErrNoItem {
+		t.Fatalf("no such ware: %v", err)
+	}
+}

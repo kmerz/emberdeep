@@ -10,7 +10,7 @@ import { Predictor, DIRS } from '../render/predict';
 import { inventoryPanel, slotAt, wornAt, INV, WORN_WEAPON, WORN_TRINKET } from '../render/inventory';
 import { lorePanel } from '../render/lore';
 import { treePanel, PANEL_ORDER } from '../render/tree';
-import { shopPanel, sellSlots } from '../render/shop';
+import { shopPanel, sellSlots, buyCount, wareAt } from '../render/shop';
 import { questBoardPanel, journalPanel, giverQuests, journalQuests } from '../render/quests';
 import { itemInfo, packCap, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner } from '../render/hud';
@@ -205,14 +205,17 @@ export class GameScreen implements Screen {
     const st = this.app.st, net = this.app.net;
     if (ev.key === 'Escape') { this.shopOpen = false; return true; }
     if (ev.key === 'Tab') { this.shopSide = ((this.shopSide + 1) % 3) as 0 | 1 | 2; this.shopSel = 0; return true; }
-    const n = this.shopSide === 0 ? SHOP.length : Math.min(10, sellSlots(st).length);
+    const n = this.shopSide === 0 ? buyCount(st) : Math.min(12, sellSlots(st).length);
     if (k === 'arrowup') { this.shopSel = (this.shopSel + n - 1) % Math.max(1, n); return true; }
     if (k === 'arrowdown') { this.shopSel = (this.shopSel + 1) % Math.max(1, n); return true; }
     if (ev.repeat) return false;
     if (ev.key === 'Enter' || k === 'u') {
       if (this.shopSide === 0) {
         const s = SHOP[this.shopSel], me = this.app.st.me;
-        if (s?.item === 'oil' && me?.oilMax && (me.oil ?? 0) > me.oilMax - 75) this.app.st.pushLog([['Your lantern is already full', DIM]]);
+        if (this.shopSel >= SHOP.length) { // Grimble's gear
+          if (wareAt(st, this.shopSel)) net.send({ t: 'buy', skill: 'gear' + (this.shopSel - SHOP.length), seq: this.pred.nextSeq() });
+          else st.pushLog([['Grimble', [255, 212, 92], 1], [': Sold, sold! Come back next time.', [140, 220, 120]]]);
+        } else if (s?.item === 'oil' && me?.oilMax && (me.oil ?? 0) > me.oilMax - 75) this.app.st.pushLog([['Your lantern is already full', DIM]]);
         else if (s) net.send({ t: 'buy', skill: s.item, seq: this.pred.nextSeq() });
       }
       else { const slot = sellSlots(st)[this.shopSel]; if (slot !== undefined) net.send({ t: 'sell', slot, seq: this.pred.nextSeq() }); }

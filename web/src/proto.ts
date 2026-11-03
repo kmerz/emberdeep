@@ -33,6 +33,7 @@ export interface Me {
   points: number;   // unspent skill points
   respec: boolean;  // at the stairs: the tree can be reset
   weapon?: GearView; trinket?: GearView; // what the hero wears
+  wares?: (GearView | null)[]; // in the village: Grimble's gear for you (null = sold)
 }
 export interface PackSlot { item: string; n: number; g?: GearView /* a weapon or trinket */ }
 /** A rolled weapon or trinket (internal/game/gear.go). */
@@ -41,6 +42,7 @@ export interface GearView {
   rar: number; // 0 common, 1 magic, 2 rare
   lvl: number; mods: { k: string; v: number }[]; // the base stat first
   value: number; // what Grimble pays
+  price?: number; // Grimble's wares: what he asks
 }
 export interface Snap {
   t: 'snap'; tick: number; ackSeq?: number; vis: Vis; ents: Ent[]; party: PartyEntry[]; obj: Objectives;

@@ -225,8 +225,9 @@ type GearView struct {
 	Name  string    `json:"name"`
 	Rar   int       `json:"rar"` // 0 common, 1 magic, 2 rare
 	Lvl   int       `json:"lvl"`
-	Mods  []GearMod `json:"mods"`  // the base stat first
-	Value int       `json:"value"` // what Grimble pays
+	Mods  []GearMod `json:"mods"`            // the base stat first
+	Value int       `json:"value"`           // what Grimble pays
+	Price int       `json:"price,omitempty"` // Grimble's wares: what he asks
 }
 
 type GearMod struct {
@@ -269,6 +270,7 @@ type Me struct {
 	OilMax  int         `json:"oilMax"`          // seconds in a full lantern
 	Weapon  *GearView   `json:"weapon,omitempty"`
 	Trinket *GearView   `json:"trinket,omitempty"`
+	Wares   []*GearView `json:"wares,omitempty"` // in the village: Grimble's gear for you (null = sold)
 }
 
 // SnapShared is the part of a snapshot identical for every client of a room.

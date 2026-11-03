@@ -149,6 +149,7 @@ type Game struct {
 	Traps   []*Trap
 
 	InVillage   bool
+	Wares       map[int][]*Gear // Grimble's gear for each hero, this visit (gear.go)
 	VillageSeen bool
 	ReturnDepth int // where the village stairs lead after a Scroll of Return (0 = the floor after the village)
 	PortalAt    int
@@ -236,6 +237,10 @@ func (g *Game) loadFloor(depth int) {
 func (g *Game) loadVillage() {
 	g.InVillage, g.VillageSeen = true, true
 	g.setupFloor(g.Depth, GenerateVillage(g.Seed), g.Seed^0x6E0BE)
+	g.Wares = map[int][]*Gear{}
+	for _, h := range g.Heroes {
+		g.stockWares(h)
+	}
 }
 
 func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
@@ -464,6 +469,7 @@ func (g *Game) AddHero(id int, name string, cls ClassID) *Hero {
 	if _, ok := g.arrival[id]; !ok {
 		g.arrival[id] = h.save()
 	}
+	g.stockWares(h)
 	return h
 }
 

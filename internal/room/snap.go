@@ -258,6 +258,15 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 		me.Pack[i] = proto.PackSlot{Item: s.Item, N: s.N, G: proto.ViewGear(s.G)}
 	}
 	me.Weapon, me.Trinket = proto.ViewGear(h.Weapon), proto.ViewGear(h.Trinket)
+	if g.InVillage {
+		for _, w := range g.Wares[pid] {
+			v := proto.ViewGear(w)
+			if v != nil {
+				v.Price = game.WarePrice(w)
+			}
+			me.Wares = append(me.Wares, v)
+		}
+	}
 	me.Binds = make([]string, 3)
 	for i := 0; i < 3; i++ {
 		me.CD[i], me.CDMax[i], me.Cost[i] = keyInfo(g, h, i)
