@@ -70,7 +70,12 @@ var GearStats = map[string]GearStat{
 	"thorns":  {"Thorned", "of Thorns", 10, 2},   // % of damage taken dealt back
 	"slayer":  {"Slaying", "of the Hunt", 10, 2}, // % more damage to bosses and hunt targets
 	"lantern": {"Bright", "of Light", 1, 0},      // a lantern that never runs out
+	"execute": {"Merciless", "of Mercy", 10, 2},  // % more damage to monsters below ExecuteBelow % HP
+	"gold":    {"Greedy", "of Greed", 10, 3},     // % more gold picked up
 }
+
+// ExecuteBelow: "execute" gear hits harder on monsters with less than this % of their HP left.
+const ExecuteBelow = 35
 
 // Caps on the hero's totals.
 var GearCaps = map[string]int{"crit": 40, "leech": 15, "cdr": 35, "armor": 50}
@@ -143,21 +148,37 @@ func (g *Game) rollGear(cls ClassID, lvl, minRar int) *Gear {
 		rar = Magic
 	}
 	rar = max(rar, minRar)
-	roll := func(base, per float64) int {
-		v := (base + per*float64(lvl)) * (GearRollMin + (1-GearRollMin)*g.rng.Float())
-		return max(1, int(math.Round(v)))
+	gr := &Gear{Slot: b.Slot, Base: b.ID, Rarity: rar, Lvl: lvl, Mods: []Mod{{b.Stat, g.gearRoll(b.Base, b.PerLvl, lvl)}}}
+	g.addBonuses(gr, rar)
+	gr.Name = gearName(gr)
+	return gr
+}
+
+// gearRoll is one stat's value at item level lvl: (base + per·lvl) times a roll between GearRollMin and 1.
+func (g *Game) gearRoll(base, per float64, lvl int) int {
+	v := (base + per*float64(lvl)) * (GearRollMin + (1-GearRollMin)*g.rng.Float())
+	return max(1, int(math.Round(v)))
+}
+
+// addBonuses rolls n more bonuses onto gr, none it already has as a bonus (Mods[0] is the base stat).
+func (g *Game) addBonuses(gr *Gear, n int) {
+	var pool []string
+	for _, k := range GearBases[gr.Base].Bonuses {
+		taken := false
+		for _, m := range gr.Mods[1:] {
+			taken = taken || m.K == k
+		}
+		if !taken {
+			pool = append(pool, k)
+		}
 	}
-	gr := &Gear{Slot: b.Slot, Base: b.ID, Rarity: rar, Lvl: lvl, Mods: []Mod{{b.Stat, roll(b.Base, b.PerLvl)}}}
-	pool := append([]string(nil), b.Bonuses...)
-	for i := 0; i < rar; i++ {
+	for i := 0; i < n && len(pool) > 0; i++ {
 		j := g.rng.Intn(len(pool))
 		k := pool[j]
 		pool = append(pool[:j], pool[j+1:]...)
 		st := GearStats[k]
-		gr.Mods = append(gr.Mods, Mod{k, roll(st.Base, st.PerLvl)})
+		gr.Mods = append(gr.Mods, Mod{k, g.gearRoll(st.Base, st.PerLvl, gr.Lvl)})
 	}
-	gr.Name = gearName(gr)
-	return gr
 }
 
 // gearName: "Iron Axe", "Keen Iron Axe", "Keen Iron Axe of Haste"; trinkets have no metal.
@@ -178,7 +199,10 @@ func gearName(gr *Gear) string {
 
 // dropGear puts a new piece of gear for h on the floor at x, y.
 func (g *Game) dropGear(h *Hero, x, y, minRar int) {
-	gr := g.rollGear(h.Cls, g.Depth, minRar)
+	gr := g.worldUnique(h)
+	if gr == nil {
+		gr = g.rollGear(h.Cls, g.Depth, minRar)
+	}
 	g.Items = append(g.Items, &Item{ID: g.newID(), Kind: Items[gr.Slot].Glyph, Def: gr.Slot, X: x, Y: y, Amount: 1, Owner: h.ID, G: gr})
 	if gr.Rarity >= Rare {
 		g.emit(Event{K: "raredrop", Actor: h.ID, X: x, Y: y, Text: gr.Name, Amount: gr.Rarity})
@@ -388,14 +412,21 @@ func (g *Game) buyWare(h *Hero, id string) error {
 	return nil
 }
 
-// Uniques: hand-made pieces, one per boss. Every hero gets one when the boss dies. They carry effects random
-// gear never rolls: "regen" (HP per second), "thorns" (% of melee damage taken dealt back), "slayer" (% more
-// damage to bosses and hunt targets) and "lantern" (a light that never runs out).
+// Uniques: hand-made pieces. Each boss has one, and every hero gets it when the boss dies. The rest are world
+// drops: on deep floors any gear drop may rarely be one instead (a weapon for the hero's class, or a trinket).
+// They carry effects random gear never rolls: "regen" (HP per second), "thorns" (% of melee damage taken dealt
+// back), "slayer" (% more damage to bosses and hunt targets), "lantern" (a light that never runs out),
+// "execute" (% more damage to badly hurt monsters) and "gold" (% more gold picked up).
 const Unique = Rare + 1
+
+const (
+	UniqueWorldDepth  = 6    // world uniques drop from this floor down
+	UniqueWorldChance = 0.04 // of every gear drop there
+)
 
 type UniqueDef struct {
 	ID, Name, Base, Lore string
-	Boss                 byte
+	Boss                 byte // 0 = a world drop
 	Lvl                  int
 	Mods                 []Mod
 }
@@ -407,17 +438,70 @@ var Uniques = []UniqueDef{
 		Mods: []Mod{{"armor", 12}, {"thorns", 40}, {"lantern", 1}}},
 	{ID: "heart", Name: "Heart of the Ember Dragon", Base: "talisman", Boss: FinalBoss, Lvl: 10, Lore: "It still beats, slowly, when you are angry.",
 		Mods: []Mod{{"dmg", 25}, {"crit", 12}, {"slayer", 30}}},
+	// world drops: one weapon per class, and two trinkets
+	{ID: "grudge", Name: "Grudgebearer", Base: "axe", Lvl: 8, Lore: "Every notch in the blade is a name it remembers.",
+		Mods: []Mod{{"dmg", 34}, {"armor", 10}, {"thorns", 30}}},
+	{ID: "whisper", Name: "The Last Whisper", Base: "kris", Lvl: 8, Lore: "It only ever needed to be quiet once.",
+		Mods: []Mod{{"dmg", 30}, {"crit", 15}, {"execute", 50}}},
+	{ID: "ninth", Name: "The Ninth Ember", Base: "rod", Lvl: 8, Lore: "Lit from the dragon's own breath. It has not forgiven anyone.",
+		Mods: []Mod{{"dmg", 30}, {"cdr", 18}, {"res", 30}}},
+	{ID: "pilgrim", Name: "Pilgrim's Knuckles", Base: "knuckles", Lvl: 8, Lore: "Worn smooth on a thousand stairs. Each one healed something.",
+		Mods: []Mod{{"dmg", 28}, {"leech", 8}, {"regen", 3}}},
+	{ID: "coin", Name: "Gravedigger's Coin", Base: "charm", Lvl: 7, Lore: "Paid to the dead, and the dead paid it back.",
+		Mods: []Mod{{"armor", 8}, {"gold", 50}}},
+	{ID: "eye", Name: "The Glass Eye", Base: "amulet", Lvl: 7, Lore: "It looks where you are about to hit.",
+		Mods: []Mod{{"hp", 30}, {"crit", 8}, {"execute", 30}}},
+}
+
+func (u UniqueDef) make() *Gear {
+	return &Gear{Slot: GearBases[u.Base].Slot, Base: u.Base, Name: u.Name, Rarity: Unique, Lvl: u.Lvl, Lore: u.Lore, Mods: append([]Mod(nil), u.Mods...)}
 }
 
 // uniqueFor makes the boss's unique, or nil if it has none.
 func uniqueFor(boss byte) *Gear {
 	for _, u := range Uniques {
-		if u.Boss == boss {
-			gr := &Gear{Slot: GearBases[u.Base].Slot, Base: u.Base, Name: u.Name, Rarity: Unique, Lvl: u.Lvl, Lore: u.Lore, Mods: append([]Mod(nil), u.Mods...)}
-			return gr
+		if u.Boss != 0 && u.Boss == boss {
+			return u.make()
 		}
 	}
 	return nil
+}
+
+// worldUnique rolls whether a gear drop for h on this floor is a world unique instead, and which. It is never
+// one the hero already has (worn, in the rucksack, or lying on the floor for them).
+func (g *Game) worldUnique(h *Hero) *Gear {
+	if g.InVillage || g.Depth < UniqueWorldDepth || !g.rng.Chance(UniqueWorldChance) {
+		return nil
+	}
+	var pool []UniqueDef
+	for _, u := range Uniques {
+		b := GearBases[u.Base]
+		if u.Boss == 0 && (b.Slot == "trinket" || b.Class == h.Cls) && !g.hasGear(h, u.Name) {
+			pool = append(pool, u)
+		}
+	}
+	if len(pool) == 0 {
+		return nil
+	}
+	return pool[g.rng.Intn(len(pool))].make()
+}
+
+// hasGear reports whether h has a piece of this name: worn, in the rucksack, or on the floor waiting for them.
+func (g *Game) hasGear(h *Hero, name string) bool {
+	if (h.Weapon != nil && h.Weapon.Name == name) || (h.Trinket != nil && h.Trinket.Name == name) {
+		return true
+	}
+	for _, s := range h.Pack {
+		if s.G != nil && s.G.Name == name {
+			return true
+		}
+	}
+	for _, it := range g.Items {
+		if it.G != nil && it.Owner == h.ID && it.G.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // dropUnique drops the boss's unique for h, if it has one. It reports whether it did.

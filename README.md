@@ -100,6 +100,9 @@ Saves untouched for 30 days are deleted.
 - Uniques (orange): each boss also drops its own trinket for every hero, with an effect random gear never has.
   The Ant Queen's Royal Jelly Locket regenerates HP; the Tallow King's Wick deals 40% of damage taken back and is
   a lantern that never runs out; the Heart of the Ember Dragon adds damage against bosses and hunt targets.
+  From floor 6 down, any gear drop has a 4% chance to be a world unique instead: one weapon per class
+  (Grudgebearer, The Last Whisper, The Ninth Ember, Pilgrim's Knuckles) or a trinket (Gravedigger's Coin: more
+  gold; The Glass Eye: more damage to badly hurt monsters). A hero never finds a second copy of one they have.
 - Floor 7, The Black Hollow, is pitch black: you see only what a light reaches. Every hero carries a lantern
   that lights itself there and burns oil only on dark floors (5 minutes to start, 10 when full; the hotbar shows
   what is left). Lamp oil drops from monsters and chests and goes straight into the lantern, never into the
@@ -140,6 +143,10 @@ Saves untouched for 30 days are deleted.
   anything (trade goods for their value, everything else for half its price). Everyone shops with their own gold.
   Each visit he also has three pieces of gear for each hero (magic or rare, for your class and the next floor),
   at twice what he would pay for them.
+- Bramwick the smith has a forge on the plaza, west of Grimble. Walk into him to work on the gear you wear:
+  temper it (one rarity up, common → magic → rare: it keeps its bonuses and gains one; costs what the tempered
+  piece is worth) or reforge it (its bonuses are rolled again; half its value). He won't touch uniques
+  (`internal/game/forge.go`).
 - A Scroll of Return, read anywhere below the village, opens a portal for 30 s. When the whole party stands in it
   for 3 s you go back to the village; its stairs then lead back down to a fresh copy of the floor you left.
 - Deep monsters: Shades (floors 6-8) stay invisible until they're within 3 cells. Floor 8, the Abyss Gate, adds
@@ -148,7 +155,7 @@ Saves untouched for 30 days are deleted.
   (spit fire, bite up close) and Magma Golems (slow, tough, leave burning ground). Floor 10's boss is the Ember
   Dragon: it winds up for a second before breathing a cone of fire that keeps burning, so step out of it.
 - Sidequests: the mayor's notice board `≡` in floor 1's first room and Grimble in the village (TAB to his
-  errands) each offer 3 quests per run: hunt a named monster, rescue a lost gnome (walk into them, then lead them
+  errands) each offer 3 quests per run, picked from 8 each: hunt a named monster, rescue a lost gnome (walk into them, then lead them
   to the stairs; the stairs wait for them), fetch an item, or collect a few things. Quests are shared: anyone
   accepts, everyone gets the gold and XP, and some give each hero a skill point. Fetch and collect quests are
   handed in by walking into Grimble. `J` opens the journal. The quests live in `internal/game/quests.go`.
@@ -175,6 +182,9 @@ Saves untouched for 30 days are deleted.
   revives, potions, gold, best hit and what downed them last, with a title each ("the Butcher", "the Lifeline",
   "the Floor Inspector", ...). The stats survive a retry and a save (`internal/game/stats.go`). The log also
   says what downed a hero: "vela is DOWN! · an Imp's firebolt · 34 dmg".
+- Hall of Fame: the landing page lists the best 8 runs that reached the bottom on this server, ranked by
+  difficulty, then fewest wipes, then play time (over every session of a saved run). It is kept in
+  `hall-of-fame.json` in the save directory (`GET /api/fame`); runs of bots alone do not count.
 - Floors come in four themes, each with its own look, light and monster mix: Cathedral of Ash (1-2), Flooded
   Crypt (3-5), Fungal Caverns (6-8, cave-shaped rooms, glowing fungus) and Ember Depths (9-10). The bands live in
   `ThemeBands` in `balance.go`; the client palettes in `web/src/render/themes.ts`.

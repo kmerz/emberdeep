@@ -114,3 +114,6 @@ func (g *Game) cause(srcID int, how string) string {
 	}
 	return how
 }
+
+// PlayTicks is how long the run has been played, over every session of it.
+func (g *Game) PlayTicks() int { return g.Played + g.Now }

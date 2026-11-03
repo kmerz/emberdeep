@@ -271,3 +271,68 @@ func TestBossUniques(t *testing.T) {
 		t.Fatalf("2 HP a second: hp %d", h.HP)
 	}
 }
+
+func TestWorldUniques(t *testing.T) {
+	g := arena(1)
+	h := hero(g, 1, Rogue, 40, 25)
+	for i := 0; i < 500; i++ {
+		g.dropGear(h, 41, 25, Common)
+	}
+	for _, it := range g.Items {
+		if it.G != nil && it.G.Rarity == Unique {
+			t.Fatal("no world uniques on the upper floors")
+		}
+	}
+	g.Items = nil
+	g.Depth = UniqueWorldDepth
+	got := map[string]int{}
+	for i := 0; i < 2000; i++ {
+		g.dropGear(h, 41, 25, Common)
+	}
+	for _, it := range g.Items {
+		if it.G != nil && it.G.Rarity == Unique {
+			got[it.G.Name]++
+			if it.G.Slot == "weapon" && it.G.Base != "kris" {
+				t.Fatalf("a rogue only finds the rogue's weapon: %s", it.G.Name)
+			}
+		}
+	}
+	if len(got) != 3 {
+		t.Fatalf("the kris and both trinkets should drop: %v", got)
+	}
+	for n, c := range got {
+		if c != 1 {
+			t.Fatalf("a hero never gets a second %s while the first is still around (%d)", n, c)
+		}
+	}
+}
+
+func TestExecuteAndGold(t *testing.T) {
+	g := arena(1)
+	h := hero(g, 1, Rogue, 40, 25)
+	for _, u := range Uniques {
+		if u.ID == "whisper" {
+			h.wear("weapon", u.make())
+		}
+		if u.ID == "coin" {
+			h.wear("trinket", u.make())
+		}
+	}
+	m := g.addMon('h', 42, 25, 1)
+	m.HP, m.HPMax = 1000, 1000
+	g.damageMonster(m, 100, h.ID, true)
+	if m.HP != 900 {
+		t.Fatalf("a healthy monster takes plain damage: %d", m.HP)
+	}
+	m.HP = 300
+	g.damageMonster(m, 100, h.ID, true)
+	if m.HP != 150 {
+		t.Fatalf("+50%% below %d%% HP: %d", ExecuteBelow, m.HP)
+	}
+	g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '$', X: h.X, Y: h.Y, Amount: 20})
+	gold := h.Gold
+	g.pickup(h)
+	if h.Gold-gold != 30 {
+		t.Fatalf("+50%% gold: got %d", h.Gold-gold)
+	}
+}

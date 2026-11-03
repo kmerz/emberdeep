@@ -24,13 +24,13 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [x] [L] Gear: a weapon and a trinket slot, common/magic/rare with 0-2 bonuses, class weapons, loot beams for rare drops
 - [x] [M] Grimble sells a few rolled pieces per visit (answers "what do the gnomes trade?")
 - [x] [S] Unique items: one hand-made trinket per boss (regen, thorns + endless lantern, slayer)
-- [ ] [S] More uniques: rare world drops on deep floors, and one weapon per class
+- [x] [S] More uniques: rare world drops on deep floors, and one weapon per class
 - [x] [M] Shrines: haste, fury, blood, fortune, or a gamble (Shrine of Chance)
 
 ## 3c. Run feel
 - [x] [M] Floor events: 1 in 4 floors gets something special (a treasure goblin, "the dead stir", a cursed floor with double gold)
 - [x] [M] Run summary: per-hero stats at the end (damage, kills, revives, times downed) and a funny title each
-- [ ] [S] Hall of Fame: the best runs on the landing page
+- [x] [S] Hall of Fame: the best runs on the landing page
 - [x] [S] Death recap: "Downed by an Imp's firebolt, 34 dmg"
 - [ ] [S] Pause menu for gamepads (so a pad can `/save`)
 - [ ] [M] Pressure plates and secret walls
@@ -55,11 +55,11 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [x] [M] Pitch-black floor (floor 7, The Black Hollow)
 - [x] [XL] Gnome village after floor 5: gnomes, Grimble the trader, Scroll of Return portal
 - [x] [S] Gnome Satchel in the village (+4 rucksack slots)
-- [ ] [S] More traders and wares in the village
+- [x] [S] More traders and wares in the village (Bramwick's forge: temper and reforge)
 
 ## 8. Quests
 - [x] [L] Sidequests: notice board on floor 1 and Grimble; hunt, rescue, fetch, collect; shared rewards
-- [ ] [M] More quests (the pool is in `internal/game/quests.go`)
+- [x] [M] More quests (8 per giver now; the pool is in `internal/game/quests.go`)
 
 ## Suggested order
 bot fix → `/leave` → multi-floor + themes → inventory + chests/mimics/torch → dark floor → monster roles + blob →

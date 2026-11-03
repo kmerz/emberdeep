@@ -5,13 +5,14 @@ import { FORM, STYLES, makeSong, noteOf } from '../src/music';
 import { journalQuests } from '../src/render/quests';
 import { loreTitle } from '../src/render/lore';
 import { dangerAt, camAxis } from '../src/screens/game';
-import { LandingScreen } from '../src/screens/landing';
+import { LandingScreen, fameTime, fameNames } from '../src/screens/landing';
 import { viewCell } from '../src/term/canvas';
 import { stickKeys } from '../src/touch';
 import { treeSelAt } from '../src/render/tree';
 import { questRowAt } from '../src/render/quests';
 import { shopAt } from '../src/render/shop';
-import { SHOP } from '../src/items';
+import { SHOP, modText, temperPrice, reforgePrice, itemInfo } from '../src/items';
+import { forgeRows, forgeAt, FORGE_BOX } from '../src/render/forge';
 import { compactCols, landscapeScale } from '../src/mobile';
 import { displayEnts } from '../src/render/interp';
 import { Predictor, MOVE_MS } from '../src/render/predict';
@@ -520,6 +521,43 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   eq(text(st.log[st.log.length - 1]), 'The dead stir: 2 claw their way up', 'and it says how many');
   st.handle({ ...lvl, event: undefined, eventText: undefined }, 6000);
   eq(eventNote(st, 6000), null, 'no event, no line');
+}
+
+{ // Hall of Fame and the new unique effects
+  eq(fameTime(2527), '42:07', 'minutes and seconds');
+  eq(fameTime(3753), '1:02:33', 'hours when it took that long');
+  eq(fameNames(['kmerz', 'nyx'], 40).join(' '), 'kmerz nyx', 'short names stay whole');
+  const four = fameNames(['abcdefghijkl', 'abcdefghijkl', 'abcdefghijkl', 'abcdefghijkl'], 40);
+  eq(four.join(' ').length <= 40, true, 'four long names share one line');
+  eq(modText({ k: 'execute', v: 50 }), '+50% damage to badly hurt monsters', 'execute reads');
+  eq(modText({ k: 'gold', v: 50 }), '+50% gold found', 'gold reads');
+  const st = new GameState();
+  st.handle({ t: 'overlay', kind: 'cleared', summary: [] }, 0);
+  st.handle({ t: 'events', tick: 1, list: [{ k: 'fame', x: 0, y: 0, amount: 3 }] }, 10);
+  eq(st.fameRank, 3, 'the run made the Hall of Fame at #3');
+  const line = st.log[st.log.length - 1].segs.map((g) => g[0]).join('');
+  eq(line, 'The run enters the Hall of Fame at #3', 'and the log says so');
+}
+
+{ // Bramwick's forge and the new quest items
+  eq(temperPrice({ lvl: 6, rar: 0 }), 102, 'common to magic at level 6 costs a magic piece\'s worth');
+  eq(temperPrice({ lvl: 6, rar: 1 }), 272, 'magic to rare');
+  eq(reforgePrice({ lvl: 6, rar: 2 }), 136, 'a reforge costs half the value');
+  const st = new GameState();
+  const g = (rar: number) => ({ slot: 'weapon' as const, base: 'axe', name: 'Axe', rar, lvl: 6, mods: [{ k: 'dmg', v: 20 }], value: 0 });
+  st.me = { weapon: g(1), gold: 500 } as unknown as typeof st.me;
+  const rows = forgeRows(st);
+  eq(rows.map((r) => r.id).join(','), 'temper0,temper1,reforge0,reforge1', 'four jobs in order');
+  eq(rows[0].price, 272, 'temper the magic weapon');
+  eq(rows[1].why, 'nothing worn', 'no trinket to temper');
+  eq(rows[2].price, 51, 'reforge the magic weapon');
+  st.me = { weapon: g(3), trinket: g(0) } as unknown as typeof st.me;
+  const r2 = forgeRows(st);
+  eq(r2[0].why, "he won't touch a unique", 'uniques are left alone');
+  eq(r2[3].why, 'no bonuses to reforge', 'a common piece has nothing to reforge');
+  eq(forgeAt(FORGE_BOX.x + 5, FORGE_BOX.y + 13), 2, 'tap the third job');
+  eq(forgeAt(FORGE_BOX.x + 5, FORGE_BOX.y + 3), -1, 'the gear lines are not jobs');
+  for (const id of ['batwing', 'gnomebell', 'abysssilk']) eq(itemInfo(id).name !== id, true, id + ' has a name');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

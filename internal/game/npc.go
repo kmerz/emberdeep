@@ -12,6 +12,7 @@ type Npc struct {
 	Home     Pt
 	Name     string
 	Trader   bool
+	Smith    bool // Bramwick at his forge: tempers and reforges worn gear (forge.go)
 	NextMove int
 	said     int
 	chatAt   int // no chatter before this tick
@@ -31,6 +32,7 @@ type NpcSpawn struct {
 	X, Y   int
 	Name   string
 	Trader bool
+	Smith  bool
 }
 
 // Portal is the way back to the village opened by a Scroll of Return.
@@ -46,6 +48,7 @@ var gnomeLines = []string{
 	"Garnets! Grimble pays well for garnets.",
 	"The Hollow below is dark as a boot. Take light.",
 	"If you see a chest that smiles, don't.",
+	"Bramwick at the forge can make your gear better. For a price, of course.",
 }
 
 // GenerateVillage builds the gnome village: a plaza, houses around it, the trader's stall and the stairs.
@@ -97,6 +100,9 @@ func GenerateVillage(seed uint32) *Level {
 	// Grimble's stall: two posts on either side of the trader
 	l.set(86, 25, TPillar)
 	l.set(90, 25, TPillar)
+	// Bramwick's forge, west of the stall
+	l.set(68, 25, TPillar)
+	l.set(72, 25, TPillar)
 	// torches along the plaza's top wall and in each house
 	for x := plaza.X0 + 3; x <= plaza.X1-3; x += 8 {
 		if l.At(x, plaza.Y0-1) == TWall {
@@ -124,9 +130,10 @@ func GenerateVillage(seed uint32) *Level {
 	l.set(l.Stairs.X, l.Stairs.Y, TStairs)
 	l.Npcs = []NpcSpawn{
 		{X: 88, Y: 25, Name: "Grimble", Trader: true},
+		{X: 70, Y: 25, Name: "Bramwick", Smith: true},
 		{X: 66, Y: 33, Name: "Pip"},
 		{X: 104, Y: 36, Name: "Nottle"},
-		{X: 62, Y: 11, Name: "Bramwick"},
+		{X: 62, Y: 11, Name: "Tuppy"},
 		{X: 113, Y: 23, Name: "Wendle"},
 	}
 	return l
@@ -142,7 +149,7 @@ func (g *Game) npcAt(x, y int) *Npc {
 // tickNpcs lets the gnomes potter about near their spot (the trader stays at the stall).
 func (g *Game) tickNpcs() {
 	for _, n := range g.Npcs {
-		if n.Trader || n.Board || n.Follower || g.Now < n.NextMove {
+		if n.Trader || n.Smith || n.Board || n.Follower || g.Now < n.NextMove {
 			continue
 		}
 		n.NextMove = g.Now + NpcMoveTicks + g.rng.Intn(NpcMoveTicks)
@@ -172,6 +179,9 @@ func (g *Game) bumpNpc(h *Hero, x, y int) bool {
 		return true
 	case n.Board:
 		g.emit(Event{K: "questboard", Actor: h.ID, Target: n.ID, X: n.X, Y: n.Y, Text: "board"})
+		return true
+	case n.Smith:
+		g.emit(Event{K: "smith", Actor: h.ID, Target: n.ID, X: n.X, Y: n.Y, Text: n.Name})
 		return true
 	case n.Trader:
 		g.questTurnIn(h)
@@ -205,7 +215,23 @@ func (g *Game) nextToTrader(h *Hero) bool {
 	return false
 }
 
+// nextToSmith reports whether the hero stands next to the smith in the village.
+func (g *Game) nextToSmith(h *Hero) bool {
+	if !g.InVillage {
+		return false
+	}
+	for _, n := range g.Npcs {
+		if n.Smith && cheb(h.X, h.Y, n.X, n.Y) <= 1 {
+			return true
+		}
+	}
+	return false
+}
+
 func (g *Game) applyBuy(h *Hero, id string) error {
+	if strings.HasPrefix(id, "temper") || strings.HasPrefix(id, "reforge") {
+		return g.forge(h, id)
+	}
 	if !g.nextToTrader(h) {
 		return ErrNotHere
 	}

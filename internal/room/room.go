@@ -702,10 +702,22 @@ func (r *Room) afterTick() {
 		if r.overlay != "cleared" {
 			r.overlay = "cleared"
 			r.sendAll(mustJSON(proto.Overlay{T: "overlay", Kind: "cleared", Summary: r.g.Summary()}))
+			r.recordFame()
 		}
 		if r.g.Now-r.g.ClearedTick >= game.ClearedReturn {
 			r.endRun()
 		}
+	}
+}
+
+// recordFame puts a won run in the Hall of Fame and tells the party if it made the list. Runs of bots alone,
+// and runs that started below the top (a dev flag), do not count.
+func (r *Room) recordFame() {
+	if r.humans() == 0 || r.cfg.StartDepth > 1 {
+		return
+	}
+	if rank := r.hub.fame.add(fameRun(r.g, r.players, r.cfg.Clock())); rank > 0 {
+		r.sendAll(mustJSON(proto.Events{T: "events", Tick: r.g.Now, List: []game.Event{{K: "fame", Amount: rank}}}))
 	}
 }
 

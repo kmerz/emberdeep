@@ -68,6 +68,11 @@ func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 	if s := a.slayer(); s > 0 && (m.Elite || m.Named != "") {
 		dmg = int(math.Round(float64(dmg) * (1 + float64(s)/100)))
 	}
+	if a != nil && m.HP*100 < m.HPMax*ExecuteBelow {
+		if e := a.GearStat("execute"); e > 0 {
+			dmg = int(math.Round(float64(dmg) * (1 + float64(e)/100)))
+		}
+	}
 	if a != nil && !crit && m.Def().Role != "keg" && g.critRoll(a) {
 		dmg, crit = dmg*2, true
 	}

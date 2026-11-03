@@ -163,6 +163,8 @@ type Game struct {
 	KingKilled  bool
 	Kills       int
 	Stats       map[string]*RunStats // per hero (by player name), for the run summary (stats.go)
+	Played      int                  // ticks played in earlier sessions of this run (a loaded save)
+	Wipes       int                  // floors retried after a wipe
 	Event       string               // the floor event (events.go), "" = none
 	eventRng    *RNG
 	nextStir    int
@@ -295,7 +297,7 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 		g.Items = append(g.Items, &Item{ID: g.newID(), Kind: '$', X: gs.X, Y: gs.Y, Amount: gs.Amount, Spawn: gi + 1})
 	}
 	for _, ns := range lvl.Npcs {
-		c := &Npc{ID: g.newID(), X: ns.X, Y: ns.Y, Home: Pt{ns.X, ns.Y}, Name: ns.Name, Trader: ns.Trader}
+		c := &Npc{ID: g.newID(), X: ns.X, Y: ns.Y, Home: Pt{ns.X, ns.Y}, Name: ns.Name, Trader: ns.Trader, Smith: ns.Smith}
 		g.Npcs = append(g.Npcs, c)
 		g.npcByID[c.ID] = c
 		g.occ[c.Y*LW+c.X] = int32(c.ID)
@@ -398,6 +400,7 @@ func (g *Game) RetryFloor() {
 	}
 	g.Phase = PhasePlaying
 	g.WipedTick = 0
+	g.Wipes++
 	g.Floors[g.memoKey()] = g.arrivalMemo.clone()
 	g.arriveDown = g.arrivedDown
 	if g.InVillage {
@@ -854,6 +857,7 @@ func (g *Game) pickup(h *Hero) {
 				it.Amount *= FortuneMult
 			}
 			it.Amount *= g.eventGoldMult()
+			it.Amount += it.Amount * h.GearStat("gold") / 100
 			g.splitGold(h, it.Amount)
 			g.stats(h).Gold += it.Amount
 			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: it.Amount, FX: "gold", Text: "gold"})

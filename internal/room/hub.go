@@ -68,6 +68,7 @@ type Hub struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	fame   *fame
 }
 
 func NewHub(cfg Config) *Hub {
@@ -78,7 +79,7 @@ func NewHub(cfg Config) *Hub {
 	}
 	pruneSaves(cfg.SaveDir, SaveMaxAge, cfg.Clock())
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Hub{cfg: cfg, rooms: map[string]*Room{}, rng: rand.New(rand.NewSource(seed)), ctx: ctx, cancel: cancel}
+	return &Hub{cfg: cfg, rooms: map[string]*Room{}, rng: rand.New(rand.NewSource(seed)), ctx: ctx, cancel: cancel, fame: loadFame(cfg.SaveDir)}
 }
 
 // Create makes a new room with a unique code and starts its goroutine.
@@ -159,11 +160,12 @@ func (h *Hub) Close() {
 	h.wg.Wait()
 }
 
-// Handler returns the HTTP mux: POST /api/rooms, GET /ws?room=CODE and the SPA.
+// Handler returns the HTTP mux: POST /api/rooms, GET /api/fame, GET /ws?room=CODE and the SPA.
 func (h *Hub) Handler(web http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/rooms", h.handleCreate)
 	mux.HandleFunc("/ws", h.serveWS)
+	mux.HandleFunc("/api/fame", h.handleFame)
 	if web != nil {
 		mux.Handle("/", web)
 	}

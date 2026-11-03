@@ -11,6 +11,7 @@ import { inventoryPanel, slotAt, wornAt, INV, WORN_WEAPON, WORN_TRINKET } from '
 import { lorePanel, LORE_BOX } from '../render/lore';
 import { treePanel, PANEL_ORDER, TREE, treeSelAt } from '../render/tree';
 import { shopPanel, sellSlots, buyCount, wareAt, SHOP_BOX, shopAt } from '../render/shop';
+import { forgePanel, forgeRows, forgeAt, FORGE_BOX } from '../render/forge';
 import { questBoardPanel, journalPanel, giverQuests, journalQuests, QUEST_BOX, questRowAt } from '../render/quests';
 import { itemInfo, packCap, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner, compactHud, OVERLAY_BOX } from '../render/hud';
@@ -75,6 +76,8 @@ export class GameScreen implements Screen {
   private shopSide: 0 | 1 | 2 = 0; // buy, sell, quests
   private shopSel = 0;
   private boardOpen = false;
+  private forgeOpen = false;
+  private forgeSel = 0;
   private loreOpen: { page: number; text: string } | null = null; // an inscription being read
   private boardSel = 0;
   private journalOpen = false;
@@ -96,7 +99,7 @@ export class GameScreen implements Screen {
     this.held.clear();
     this.invOpen = false;
     this.treeOpen = false;
-    this.shopOpen = false;
+    this.shopOpen = this.forgeOpen = false;
     this.boardOpen = this.journalOpen = false;
     st.onSnap = () => this.pred.onSnap();
     this.fx.onStreak = (actor, n) => {
@@ -108,6 +111,7 @@ export class GameScreen implements Screen {
         this.fx.add(e, now, st.youId);
         sfx.event(e, st.youId, this.yp);
         if (e.k === 'shop' && e.actor === st.youId) { this.closePanels(); this.shopOpen = true; this.shopSel = 0; }
+        if (e.k === 'smith' && e.actor === st.youId) { this.closePanels(); this.forgeOpen = true; this.forgeSel = 0; }
         if (e.k === 'questboard' && e.actor === st.youId) { this.closePanels(); this.boardOpen = true; this.boardSel = 0; }
         if (e.k === 'lore' && e.actor === st.youId && e.text) { this.closePanels(); this.loreOpen = { page: e.amount ?? 0, text: e.text }; }
       }
@@ -119,7 +123,7 @@ export class GameScreen implements Screen {
   /** Gamepad button map to use: panels and the wipe overlay get menu-style buttons; chat gets none. */
   padContext(): PadContext {
     if (this.ui.chatActive) return 'chat';
-    if (this.invOpen || this.treeOpen || this.shopOpen || this.boardOpen || this.journalOpen || this.loreOpen) return 'panel';
+    if (this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || this.loreOpen) return 'panel';
     if (this.app.st.overlay) return 'overlay';
     return 'world';
   }
@@ -145,6 +149,7 @@ export class GameScreen implements Screen {
     if (this.journalOpen && this.journalKey(ev, k)) { ev.preventDefault(); return; }
     if (this.shopOpen && this.shopSide === 2 && ev.key !== 'Tab' && this.questKey(ev, k, 'grimble')) { ev.preventDefault(); return; }
     if (this.shopOpen && this.shopKey(ev, k)) { ev.preventDefault(); return; }
+    if (this.forgeOpen && this.forgeKey(ev, k)) { ev.preventDefault(); return; }
     if (k === 'j' && !ev.repeat) { const o = !this.journalOpen; this.closePanels(); this.journalOpen = o; this.journalSel = 0; ev.preventDefault(); return; }
     if (this.treeOpen && this.treeKey(ev, k)) { ev.preventDefault(); return; }
     if (this.invOpen && this.invKey(ev, k)) { ev.preventDefault(); return; }
@@ -228,6 +233,10 @@ export class GameScreen implements Screen {
       const i = treeSelAt(cx, cy);
       return i >= 0 && pick(this.treeSel, i, (v) => { this.treeSel = v; });
     }
+    if (this.forgeOpen) {
+      const i = forgeAt(cx, cy);
+      return i >= 0 && pick(this.forgeSel, i, (v) => { this.forgeSel = v; });
+    }
     if (this.shopOpen && this.shopSide !== 2) {
       const h = shopAt(st, cx, cy);
       if (!h) return false;
@@ -243,7 +252,7 @@ export class GameScreen implements Screen {
   }
 
   private panelOpen(): boolean {
-    return this.invOpen || this.treeOpen || this.shopOpen || this.boardOpen || this.journalOpen || !!this.loreOpen;
+    return this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || !!this.loreOpen;
   }
 
   /** The box of the panel that is open (for the zoomed view), or null. */
@@ -252,6 +261,7 @@ export class GameScreen implements Screen {
     if (this.invOpen) return pad1(INV);
     if (this.treeOpen) return pad1(TREE);
     if (this.shopOpen) return pad1(this.shopSide === 2 ? QUEST_BOX : SHOP_BOX);
+    if (this.forgeOpen) return pad1(FORGE_BOX);
     if (this.boardOpen || this.journalOpen) return pad1(QUEST_BOX);
     return null;
   }
@@ -307,7 +317,7 @@ export class GameScreen implements Screen {
     return b;
   }
 
-  private closePanels() { this.invOpen = this.treeOpen = this.shopOpen = this.boardOpen = this.journalOpen = false; this.loreOpen = null; }
+  private closePanels() { this.invOpen = this.treeOpen = this.shopOpen = this.forgeOpen = this.boardOpen = this.journalOpen = false; this.loreOpen = null; }
 
   /** Keys for a quest list (the notice board, or Grimble's QUESTS tab). */
   private questKey(ev: KeyboardEvent, k: string, giver: 'board' | 'grimble'): boolean {
@@ -355,6 +365,24 @@ export class GameScreen implements Screen {
         else if (s) net.send({ t: 'buy', skill: s.item, seq: this.pred.nextSeq() });
       }
       else { const slot = sellSlots(st)[this.shopSel]; if (slot !== undefined) net.send({ t: 'sell', slot, seq: this.pred.nextSeq() }); }
+      return true;
+    }
+    return false;
+  }
+
+  /** Keys while Bramwick's forge is open. Returns true when the key was used by the panel. */
+  private forgeKey(ev: KeyboardEvent, k: string): boolean {
+    const st = this.app.st;
+    if (ev.key === 'Escape') { this.forgeOpen = false; return true; }
+    if (k === 'arrowup') { this.forgeSel = (this.forgeSel + 3) % 4; return true; }
+    if (k === 'arrowdown') { this.forgeSel = (this.forgeSel + 1) % 4; return true; }
+    if (ev.repeat) return false;
+    if (ev.key === 'Enter' || k === 'u') {
+      const r = forgeRows(st)[this.forgeSel];
+      if (!r) return true;
+      if (r.why) st.pushLog([['Bramwick', [255, 212, 92], 1], [': Can\'t do that: ' + r.why + '.', [140, 220, 120]]]);
+      else if ((st.me?.gold ?? 0) < r.price) st.pushLog([['Bramwick', [255, 212, 92], 1], [': That\'s ' + r.price + ' gold. Come back richer.', [140, 220, 120]]]);
+      else this.app.net.send({ t: 'buy', skill: r.id, seq: this.pred.nextSeq() });
       return true;
     }
     return false;
@@ -686,6 +714,11 @@ export class GameScreen implements Screen {
       if (!near) this.shopOpen = false;
       else if (this.shopSide === 2) questBoardPanel(fb, st, 'grimble', this.shopSel);
       else shopPanel(fb, st, this.shopSide, this.shopSel);
+    }
+    if (this.forgeOpen) { // walking away from Bramwick closes the forge
+      const near = you && ents.some((e) => e.k === 'n' && e.smith && Math.max(Math.abs(e.x - (yp?.x ?? you.x)), Math.abs(e.y - (yp?.y ?? you.y))) <= 1);
+      if (!near) this.forgeOpen = false;
+      else forgePanel(fb, st, this.forgeSel);
     }
     if (this.boardOpen) {
       const near = you && ents.some((e) => e.k === 'n' && e.board && Math.max(Math.abs(e.x - (yp?.x ?? you.x)), Math.abs(e.y - (yp?.y ?? you.y))) <= 1);

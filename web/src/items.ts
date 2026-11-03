@@ -15,6 +15,9 @@ export const ITEMS: Record<string, ItemInfo> = {
   ledger: { name: "The Tallow King's Ledger", ch: '=', col: [230, 200, 150], desc: 'a list of every soul he melted; for Grimble', usable: false },
   spoon: { name: "Grimble's Lucky Spoon", ch: '/', col: [220, 220, 240], desc: 'it is, admittedly, a very nice spoon', usable: false },
   antegg: { name: 'Ant Egg', ch: 'o', col: [240, 230, 200], desc: 'warm and faintly ticking; for Grimble', usable: false },
+  batwing: { name: 'Bat Wing', ch: 'v', col: [170, 130, 150], desc: 'leathery and still twitching; for Grimble', usable: false },
+  gnomebell: { name: 'The Village Bell', ch: 'Ω', col: [230, 190, 90], desc: 'a small brass bell; shades hate it; for Grimble', usable: false },
+  abysssilk: { name: 'Abyss Silk', ch: '~', col: [150, 110, 200], desc: 'cold, black and very soft; for Grimble', usable: false },
   embershard: { name: 'Ember Shard', ch: '*', col: [255, 110, 40], desc: 'too hot to hold for long; for Grimble', usable: false },
   gem: { name: 'Garnet', ch: '♦', col: [230, 60, 90], desc: 'a trade good: Grimble pays 40 gold for one', usable: false },
   weapon: { name: 'Weapon', ch: ')', col: [200, 196, 186], desc: 'wear it', usable: true, gear: true },
@@ -43,6 +46,12 @@ export const SHOP: { item: string; price: number }[] = [
 export const VALUE: Record<string, number> = { gem: 40, coin: 15, ring: 80, idol: 200 };
 
 /** What Grimble pays for one item (mirrors SellPrice). */
+/** What a piece of gear of this level and rarity is worth (GearValueBase, GearValueLvl, GearValueMult). */
+export function gearValue(lvl: number, rar: number): number { return (10 + 4 * lvl) * ([1, 3, 8, 15][rar] ?? 15); }
+/** Bramwick's prices (forge.go): tempering costs what the tempered piece is worth, reforging half its value. */
+export function temperPrice(g: { lvl: number; rar: number }): number { return gearValue(g.lvl, g.rar + 1); }
+export function reforgePrice(g: { lvl: number; rar: number }): number { return Math.max(1, Math.floor(gearValue(g.lvl, g.rar) / 2)); }
+
 export function sellPrice(id: string): number {
   if (VALUE[id]) return VALUE[id];
   const s = SHOP.find((x) => x.item === id);
@@ -66,7 +75,7 @@ const STAT: Record<string, [string, boolean]> = { // label, shown as a percentag
   dmg: ['damage', true], crit: ['critical hit chance', true], leech: ['of damage healed', true], cdr: ['shorter cooldowns', true],
   res: ['resource gain', true], armor: ['less damage taken', true], hp: ['max HP', false],
   regen: ['HP per second', false], thorns: ['of damage taken dealt back', true], slayer: ['damage to bosses and hunt targets', true],
-  lantern: ['', false],
+  lantern: ['', false], execute: ['damage to badly hurt monsters', true], gold: ['gold found', true],
 };
 /** "+12% damage", "+20 max HP". */
 export function modText(m: { k: string; v: number }): string {

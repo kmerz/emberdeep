@@ -366,7 +366,7 @@ export function overlayBox(fb: Fb, kind: 'wipe' | 'cleared', st: GameState, now:
     mid(y + 3, 'Depth ' + (st.level?.depth ?? 1) + ' can be retried, with everyone as they arrived.', DIM);
   } else {
     mid(y + 2, 'Depth ' + (st.level?.depth ?? 10) + ' cleared — the party reached the bottom.', TX, 1);
-    mid(y + 3, 'Gold collected: ' + (st.obj?.gold ?? 0) + ' · slain: ' + (st.obj?.kills ?? 0), GOLD);
+    mid(y + 3, 'Gold collected: ' + (st.obj?.gold ?? 0) + ' · slain: ' + (st.obj?.kills ?? 0) + (st.fameRank ? ' · Hall of Fame #' + st.fameRank : ''), GOLD);
   }
   const rows = st.summary.slice(0, 4);
   if (rows.length) {

@@ -166,7 +166,7 @@ func BuildShared(g *game.Game) []byte {
 			} else if n.Lore > 0 {
 				gl = "i" // an inscription
 			}
-			e := proto.Ent{ID: n.ID, K: "n", G: gl, X: n.X, Y: n.Y, Name: n.Name, Trader: n.Trader, Board: n.Board, Follow: n.Follower}
+			e := proto.Ent{ID: n.ID, K: "n", G: gl, X: n.X, Y: n.Y, Name: n.Name, Trader: n.Trader, Smith: n.Smith, Board: n.Board, Follow: n.Follower}
 			if n.Follower {
 				e.HP, e.HPMax = n.HP, n.HPMax
 			}

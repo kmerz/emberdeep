@@ -407,6 +407,9 @@ func TestClearedOverlayThenLobby(t *testing.T) {
 		}
 		return sawLobby
 	})
+	if f := h.fame.list(); len(f) != 1 || f[0].Party[0].Name != "kmerz" || f[0].Diff != "NORMAL" {
+		t.Fatalf("the won run should be in the Hall of Fame: %+v", f)
+	}
 	// readiness was reset
 	l := lastLobby(a)
 	r.Inspect(func(g *game.Game, _ int) {

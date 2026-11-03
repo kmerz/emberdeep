@@ -156,6 +156,7 @@ type Ent struct {
 	St     []Status `json:"st,omitempty"`
 	It     string   `json:"it,omitempty"`     // item id for rucksack items on the floor
 	Trader bool     `json:"trader,omitempty"` // gnomes (k "n"): this one trades
+	Smith  bool     `json:"smith,omitempty"`  // gnomes: the smith (tempers and reforges gear)
 	Board  bool     `json:"board,omitempty"`  // k "n": the notice board
 	Follow bool     `json:"follow,omitempty"` // k "n": a gnome being rescued
 	Rar    int      `json:"rar,omitempty"`    // items: rarity (2 = rare: a loot beam)

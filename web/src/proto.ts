@@ -8,6 +8,7 @@ export interface Ent {
   downed?: boolean; dead?: boolean; downT?: number; rev?: number; el?: boolean; face: number; st?: Status[];
   it?: string; // rucksack item id for items on the floor
   trader?: boolean; // gnomes: this one trades
+  smith?: boolean; // gnomes: the smith (tempers and reforges gear)
   board?: boolean;  // the mayor's notice board
   follow?: boolean; // a lost gnome being rescued (hp/hpMax set)
   rar?: number; // items: rarity (2 = rare: a loot beam)
@@ -18,6 +19,12 @@ export interface HeroSummary {
   id: number; name: string; cls: ClassId; lvl: number; title: string;
   dmg: number; kills: number; taken: number; downs: number; revives: number; potions: number; gold: number; bestHit: number;
   lastDowned?: string;
+}
+
+/** A won run in the Hall of Fame (GET /api/fame). */
+export interface FameRun {
+  party: { name: string; cls: ClassId; lvl: number; title: string; bot?: boolean }[];
+  secs: number; wipes: number; diff: string; ff?: boolean; date: string;
 }
 
 export interface PartyEntry {

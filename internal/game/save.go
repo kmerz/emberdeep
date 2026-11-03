@@ -19,6 +19,8 @@ type RunSave struct {
 	Heroes      map[string]SavedHero // by player name
 	Floors      map[int]*floorMemo   // what each visited floor remembers
 	Stats       map[string]RunStats  // the run summary so far, by player name
+	Played      int                  // ticks played so far
+	Wipes       int                  // floors retried after a wipe
 }
 
 type QuestSave struct {
@@ -44,7 +46,7 @@ func (g *Game) Save(prev map[string]SavedHero) RunSave {
 		floors[k] = m.clone()
 	}
 	s := RunSave{Floors: floors, Seed: g.Seed, Settings: g.Settings, Depth: g.Depth, InVillage: g.InVillage, VillageSeen: g.VillageSeen,
-		ReturnDepth: g.ReturnDepth, Kills: g.Kills, Heroes: map[string]SavedHero{}}
+		ReturnDepth: g.ReturnDepth, Kills: g.Kills, Heroes: map[string]SavedHero{}, Played: g.PlayTicks(), Wipes: g.Wipes}
 	for name, h := range prev {
 		s.Heroes[name] = h
 	}
@@ -83,6 +85,7 @@ func Load(s RunSave, n int) *Game {
 		}
 	}
 	g.VillageSeen, g.ReturnDepth, g.Kills = s.VillageSeen, s.ReturnDepth, s.Kills
+	g.Played, g.Wipes = s.Played, s.Wipes
 	g.Stats = map[string]*RunStats{}
 	for name, st := range s.Stats {
 		st := st

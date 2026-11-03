@@ -239,7 +239,7 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
       mb.txt(x - Math.floor(e.nm.length / 2), y - 1, e.nm, mul(rarityCol(e.rar), 0.9), null, (e.rar ?? 0) >= 2 ? 1 : 0); // gear nearby: its name
     } else if (e.k === 'n') {
       const nm = e.name || '';
-      const hot = e.trader || e.board || e.g === 'A' || e.g === 'S';
+      const hot = e.trader || e.smith || e.board || e.g === 'A' || e.g === 'S';
       mb.txt(x - Math.floor(nm.length / 2), y - 1, nm, hot ? GNOME_TRADER : mul(GNOME, 0.8), null, hot ? 1 : 0);
       if (e.follow && e.hpMax) mb.bar(x - 2, y - 2, 5, (e.hp ?? 0) / e.hpMax, [126, 240, 178], [20, 40, 30]);
     } else if (e.k === 'h') {
@@ -297,7 +297,7 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
       else if (e.g === 'S') mb.put(x, y, '¥', mix([190, 120, 255], [255, 220, 255], 0.5 + 0.5 * Math.sin(o.now / 300)), [40, 20, 60], 1); // a shrine
       else if (e.g === 's') mb.put(x, y, '¥', [90, 84, 110], null, 0); // a shrine gone dark
       else if (e.g === 'i') mb.put(x, y, '¶', [226, 210, 170], [40, 34, 26], 1); // an inscription
-      else mb.put(x, y, 'g', e.trader ? GNOME_TRADER : GNOME, e.follow ? [20, 50, 30] : null, 1);
+      else mb.put(x, y, 'g', e.trader || e.smith ? GNOME_TRADER : GNOME, e.follow ? [20, 50, 30] : null, 1);
       continue;
     }
     if (e.k === 'i') {

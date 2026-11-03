@@ -86,3 +86,17 @@ func TestSummaryTitles(t *testing.T) {
 		t.Fatalf("summary rows: %+v", s)
 	}
 }
+
+func TestPlayTimeAndWipesSurviveASave(t *testing.T) {
+	g := New(3, Settings{}, 1)
+	g.AddHero(1, "kmerz", Warrior)
+	g.Now = 600
+	g.Phase = PhaseWiped
+	g.RetryFloor()
+	s := g.Save(nil)
+	l := Load(s, 1)
+	l.Now = 100
+	if l.PlayTicks() != 700 || l.Wipes != 1 {
+		t.Fatalf("play time 700, 1 wipe: got %d, %d", l.PlayTicks(), l.Wipes)
+	}
+}

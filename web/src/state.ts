@@ -86,6 +86,8 @@ export class GameState {
   overlay: 'wipe' | 'cleared' | null = null;
   /** the run summary that came with the overlay */
   summary: HeroSummary[] = [];
+  /** the won run's place in the Hall of Fame (0 = did not make it) */
+  fameRank = 0;
   levelAt = 0; // when the current level arrived (for the depth banner)
   quests: QuestInfo[] = []; // the party's sidequests
   lobby: LobbyMsg | null = null;
@@ -261,6 +263,10 @@ export class GameState {
         case 'gearpick': if (you) this.pushLog([['You pick up ', DIM], [e.text || 'gear', rarityCol(e.amount), 1], ['  (I: rucksack)', DIM]], now); break;
         case 'equip': if (you) this.pushLog([['You now wear ', DIM], [e.text || 'gear', rarityCol(e.amount), 1]], now); break;
         case 'unequip': if (you) this.pushLog([['You take off ', DIM], [e.text || 'gear', rarityCol(e.amount), 1]], now); break;
+        case 'fame':
+          this.fameRank = e.amount ?? 0;
+          this.pushLog([['The run enters the ', DIM], ['Hall of Fame', GOLD, 1], [' at #' + this.fameRank, TX, 1]], now);
+          break;
         case 'raredrop': if (you) this.pushLog([['A ' + (RARITY[e.amount ?? 2] ?? 'rare') + ' find: ', rarityCol(e.amount), 1], [e.text || '', TX]], now); break;
         case 'chest': this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' open a ' : ' opens a ', DIM], ['chest', GOLD, 1]], now); break;
         case 'summon':
@@ -312,6 +318,9 @@ export class GameState {
         case 'keydrop': this.pushLog([['The ' + (e.text || 'elite').replace(/^The /, '') + ' drops a ', DIM], ['Vault Key', [255, 212, 92], 1]], now); break;
         case 'trapseen': if (you) this.pushLog([['You spot a ', DIM], ['spike trap', [230, 70, 70], 1], [': step around it', DIM]], now); break;
         case 'fuse': if (you) this.pushLog([['The powder keg', [230, 120, 50], 1], [' starts to fizz…', DIM]], now); break;
+        case 'smith': if (you) this.pushLog([['Bramwick', [255, 212, 92], 1], [": Let's see what you're wearing.", [140, 220, 120]]], now); break;
+        case 'forge': if (you) this.pushLog([['Bramwick ', [255, 212, 92], 1], [e.fx === 'temper' ? 'tempers your ' : 'reforges your ', DIM],
+          [e.text || '', rarityCol(e.tx), 1], [' · ' + (e.amount ?? 0) + ' gold', GOLD]], now); break;
         case 'shop': if (you) this.pushLog([['Grimble', [255, 212, 92], 1], [': Have a look, have a look!', [140, 220, 120]]], now); break;
         case 'trade': if (you && e.fx) {
           const it = itemInfo(e.fx), amt = e.amount ?? 0;
@@ -432,7 +441,7 @@ export class GameState {
         this.onPing(p);
         break;
       }
-      case 'overlay': this.overlay = m.kind; this.summary = m.summary ?? []; break;
+      case 'overlay': this.overlay = m.kind; this.summary = m.summary ?? []; this.fameRank = 0; break;
       case 'quests': this.quests = m.list; break;
       case 'error': this.errors.push(m.msg); break;
     }

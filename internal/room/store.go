@@ -88,7 +88,7 @@ func pruneSaves(dir string, maxAge time.Duration, now time.Time) {
 	}
 	for _, e := range entries {
 		name := e.Name()
-		if filepath.Ext(name) != ".json" && filepath.Ext(name) != ".tmp" {
+		if name == fameFile || (filepath.Ext(name) != ".json" && filepath.Ext(name) != ".tmp") {
 			continue
 		}
 		if info, err := e.Info(); err == nil && now.Sub(info.ModTime()) > maxAge {
