@@ -7,7 +7,7 @@ import { VERSION } from '../version';
 import { VW, VH, buildLights, drawEnts, drawMap } from '../render/map';
 import { displayEnts } from '../render/interp';
 import { Predictor, DIRS } from '../render/predict';
-import { inventoryPanel, slotAt, INV } from '../render/inventory';
+import { inventoryPanel, slotAt, wornAt, INV, WORN_WEAPON, WORN_TRINKET } from '../render/inventory';
 import { lorePanel } from '../render/lore';
 import { treePanel, PANEL_ORDER } from '../render/tree';
 import { shopPanel, sellSlots } from '../render/shop';
@@ -158,6 +158,8 @@ export class GameScreen implements Screen {
     if (this.invOpen && ev.button === 0) {
       const s = slotAt(cell[0], cell[1], packCap(this.app.st.me));
       if (s >= 0) { this.invSel = s; ev.preventDefault(); return; }
+      const w = wornAt(cell[0], cell[1]);
+      if (w) { this.invSel = w; ev.preventDefault(); return; }
     }
     if (this.invOpen && ev.button === 2) { // right-click a slot: put that item on key 4 (again: key 5)
       const s = slotAt(cell[0], cell[1], packCap(this.app.st.me));
@@ -239,10 +241,22 @@ export class GameScreen implements Screen {
   private invKey(ev: KeyboardEvent, k: string): boolean {
     const cols = INV.cols, n = packCap(this.app.st.me);
     if (k === 'i' || ev.key === 'Escape') { if (!ev.repeat) this.invOpen = false; return true; }
+    if (this.invSel < 0) { // the worn weapon / trinket rows
+      if (k === 'arrowup' || k === 'arrowdown') {
+        const up = k === 'arrowup';
+        if (this.invSel === WORN_WEAPON) this.invSel = up ? n - cols : WORN_TRINKET;
+        else this.invSel = up ? WORN_WEAPON : 0;
+        return true;
+      }
+      if (k === 'arrowleft' || k === 'arrowright') return true;
+      if (ev.repeat) return false;
+      if (k === 'u' || ev.key === 'Enter') { this.app.net.send({ t: 'unequip', slot: this.invSel === WORN_WEAPON ? 0 : 1, seq: this.pred.nextSeq() }); return true; }
+      return k === 'x' || k === 'r' || k === '4' || k === '5';
+    }
     if (k === 'arrowleft') { this.invSel = (this.invSel + n - 1) % n; return true; }
     if (k === 'arrowright') { this.invSel = (this.invSel + 1) % n; return true; }
-    if (k === 'arrowup') { this.invSel = (this.invSel + n - cols) % n; return true; }
-    if (k === 'arrowdown') { this.invSel = (this.invSel + cols) % n; return true; }
+    if (k === 'arrowup') { this.invSel = this.invSel < cols ? WORN_TRINKET : this.invSel - cols; return true; }
+    if (k === 'arrowdown') { this.invSel = this.invSel + cols >= n ? WORN_WEAPON : this.invSel + cols; return true; }
     if (ev.repeat) return false;
     if (k === 'u' || ev.key === 'Enter') { this.useItem(this.invSel); return true; }
     if (k === 'x') { this.app.net.send({ t: 'drop', slot: this.invSel, seq: this.pred.nextSeq() }); return true; }
@@ -257,6 +271,7 @@ export class GameScreen implements Screen {
     const st = this.app.st, s = st.me?.pack?.[slot];
     if (!s || s.n <= 0) return;
     const it = itemInfo(s.item);
+    if (it.gear) { st.pushLog([['Gear is worn, not put on a key: press ', DIM], [keyLabel('panel', 'Enter', 'U'), WH, 1]]); return; }
     if (!it.usable) { st.pushLog([[it.name, it.col], [' cannot be used', DIM]]); return; }
     const k = which ?? (this.itemKeys[0] === s.item ? 1 : 0);
     this.itemKeys = this.itemKeys.map((id, i) => (i === k ? s.item : id === s.item ? '' : id)); // one key per item

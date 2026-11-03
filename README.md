@@ -28,7 +28,7 @@ pages). The text lives in `web/src/story.ts`.
 | `4` `5` | use the item on that key: firebombs and Scrolls of Light are thrown at the mouse cursor (or the nearest enemy). In the rucksack, `4` or `5` on an item puts it on that key; right-click puts it on `4` (again: `5`) |
 | `T` | open the skill tree (arrows pick, `ENTER` learn or rank up, `1` `2` `3` put the selected skill on that key, `R` reset at the stairs). Learned skills fill an empty key by themselves |
 | `J` | the quest journal |
-| `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use, `X` drop, `4`/`5` put on that key, `I`/`Esc` close) |
+| `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use or wear, `X` drop, `4`/`5` put on that key, `I`/`Esc` close). The two rows on top are your worn weapon and trinket: `ENTER` there takes it off |
 | hold `E` | revive an adjacent downed ally (3 s) |
 | `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/save` save and go back to the lobby (host), `/leave` or `/quit` leave the game, `/help`) |
 | Alt+click or middle click | ping the map (4 s) |
@@ -74,6 +74,13 @@ Saves untouched for 30 days are deleted.
 - Gold is split between connected heroes. Item drops (healing potions, resource draughts, firebombs, trade goods) are
   personal: only their owner sees and picks them up. Each hero has a 12-slot rucksack (items stack); an item
   dropped from the rucksack can be picked up by anyone, which is how you hand things to a teammate.
+- Gear: each hero wears a weapon and a trinket (amulet, charm or talisman). Gear is a personal drop, rolled for
+  your class (axes and swords, daggers, wands and rods, staves and knuckles): about 1 kill in 40, a third of
+  chests, a rare for everyone from every boss and every vault. Rarity sets the bonuses: common (none), magic
+  (one, blue), rare (two, gold, with a pillar of light and a chime when it drops). A weapon adds damage; the
+  bonuses are damage, crit chance, life steal, shorter cooldowns, resource gain, armor and max HP (numbers in
+  `internal/game/gear.go`). Gear goes straight on when the slot is empty, else into the rucksack, where the panel
+  compares it with what you wear. Grimble buys gear; bots wear whatever is better.
 - Floor 7, The Black Hollow, is pitch black: you see only what a light reaches. Every hero carries a lantern
   that lights itself there and burns oil only on dark floors (5 minutes to start, 10 when full; the hotbar shows
   what is left). Lamp oil drops from monsters and chests and goes straight into the lantern, never into the
@@ -89,7 +96,7 @@ Saves untouched for 30 days are deleted.
   XP earned meanwhile is kept, so the blessing grants every level it held back, and heals you. Bots pray from
   wherever they are. Players who join a run late skip the trials below their level.
 - Vaults: from floor 2, one dead-end room may be locked (`▓`). An elite on the floor carries the key (or it lies
-  in a far room); walk into the door with it. The vault chest holds extra gold, items and a Silver Ring each.
+  in a far room); walk into the door with it. The vault chest holds extra gold, items, a Silver Ring and a rare piece of gear each.
   Keys only fit their own floor.
 - Trade goods are only for selling: Old Coin (15 gold), Garnet (40), Silver Ring (80) and the rare Gold Idol
   (200). Picking one up says what Grimble pays for it.

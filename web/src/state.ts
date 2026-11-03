@@ -2,7 +2,7 @@ import type { Ent, GameEvent, LevelMsg, LobbyMsg, Me, Objectives, PartyEntry, Se
 import { CLS, MC, SKILL_BY_ID } from './classes';
 import { DIM, GOLD, PINK, RGB, TX } from './term/fb';
 import { palette } from './render/themes';
-import { VALUE, itemInfo } from './items';
+import { VALUE, itemInfo, rarityCol, RARITY } from './items';
 import { Remain, bleedFor, remainsFor, remainsOk } from './render/remains';
 
 const MINT_LOG: RGB = [126, 240, 178];
@@ -242,6 +242,10 @@ export class GameState {
           }
           break;
         case 'packfull': if (you) this.pushLog([['Your rucksack is full', PINK]], now); break;
+        case 'gearpick': if (you) this.pushLog([['You pick up ', DIM], [e.text || 'gear', rarityCol(e.amount), 1], ['  (I: rucksack)', DIM]], now); break;
+        case 'equip': if (you) this.pushLog([['You now wear ', DIM], [e.text || 'gear', rarityCol(e.amount), 1]], now); break;
+        case 'unequip': if (you) this.pushLog([['You take off ', DIM], [e.text || 'gear', rarityCol(e.amount), 1]], now); break;
+        case 'raredrop': if (you) this.pushLog([['A ' + (RARITY[e.amount ?? 2] ?? 'rare') + ' find: ', rarityCol(e.amount), 1], [e.text || '', TX]], now); break;
         case 'chest': this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' open a ' : ' opens a ', DIM], ['chest', GOLD, 1]], now); break;
         case 'summon':
           this.pushLog(e.fx === 'Q' ? [['The Ant Queen', [255, 170, 60]], [' lays a ', DIM], [e.text || 'soldier', TX]]
@@ -283,7 +287,7 @@ export class GameState {
         case 'shop': if (you) this.pushLog([['Grimble', [255, 212, 92], 1], [': Have a look, have a look!', [140, 220, 120]]], now); break;
         case 'trade': if (you && e.fx) {
           const it = itemInfo(e.fx), amt = e.amount ?? 0;
-          this.pushLog([[amt < 0 ? 'You buy a ' : 'You sell a ', DIM], [it.name, it.col], [' (' + (amt < 0 ? '' : '+') + amt + ' gold)', GOLD]], now);
+          this.pushLog([[amt < 0 ? 'You buy a ' : 'You sell ' + (e.text ? '' : 'a '), DIM], [e.text || it.name, it.col], [' (' + (amt < 0 ? '' : '+') + amt + ' gold)', GOLD]], now);
           break;
         }
           break;
@@ -298,7 +302,7 @@ export class GameState {
           else this.pushLog([who, [you ? ' drink a ' : ' drinks a ', DIM], [it.name, it.col]], now);
           break;
         }
-        case 'drop': if (e.fx) { const it = itemInfo(e.fx); this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' drop ' : ' drops ', DIM], [(e.amount || 1) + '× ' + it.name, it.col]], now); } break;
+        case 'drop': if (e.fx) { const it = itemInfo(e.fx); this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' drop ' : ' drops ', DIM], [e.text || (e.amount || 1) + '× ' + it.name, it.col]], now); } break;
         case 'down': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is DOWN!', PINK, 1]], now); break;
         case 'revive': this.pushLog([[an, ac], [' revives ', DIM], [this.nameOf(e.target || 0), this.colOf(e.target || 0)]], now); break;
         case 'dead': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' has fallen', PINK]], now); break;

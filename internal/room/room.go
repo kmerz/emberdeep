@@ -824,6 +824,7 @@ func (r *Room) botThink() {
 		if h.TrialDone() {
 			r.g.Bless(h)
 		}
+		r.g.EquipBetter(h) // wear the best gear in the rucksack
 		// spend skill points (new skills land on the first free key, so keys 1-3 hold skills 0-2)
 		if h.Points > 0 {
 			if idx := game.NextSkill(h.Ranks, h.Lvl); idx >= 0 {

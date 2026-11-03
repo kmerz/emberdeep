@@ -26,14 +26,15 @@ const (
 	IntCast
 	IntPotion // drink the first healing potion (the Q key)
 	IntRevive
-	IntUse    // use the item in Slot (thrown items land at X, Y)
-	IntDrop   // drop the stack in Slot
-	IntLearn  // spend a point on Skill (learn it or raise its rank)
-	IntBind   // put Skill on key Slot
-	IntRespec // reset the tree (only at the stairs)
-	IntBuy    // buy one of item Skill from the trader
-	IntSell   // sell one item from rucksack Slot to the trader
-	IntAccept // accept quest Skill (quest id) from the giver next to the hero
+	IntUse     // use the item in Slot (thrown items land at X, Y)
+	IntDrop    // drop the stack in Slot
+	IntLearn   // spend a point on Skill (learn it or raise its rank)
+	IntBind    // put Skill on key Slot
+	IntRespec  // reset the tree (only at the stairs)
+	IntBuy     // buy one of item Skill from the trader
+	IntSell    // sell one item from rucksack Slot to the trader
+	IntAccept  // accept quest Skill (quest id) from the giver next to the hero
+	IntUnequip // take off the weapon (Slot 0) or trinket (Slot 1)
 )
 
 type Intent struct {
@@ -96,8 +97,9 @@ type Item struct {
 	Def    string // rucksack item id ("" = gold)
 	X, Y   int
 	Amount int
-	Owner  int // 0 = shared
-	Spawn  int // gold from the level: 1 + its index in Level.Golds
+	Owner  int   // 0 = shared
+	Spawn  int   // gold from the level: 1 + its index in Level.Golds
+	G      *Gear // a weapon or trinket
 }
 
 // Chest is a closed chest. It blocks its cell until a hero bumps it open. Mimics are monsters, not chests.
@@ -198,6 +200,7 @@ type Game struct {
 // heroSave is the part of a hero that carries over between floors.
 type heroSave struct {
 	Lvl, XP, HP, HPMax, Res, ResMax, Gold int
+	Weapon, Trinket                       *Gear `json:",omitempty"`
 	Pack                                  [PackSlots]Stack
 	PackCap                               int
 	Ranks                                 [TreeSize]int
@@ -580,6 +583,8 @@ func (g *Game) Apply(pid int, in Intent) error {
 		return g.applySell(h, in.Slot)
 	case IntAccept:
 		return g.applyAccept(h, in.Skill)
+	case IntUnequip:
+		return g.unequip(h, in.Slot)
 	case IntRespec:
 		if !g.AtStairs(h) {
 			return ErrNotHere
@@ -690,6 +695,9 @@ func (g *Game) chestLoot(x, y int) {
 		if h.Dead || !h.Connected {
 			continue
 		}
+		if g.rng.Chance(GearChestChance) {
+			g.dropGear(h, x, y, Common)
+		}
 		for k := 0; k < ChestRolls; k++ {
 			r := g.rng.Float() * total
 			for _, id := range ItemOrder {
@@ -733,6 +741,8 @@ func (g *Game) applyUse(h *Hero, in Intent) error {
 	}
 	def := Items[h.Pack[in.Slot].Item]
 	switch def.Use {
+	case "equip":
+		return g.equip(h, in.Slot)
 	case "heal", "resource":
 		if g.Now < h.PotionReady {
 			return ErrCooldown
@@ -803,8 +813,12 @@ func (g *Game) applyDrop(h *Hero, in Intent) error {
 	s := h.Pack[in.Slot]
 	def := Items[s.Item]
 	h.Pack[in.Slot] = Stack{}
-	g.Items = append(g.Items, &Item{ID: g.newID(), Kind: def.Glyph, Def: def.ID, X: h.X, Y: h.Y, Amount: s.N})
-	g.emit(Event{K: "drop", Actor: h.ID, X: h.X, Y: h.Y, Amount: s.N, FX: def.ID})
+	g.Items = append(g.Items, &Item{ID: g.newID(), Kind: def.Glyph, Def: def.ID, X: h.X, Y: h.Y, Amount: s.N, G: s.G})
+	e := Event{K: "drop", Actor: h.ID, X: h.X, Y: h.Y, Amount: s.N, FX: def.ID}
+	if s.G != nil {
+		e.Text = s.G.Name
+	}
+	g.emit(e)
 	return nil
 }
 
@@ -832,6 +846,16 @@ func (g *Game) pickup(h *Hero) {
 			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: it.Amount, FX: it.Def, Text: Items[it.Def].Name})
 			g.Items = append(g.Items[:i], g.Items[i+1:]...)
 			i--
+			continue
+		}
+		if it.G != nil {
+			if g.pickGear(h, it) {
+				g.Items = append(g.Items[:i], g.Items[i+1:]...)
+				i--
+			} else if h.packFullAt == 0 || g.Now-h.packFullAt >= PackFullEvery {
+				h.packFullAt = g.Now
+				g.emit(Event{K: "packfull", Actor: h.ID, X: h.X, Y: h.Y})
+			}
 			continue
 		}
 		n := h.AddItem(it.Def, it.Amount)

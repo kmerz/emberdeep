@@ -62,15 +62,22 @@ func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 	if m.Def().Faction != "" {
 		g.alarm(m, actor)
 	}
+	a := g.heroByID[actor]
+	if a != nil && !crit && m.Def().Role != "keg" && g.critRoll(a) {
+		dmg, crit = dmg*2, true
+	}
+	if a != nil {
+		a.leech(min(dmg, m.HP))
+	}
 	m.HP -= dmg
 	m.Awake = true
 	if m.HP > 0 && m.Def().Role == "drainer" {
 		defer g.maybeBlink(m)
 	}
-	if a := g.heroByID[actor]; a != nil {
+	if a != nil {
 		g.addThreat(m, actor, dmg)
 		if gd := a.Def().GainDeal; gd > 0 {
-			a.gainRes(gd)
+			a.gainRes(int(math.Round(a.resGain(float64(gd)))))
 		}
 	}
 	fx := ""
@@ -145,6 +152,11 @@ func (g *Game) killMonster(m *Monster, killer int) {
 	for _, h := range g.Heroes {
 		if h.Dead || !h.Connected {
 			continue
+		}
+		if m.Elite { // a boss always drops a rare for everyone
+			g.dropGear(h, m.X, m.Y, Rare)
+		} else if g.rng.Chance(GearKillChance) {
+			g.dropGear(h, m.X, m.Y, Common)
 		}
 		for _, id := range ItemOrder {
 			def := Items[id]

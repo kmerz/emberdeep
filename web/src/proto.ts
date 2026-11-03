@@ -10,6 +10,8 @@ export interface Ent {
   trader?: boolean; // gnomes: this one trades
   board?: boolean;  // the mayor's notice board
   follow?: boolean; // a lost gnome being rescued (hp/hpMax set)
+  rar?: number; // items: rarity (2 = rare: a loot beam)
+  nm?: string;  // items: a gear piece's name
 }
 export interface PartyEntry {
   id: number; name: string; cls: ClassId; lvl: number; hp: number; hpMax: number; res: number; resMax: number;
@@ -30,8 +32,16 @@ export interface Me {
   tree: { id: string; rank: number }[]; // the class's 6 skills in tree order
   points: number;   // unspent skill points
   respec: boolean;  // at the stairs: the tree can be reset
+  weapon?: GearView; trinket?: GearView; // what the hero wears
 }
-export interface PackSlot { item: string; n: number }
+export interface PackSlot { item: string; n: number; g?: GearView /* a weapon or trinket */ }
+/** A rolled weapon or trinket (internal/game/gear.go). */
+export interface GearView {
+  slot: 'weapon' | 'trinket'; base: string; name: string;
+  rar: number; // 0 common, 1 magic, 2 rare
+  lvl: number; mods: { k: string; v: number }[]; // the base stat first
+  value: number; // what Grimble pays
+}
 export interface Snap {
   t: 'snap'; tick: number; ackSeq?: number; vis: Vis; ents: Ent[]; party: PartyEntry[]; obj: Objectives;
   patches?: [number, number][]; orbs?: [number, number, number][]; portal?: [number, number, number]; fires?: [number, number][]; me?: Me; drops?: Ent[];

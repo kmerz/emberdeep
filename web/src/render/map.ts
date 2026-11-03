@@ -5,10 +5,11 @@ import { MC, CLS } from '../classes';
 import type { Ent } from '../proto';
 import type { Cam, Light } from './fx';
 import { palette } from './themes';
-import { ITEMS } from '../items';
+import { ITEMS, rarityCol, gearCh } from '../items';
 
 export const VW = 112;
 export const VH = 34;
+const GEAR_LABEL_RANGE = 8; // gear on the floor this close to you shows its name
 
 interface Glyph { ch: string; fg: RGB; lit?: boolean; b?: boolean }
 const GLY: Record<string, Glyph> = {
@@ -234,6 +235,8 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
     if (!inV(x, y)) continue;
     if (e.k === 'm') {
       if (e.el) mb.txt(x - 1, y - 1, (e.name || '').replace(/^The /, '').toUpperCase(), [255, 110, 150], null, 1);
+    } else if (e.k === 'i' && e.nm && youPos && Math.max(Math.abs(e.x - youPos.x), Math.abs(e.y - youPos.y)) <= GEAR_LABEL_RANGE) {
+      mb.txt(x - Math.floor(e.nm.length / 2), y - 1, e.nm, mul(rarityCol(e.rar), 0.9), null, (e.rar ?? 0) >= 2 ? 1 : 0); // gear nearby: its name
     } else if (e.k === 'n') {
       const nm = e.name || '';
       const hot = e.trader || e.board || e.g === 'A';
@@ -269,6 +272,21 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
     const x = pt[0] - cam.x, y = pt[1] - cam.y;
     if (inV(x, y)) mb.put(x, y, '◎', mix([90, 200, 255], [220, 250, 255], 0.5 + 0.5 * Math.sin(o.now / 120)), [20, 40, 70], 1);
   }
+  // loot beams: a pillar of light over rare things on the floor
+  for (const e of list) {
+    if (e.k !== 'i' || (e.rar ?? 0) < 2) continue;
+    const [x, y] = pos(e);
+    const col = rarityCol(e.rar), H = 7;
+    for (let dy = 0; dy <= H; dy++) {
+      const yy = y - dy;
+      if (!inV(x, yy)) continue;
+      const i = yy * mb.w + x;
+      const shimmer = 0.75 + 0.25 * Math.sin(o.now / 160 - dy * 0.9);
+      const k = (dy === 0 ? 0.55 : 0.5 * (1 - dy / (H + 1))) * shimmer;
+      mb.setBg(i, mix(mb.getBg(i), col, k));
+      for (const dx of [-1, 1]) if (dy > 0 && inV(x + dx, yy)) { const j = yy * mb.w + x + dx; mb.setBg(j, mix(mb.getBg(j), col, k * 0.25)); }
+    }
+  }
   // Pass 2: glyphs, items then monsters then heroes.
   for (const e of list) {
     const [x, y] = pos(e);
@@ -282,7 +300,7 @@ export function drawEnts(mb: Fb, st: GameState, cam: Cam, ents: Ent[], youPos: {
     }
     if (e.k === 'i') {
       const info = e.it ? ITEMS[e.it] : undefined; // rucksack items by id; gold and chests by glyph
-      const g = info ? { ch: info.ch, fg: info.col } : GLY[e.g];
+      const g = info?.gear ? { ch: gearCh(undefined, e.it), fg: rarityCol(e.rar) } : info ? { ch: info.ch, fg: info.col } : GLY[e.g];
       if (g) mb.put(x, y, g.ch, g.fg, null, 1);
     } else if (e.k === 'm') {
       let fg = MC[e.g] || [200, 200, 200], bg: RGB | null = null;

@@ -416,6 +416,7 @@ type ItemDef struct {
 	Value          int     // gold value (for trading later)
 	DropChance     float64 // rolled per player on every kill; elites always drop potions
 	Quest          bool    // a quest item: can't be sold or dropped
+	Rarity         int     // Rare gets a loot beam on the floor
 }
 
 var Items = map[string]*ItemDef{
@@ -432,7 +433,9 @@ var Items = map[string]*ItemDef{
 	"gem":          {ID: "gem", Name: "Garnet", Desc: "worth 40 gold to a trader", Glyph: 'g', MaxStack: 20, Value: 40, DropChance: 0.05},
 	"coin":         {ID: "coin", Name: "Old Coin", Desc: "a coin of a kingdom nobody remembers; 15 gold to a trader", Glyph: 'c', MaxStack: 20, Value: 15, DropChance: 0.05},
 	"ring":         {ID: "ring", Name: "Silver Ring", Desc: "someone's wedding ring; 80 gold to a trader", Glyph: 'o', MaxStack: 10, Value: 80, DropChance: 0.012},
-	"idol":         {ID: "idol", Name: "Gold Idol", Desc: "heavy, grinning and very old; 200 gold to a trader", Glyph: 'I', MaxStack: 5, Value: 200, DropChance: 0.003},
+	"idol":         {ID: "idol", Name: "Gold Idol", Desc: "heavy, grinning and very old; 200 gold to a trader", Glyph: 'I', MaxStack: 5, Value: 200, DropChance: 0.003, Rarity: Rare},
+	"weapon":       {ID: "weapon", Name: "Weapon", Desc: "wear it: U or Enter in the rucksack", Glyph: ')', MaxStack: 1, Use: "equip"},   // rolled gear (gear.go), never stacks
+	"trinket":      {ID: "trinket", Name: "Trinket", Desc: "wear it: U or Enter in the rucksack", Glyph: '"', MaxStack: 1, Use: "equip"}, // rolled gear (gear.go), never stacks
 	"key":          {ID: "key", Name: "Vault Key", Desc: "opens this floor's locked vault door (walk into it)", Glyph: 'k', MaxStack: 1, Quest: true},
 }
 

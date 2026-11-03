@@ -19,6 +19,9 @@ type Hero struct {
 	Pack       [PackSlots]Stack
 	PackCap    int // usable slots (StartPackCap, more with the Gnome Satchel)
 	packFullAt int // last tick a "rucksack full" message was sent
+	Weapon     *Gear
+	Trinket    *Gear
+	leechAcc   float64
 
 	CDReady [TreeSize]int // per skill, so moving a skill to another key doesn't reset it
 	Ranks   [TreeSize]int // 0 = not learned
@@ -68,13 +71,15 @@ func (h *Hero) Def() *ClassDef { return Classes[h.Cls] }
 
 func (h *Hero) save() heroSave {
 	return heroSave{Lvl: h.Lvl, XP: h.XP, HP: h.HP, HPMax: h.HPMax, Res: h.Res, ResMax: h.ResMax, Gold: h.Gold, Pack: h.Pack, PackCap: h.PackCap,
-		Ranks: h.Ranks, Binds: h.Binds, Points: h.Points, Oil: h.Oil, Blessed: h.Blessed, TrialOn: h.TrialOn, TrialKills: h.TrialKills}
+		Ranks: h.Ranks, Binds: h.Binds, Points: h.Points, Oil: h.Oil, Blessed: h.Blessed, TrialOn: h.TrialOn, TrialKills: h.TrialKills,
+		Weapon: h.Weapon, Trinket: h.Trinket}
 }
 
 func (h *Hero) restore(s heroSave) {
 	h.Lvl, h.XP, h.HP, h.HPMax, h.Res, h.ResMax, h.Gold, h.Pack = s.Lvl, s.XP, s.HP, s.HPMax, s.Res, s.ResMax, s.Gold, s.Pack
 	h.Ranks, h.Binds, h.Points, h.PackCap, h.Oil = s.Ranks, s.Binds, s.Points, s.PackCap, s.Oil
 	h.Blessed, h.TrialOn, h.TrialKills = s.Blessed, s.TrialOn, s.TrialKills
+	h.Weapon, h.Trinket = s.Weapon, s.Trinket
 	for i, st := range h.Pack { // saves from before the lantern: torches become oil, unknown items go
 		if st.Item == "torch" {
 			h.Oil = min(OilMax, h.Oil+st.N*OilFlask)
@@ -132,6 +137,7 @@ func (h *Hero) SkillIndex(id string) int {
 type Stack struct {
 	Item string
 	N    int
+	G    *Gear `json:",omitempty"` // a weapon or trinket (N is 1)
 }
 
 // AddItem puts up to n of an item into the rucksack: existing stacks first, then empty slots.
@@ -222,7 +228,8 @@ func (h *Hero) gainRes(n int) {
 func (h *Hero) SetClass(c ClassID) {
 	def := Classes[c]
 	h.Cls = c
-	h.HPMax, h.HP = def.HP+HPPerLevel(def.HP)*(h.Lvl-1), def.HP+HPPerLevel(def.HP)*(h.Lvl-1)
+	h.HPMax = def.HP + HPPerLevel(def.HP)*(h.Lvl-1) + h.Weapon.Stat("hp") + h.Trinket.Stat("hp")
+	h.HP = h.HPMax
 	h.ResMax, h.Res = def.ResMax, def.ResStart
 }
 
@@ -270,6 +277,9 @@ func (g *Game) damageHero(h *Hero, dmg int, srcID int) {
 	if h.Dead || h.Downed || !h.Connected || dmg <= 0 {
 		return
 	}
+	if a := h.GearStat("armor"); a > 0 {
+		dmg = int(math.Round(float64(dmg) * (1 - float64(a)/100)))
+	}
 	if g.Now < h.BellUntil {
 		dmg = int(math.Round(float64(dmg) * (1 - float64(Classes[Monk].Skills[2].Aux)/100)))
 	}
@@ -288,7 +298,7 @@ func (g *Game) damageHero(h *Hero, dmg int, srcID int) {
 	h.HP -= dmg
 	h.LastDamage = g.Now
 	if gt := h.Def().GainTaken; gt > 0 {
-		h.gainRes(gt)
+		h.gainRes(int(math.Round(h.resGain(float64(gt)))))
 	}
 	g.emit(Event{K: "hit", Actor: srcID, Target: h.ID, X: h.X, Y: h.Y, Amount: dmg})
 	if h.HP <= 0 {

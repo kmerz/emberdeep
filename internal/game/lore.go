@@ -341,6 +341,7 @@ func (g *Game) vaultLoot(x, y int) {
 	for _, h := range g.Heroes {
 		if !h.Dead && h.Connected {
 			g.Items = append(g.Items, &Item{ID: g.newID(), Kind: Items["ring"].Glyph, Def: "ring", X: x, Y: y, Amount: 1, Owner: h.ID})
+			g.dropGear(h, x, y, Rare)
 		}
 	}
 }

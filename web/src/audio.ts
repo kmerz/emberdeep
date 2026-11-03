@@ -135,6 +135,8 @@ export class Sfx {
       case 'gulp': this.tone(300, 0.08, 'sine', 0.2, 600); this.tone(350, 0.08, 'sine', 0.18, 700, 0.1); this.tone(420, 0.1, 'sine', 0.16, 840, 0.2); break;
       case 'coin': this.tone(1320, 0.07, 'square', 0.08); this.tone(1760, 0.18, 'square', 0.08, 1760, 0.07); break;
       case 'pick': this.tone(660, 0.1, 'triangle', 0.18, 990); break;
+      case 'equip': this.noise(0.08, 0.12, 2500, 'bandpass'); this.tone(330, 0.12, 'square', 0.06, 220, 0.03); break;
+      case 'beam': [784, 988, 1175, 1568].forEach((f, i) => this.tone(f, 0.6, 'sine', 0.12, f * 1.01, i * 0.07)); this.noise(0.9, 0.05, 7000, 'highpass'); break;
       case 'chest': this.noise(0.25, 0.2, 300, 'bandpass', 900, 0, 4); [784, 988, 1175].forEach((f, i) => this.tone(f, 0.15, 'square', 0.06, f, 0.2 + i * 0.07)); break;
       case 'levelup': [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.35, 'triangle', 0.2, f, i * 0.09)); break;
       case 'down': this.tone(440, 0.7, 'sawtooth', 0.12, 110); break;
@@ -191,7 +193,9 @@ export class Sfx {
       case 'strike': this.play(castSound('stab'), k * 0.7); break;
       case 'impact': this.play(e.fx === 'leap' ? 'thud' : 'boom', Math.max(k, 0.4)); break;
       case 'potion': case 'use': if (mine) this.play(e.fx === 'torch' ? 'whoosh' : e.fx === 'lightorb' ? 'chime' : 'gulp'); break;
-      case 'pickup': if (mine) this.play(e.fx === 'gold' ? 'coin' : 'pick'); break;
+      case 'pickup': case 'gearpick': if (mine) this.play(e.fx === 'gold' ? 'coin' : 'pick'); break;
+      case 'equip': case 'unequip': if (e.actor === me) this.play('equip'); break;
+      case 'raredrop': if (e.actor === me) this.play('beam'); break;
       case 'trade': if (mine) this.play('coin'); break;
       case 'chest': this.play('chest', k); break;
       case 'levelup': this.play('levelup', mine ? 1 : 0.5); break;

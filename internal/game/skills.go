@@ -7,7 +7,7 @@ func (h *Hero) dmgScale(base int) int {
 	if b == 0 {
 		b = 1
 	}
-	return int(math.Round(float64(base) * (1 + 0.1*float64(h.Lvl-1)) * b))
+	return int(math.Round(float64(base) * (1 + 0.1*float64(h.Lvl-1)) * b * (1 + float64(h.GearStat("dmg"))/100)))
 }
 
 func (g *Game) applyCast(h *Hero, in Intent) error {
@@ -52,7 +52,7 @@ func (g *Game) applyCast(h *Hero, in Intent) error {
 		return err
 	}
 	h.Res -= sk.Cost
-	h.CDReady[idx] = g.Now + sk.CD
+	h.CDReady[idx] = g.Now + int(math.Round(float64(sk.CD)*(1-float64(h.GearStat("cdr"))/100)))
 	h.ReviveTarget, h.ReviveProg = 0, 0
 	return nil
 }

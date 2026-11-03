@@ -20,6 +20,20 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [x] [M] Chests with loot, and mimics (chests that bite)
 - [x] [M] Torch item and light spell (Scroll of Light for everyone; Light is a Sorcerer skill too)
 
+## 3b. Gear and loot
+- [x] [L] Gear: a weapon and a trinket slot, common/magic/rare with 0-2 bonuses, class weapons, loot beams for rare drops
+- [ ] [M] Grimble sells a few rolled pieces per visit (answers "what do the gnomes trade?")
+- [ ] [S] Unique items: hand-made named pieces from bosses (e.g. the Tallow King's candle-staff)
+- [ ] [M] Shrines: a random short buff (haste, life steal, more gold) or a gamble
+
+## 3c. Run feel
+- [ ] [M] Floor events: 1 in 4 floors gets something special (a treasure goblin, "the dead stir", a cursed floor with double gold)
+- [ ] [M] Run summary: per-hero stats at the end (damage, kills, revives, times downed) and a funny title each
+- [ ] [S] Hall of Fame: the best runs on the landing page
+- [ ] [S] Death recap: "Downed by an Imp's firebolt, 34 dmg"
+- [ ] [S] Pause menu for gamepads (so a pad can `/save`)
+- [ ] [M] Pressure plates and secret walls
+
 ## 4. Progression
 - [x] [XL] Skill tree (Diablo 2 style): 6 skills per class in 3 tiers, ranks 1-5, any 3 on keys 1-3, free reset at the stairs
 

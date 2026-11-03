@@ -33,14 +33,15 @@ const (
 	CMove     = "move"
 	CCast     = "cast"
 	CPotion   = "potion"
-	CUse      = "use"    // use the rucksack item in slot (x, y: where to throw it)
-	CDrop     = "drop"   // drop the stack in slot
-	CLearn    = "learn"  // spend a point on skill
-	CBind     = "bind"   // put skill on key slot (0-2)
-	CRespec   = "respec" // reset the skill tree (at the stairs)
-	CBuy      = "buy"    // buy one item (skill: item id) from the trader
-	CSell     = "sell"   // sell one item from rucksack slot
-	CAccept   = "accept" // accept a quest (skill: quest id) from the giver next to you
+	CUse      = "use"     // use the rucksack item in slot (x, y: where to throw it)
+	CDrop     = "drop"    // drop the stack in slot
+	CUnequip  = "unequip" // take off the weapon (slot 0) or trinket (slot 1)
+	CLearn    = "learn"   // spend a point on skill
+	CBind     = "bind"    // put skill on key slot (0-2)
+	CRespec   = "respec"  // reset the skill tree (at the stairs)
+	CBuy      = "buy"     // buy one item (skill: item id) from the trader
+	CSell     = "sell"    // sell one item from rucksack slot
+	CAccept   = "accept"  // accept a quest (skill: quest id) from the giver next to you
 	CRevive   = "revive"
 	CChat     = "chat"
 	CPing     = "ping"
@@ -155,6 +156,8 @@ type Ent struct {
 	Trader bool     `json:"trader,omitempty"` // gnomes (k "n"): this one trades
 	Board  bool     `json:"board,omitempty"`  // k "n": the notice board
 	Follow bool     `json:"follow,omitempty"` // k "n": a gnome being rescued
+	Rar    int      `json:"rar,omitempty"`    // items: rarity (2 = rare: a loot beam)
+	Nm     string   `json:"nm,omitempty"`     // items: a gear piece's name
 }
 
 type PartyEntry struct {
@@ -210,8 +213,37 @@ type TreeSkill struct {
 }
 
 type PackSlot struct {
-	Item string `json:"item"`
-	N    int    `json:"n"`
+	Item string    `json:"item"`
+	N    int       `json:"n"`
+	G    *GearView `json:"g,omitempty"` // a weapon or trinket
+}
+
+// GearView is a rolled weapon or trinket as the client sees it.
+type GearView struct {
+	Slot  string    `json:"slot"` // "weapon" or "trinket"
+	Base  string    `json:"base"`
+	Name  string    `json:"name"`
+	Rar   int       `json:"rar"` // 0 common, 1 magic, 2 rare
+	Lvl   int       `json:"lvl"`
+	Mods  []GearMod `json:"mods"`  // the base stat first
+	Value int       `json:"value"` // what Grimble pays
+}
+
+type GearMod struct {
+	K string `json:"k"`
+	V int    `json:"v"`
+}
+
+// ViewGear converts a piece of gear for the wire (nil stays nil).
+func ViewGear(g *game.Gear) *GearView {
+	if g == nil {
+		return nil
+	}
+	v := &GearView{Slot: g.Slot, Base: g.Base, Name: g.Name, Rar: g.Rarity, Lvl: g.Lvl, Value: g.Value(), Mods: make([]GearMod, len(g.Mods))}
+	for i, m := range g.Mods {
+		v.Mods[i] = GearMod{m.K, m.V}
+	}
+	return v
 }
 
 type Me struct {
@@ -235,6 +267,8 @@ type Me struct {
 	Trial   *Trial      `json:"trial,omitempty"` // a god's trial holds the next level
 	Oil     int         `json:"oil"`             // seconds of light left in the lantern
 	OilMax  int         `json:"oilMax"`          // seconds in a full lantern
+	Weapon  *GearView   `json:"weapon,omitempty"`
+	Trinket *GearView   `json:"trinket,omitempty"`
 }
 
 // SnapShared is the part of a snapshot identical for every client of a room.

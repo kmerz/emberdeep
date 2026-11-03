@@ -252,9 +252,13 @@ func (g *Game) applySell(h *Hero, slot int) error {
 		return ErrBadIntent // Grimble won't buy what someone is waiting for
 	}
 	price := SellPrice(id)
+	name := ""
+	if gr := h.Pack[slot].G; gr != nil {
+		price, name = gr.Value(), gr.Name
+	}
 	h.removeAt(slot, 1)
 	h.Gold += price
-	g.emit(Event{K: "trade", Actor: h.ID, X: h.X, Y: h.Y, FX: id, Amount: price})
+	g.emit(Event{K: "trade", Actor: h.ID, X: h.X, Y: h.Y, FX: id, Amount: price, Text: name})
 	return nil
 }
 

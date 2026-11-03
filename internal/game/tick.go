@@ -49,7 +49,11 @@ func (g *Game) tickHero(h *Hero) {
 	}
 	def := h.Def()
 	if def.Regen != 0 && !h.Downed {
-		h.resAcc += def.Regen / TickHz
+		r := def.Regen
+		if r > 0 {
+			r = h.resGain(r)
+		}
+		h.resAcc += r / TickHz
 		for h.resAcc >= 1 {
 			h.resAcc--
 			h.gainRes(1)

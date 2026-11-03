@@ -222,7 +222,7 @@ func BuildShared(g *game.Game) []byte {
 	}
 	for _, it := range g.Items {
 		if it.Owner == 0 && g.IsVisible(it.X, it.Y) {
-			s.Ents = append(s.Ents, proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount, It: it.Def})
+			s.Ents = append(s.Ents, itemEnt(it))
 		}
 	}
 	for _, o := range g.Orbs {
@@ -255,8 +255,9 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 	me := proto.Me{Res: h.Res, ResMax: h.ResMax, Potions: h.Count("potion"), Pack: make([]proto.PackSlot, game.PackSlots), Gold: h.Gold, XP: h.XP, XPNeed: game.XPNeed(h.Lvl), Lvl: h.Lvl,
 		CD: make([]int, 3), CDMax: make([]int, 3), Cost: make([]int, 3), PotCD: max(0, h.PotionReady-g.Now)}
 	for i, s := range h.Pack {
-		me.Pack[i] = proto.PackSlot{Item: s.Item, N: s.N}
+		me.Pack[i] = proto.PackSlot{Item: s.Item, N: s.N, G: proto.ViewGear(s.G)}
 	}
+	me.Weapon, me.Trinket = proto.ViewGear(h.Weapon), proto.ViewGear(h.Trinket)
 	me.Binds = make([]string, 3)
 	for i := 0; i < 3; i++ {
 		me.CD[i], me.CDMax[i], me.Cost[i] = keyInfo(g, h, i)
@@ -280,7 +281,7 @@ func BuildPrivate(g *game.Game, shared []byte, pid int) []byte {
 	drops := []proto.Ent{}
 	for _, it := range g.Items {
 		if it.Owner == pid && g.IsVisible(it.X, it.Y) {
-			drops = append(drops, proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount, It: it.Def})
+			drops = append(drops, itemEnt(it))
 		}
 	}
 	out = append(out, `,"drops":`...)
@@ -299,4 +300,15 @@ func QuestsMsg(g *game.Game) []byte {
 			State: questStates[q.State], Progress: q.Progress, Count: max(1, d.Count), Gold: d.Gold, XP: d.XP, Point: d.Point})
 	}
 	return mustJSON(out)
+}
+
+// itemEnt is an item on the floor; gear carries its name and rarity, and rare things get a loot beam.
+func itemEnt(it *game.Item) proto.Ent {
+	e := proto.Ent{ID: it.ID, K: "i", G: string(rune(it.Kind)), X: it.X, Y: it.Y, HPMax: it.Amount, It: it.Def}
+	if it.G != nil {
+		e.Rar, e.Nm = it.G.Rarity, it.G.Name
+	} else if d := game.Items[it.Def]; d != nil {
+		e.Rar = d.Rarity
+	}
+	return e
 }
