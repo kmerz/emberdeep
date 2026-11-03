@@ -277,8 +277,9 @@ func (g *Game) PartyGold() int {
 	return t
 }
 
-// damageHero applies monster (or ally) damage to a hero: Bell, Iron Wall absorb, downed transition.
-func (g *Game) damageHero(h *Hero, dmg int, srcID int) {
+// damageHero applies monster (or ally) damage to a hero: Bell, Iron Wall absorb, downed transition. how names
+// the attack for the death recap ("firebolt", "a spike trap"); "" for a plain melee hit.
+func (g *Game) damageHero(h *Hero, dmg int, srcID int, how string) {
 	if h.Dead || h.Downed || !h.Connected || dmg <= 0 {
 		return
 	}
@@ -302,6 +303,7 @@ func (g *Game) damageHero(h *Hero, dmg int, srcID int) {
 	}
 	h.HP -= dmg
 	h.LastDamage = g.Now
+	g.stats(h).Taken += dmg
 	if t := h.GearStat("thorns"); t > 0 && g.monByID[srcID] != nil {
 		g.thorns = append(g.thorns, thorn{h.ID, srcID, max(1, dmg*t/100)})
 	}
@@ -311,16 +313,20 @@ func (g *Game) damageHero(h *Hero, dmg int, srcID int) {
 	g.emit(Event{K: "hit", Actor: srcID, Target: h.ID, X: h.X, Y: h.Y, Amount: dmg})
 	if h.HP <= 0 {
 		h.HP = 0
-		g.downHero(h)
+		s := g.stats(h)
+		s.LastDowned = g.cause(srcID, how)
+		g.downHero(h, s.LastDowned, dmg)
 		g.barkDown(srcID)
 	}
 }
 
-func (g *Game) downHero(h *Hero) {
+// downHero knocks h down; by and dmg say what did it (the death recap in the log).
+func (g *Game) downHero(h *Hero, by string, dmg int) {
 	h.Downed = true
 	h.DownedUntil = g.Now + DownedTicks
 	h.ReviveTarget, h.ReviveProg = 0, 0
-	g.emit(Event{K: "down", Target: h.ID, X: h.X, Y: h.Y})
+	g.stats(h).Downs++
+	g.emit(Event{K: "down", Target: h.ID, X: h.X, Y: h.Y, Text: by, Amount: dmg})
 }
 
 // updateVision unions every hero's FOV into Visible and records newly explored tiles.

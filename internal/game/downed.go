@@ -36,6 +36,7 @@ func (g *Game) tickReviver(h *Hero) {
 		t.Downed = false
 		t.HP = max(1, int(math.Round(float64(t.HPMax)*ReviveHPFrac)))
 		g.emit(Event{K: "revive", Actor: h.ID, Target: t.ID, X: t.X, Y: t.Y})
+		g.stats(h).Revives++
 		for _, o := range g.Heroes {
 			if o.ReviveTarget == t.ID {
 				o.ReviveTarget, o.ReviveProg = 0, 0

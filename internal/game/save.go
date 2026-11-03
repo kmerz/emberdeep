@@ -18,6 +18,7 @@ type RunSave struct {
 	Quests      []QuestSave
 	Heroes      map[string]SavedHero // by player name
 	Floors      map[int]*floorMemo   // what each visited floor remembers
+	Stats       map[string]RunStats  // the run summary so far, by player name
 }
 
 type QuestSave struct {
@@ -46,6 +47,10 @@ func (g *Game) Save(prev map[string]SavedHero) RunSave {
 		ReturnDepth: g.ReturnDepth, Kills: g.Kills, Heroes: map[string]SavedHero{}}
 	for name, h := range prev {
 		s.Heroes[name] = h
+	}
+	s.Stats = map[string]RunStats{}
+	for name, st := range g.Stats {
+		s.Stats[name] = *st
 	}
 	for _, q := range g.Quests {
 		s.Quests = append(s.Quests, QuestSave{ID: q.Def.ID, State: q.State, Progress: q.Progress})
@@ -78,6 +83,11 @@ func Load(s RunSave, n int) *Game {
 		}
 	}
 	g.VillageSeen, g.ReturnDepth, g.Kills = s.VillageSeen, s.ReturnDepth, s.Kills
+	g.Stats = map[string]*RunStats{}
+	for name, st := range s.Stats {
+		st := st
+		g.Stats[name] = &st
+	}
 	g.Floors = map[int]*floorMemo{}
 	for k, m := range s.Floors {
 		if m != nil {

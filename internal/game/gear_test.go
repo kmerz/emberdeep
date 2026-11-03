@@ -91,7 +91,7 @@ func TestGearStatsWork(t *testing.T) {
 	// armor
 	h.Trinket = &Gear{Slot: "trinket", Base: "charm", Lvl: 1, Mods: []Mod{{"armor", 25}}}
 	h.HP = 100
-	g.damageHero(h, 40, m.ID)
+	g.damageHero(h, 40, m.ID, "")
 	if h.HP != 70 {
 		t.Fatalf("25%% armor should turn 40 damage into 30: hp %d", h.HP)
 	}
@@ -238,7 +238,7 @@ func TestBossUniques(t *testing.T) {
 	// thorns land after the monsters act
 	z := g.addMon('h', 41, 25, 1)
 	hp := z.HP
-	g.damageHero(h, 20, z.ID)
+	g.damageHero(h, 20, z.ID, "")
 	if z.HP != hp {
 		t.Fatal("thorns must wait for the end of the tick")
 	}

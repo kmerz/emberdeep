@@ -13,6 +13,13 @@ export interface Ent {
   rar?: number; // items: rarity (2 = rare: a loot beam)
   nm?: string;  // items: a gear piece's name
 }
+/** One hero's run so far (the summary on the wipe and cleared screens). */
+export interface HeroSummary {
+  id: number; name: string; cls: ClassId; lvl: number; title: string;
+  dmg: number; kills: number; taken: number; downs: number; revives: number; potions: number; gold: number; bestHit: number;
+  lastDowned?: string;
+}
+
 export interface PartyEntry {
   id: number; name: string; cls: ClassId; lvl: number; hp: number; hpMax: number; res: number; resMax: number;
   st?: Status[]; downed?: boolean; dead?: boolean; downT?: number; connected: boolean;
@@ -65,7 +72,8 @@ export interface LobbyMsg {
   t: 'lobby'; code: string; players: LobbyPlayer[]; inGame: boolean; save?: SaveInfo;
   settings: { difficulty: string; seed: string; loot: string; friendlyFire: boolean };
 }
-export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; up?: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][]; dark?: boolean; village?: boolean }
+export interface LevelMsg { t: 'level'; w: number; h: number; seed: string; torches: [number, number][]; stairs: [number, number]; up?: [number, number]; start: [number, number]; depth: number; maxDepth: number; theme: string; glows: [number, number][]; dark?: boolean; village?: boolean;
+  /** the floor event: 'goblin' | 'stir' | 'cursed' */ event?: string; eventText?: string }
 export type ServerMsg =
   | { t: 'welcome'; you: number; token: string; code: string; inviteUrl: string; isHost: boolean }
   | LobbyMsg
@@ -77,7 +85,7 @@ export type ServerMsg =
   | { t: 'chat'; from: number; name: string; cls: ClassId; text: string }
   | { t: 'ping'; from: number; name: string; cls: ClassId; cell: [number, number] }
   | { t: 'hb'; n: number }
-  | { t: 'overlay'; kind: 'wipe' | 'cleared' }
+  | { t: 'overlay'; kind: 'wipe' | 'cleared'; summary?: HeroSummary[] }
   | { t: 'error'; msg: string }
   | { t: 'quests'; list: QuestInfo[] };
 

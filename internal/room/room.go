@@ -387,7 +387,7 @@ func (r *Room) syncConn(p *Player) {
 			c.Send(ExploreMsg(ex))
 		}
 		if r.overlay != "" {
-			c.Send(mustJSON(proto.Overlay{T: "overlay", Kind: r.overlay}))
+			c.Send(mustJSON(proto.Overlay{T: "overlay", Kind: r.overlay, Summary: r.g.Summary()}))
 		}
 	} else {
 		c.Send(mustJSON(proto.Phase{T: "phase", Phase: "lobby"}))
@@ -494,6 +494,8 @@ func (r *Room) handleMsg(in inMsg) {
 			r.g.RetryFloor()
 			r.overlay = "" // the client drops its overlay when a level arrives
 			r.sendLevel()
+		} else if r.g.Phase == game.PhaseCleared {
+			r.endRun() // done reading the summary
 		}
 	case proto.CSetting:
 		if !p.Host || r.g != nil {
@@ -694,12 +696,12 @@ func (r *Room) afterTick() {
 	case game.PhaseWiped:
 		if r.overlay != "wipe" {
 			r.overlay = "wipe"
-			r.sendAll(mustJSON(proto.Overlay{T: "overlay", Kind: "wipe"}))
+			r.sendAll(mustJSON(proto.Overlay{T: "overlay", Kind: "wipe", Summary: r.g.Summary()}))
 		}
 	case game.PhaseCleared:
 		if r.overlay != "cleared" {
 			r.overlay = "cleared"
-			r.sendAll(mustJSON(proto.Overlay{T: "overlay", Kind: "cleared"}))
+			r.sendAll(mustJSON(proto.Overlay{T: "overlay", Kind: "cleared", Summary: r.g.Summary()}))
 		}
 		if r.g.Now-r.g.ClearedTick >= game.ClearedReturn {
 			r.endRun()

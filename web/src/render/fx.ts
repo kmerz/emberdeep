@@ -170,6 +170,7 @@ export class Fx {
       case 'charm': push('flare', 900, { pal: 'charm' }); break;
       case 'drain': push('dmg', 1100, { text: '-' + ev.amount, pal: 'absorb' }); break;
       case 'summon': push('flare', 600, { pal: 'cast' }); break;
+      case 'escape': push('flare', 700, { pal: 'cast' }); break;
       case 'split': push('flare', 500, { pal: 'revive' }); break;
       case 'mimic':
         if (ev.target) this.flashes.set(ev.target, t0);

@@ -40,7 +40,7 @@ func (g *Game) tickFires() {
 	for _, h := range g.Heroes {
 		for _, f := range g.Fires {
 			if f.X == h.X && f.Y == h.Y {
-				g.damageHero(h, f.Dmg, 0)
+				g.damageHero(h, f.Dmg, 0, "burning ground")
 				break
 			}
 		}
@@ -51,6 +51,9 @@ func (g *Game) tickFires() {
 func (g *Game) monsterDmg(m *Monster, base float64) int {
 	if m.Named != "" {
 		base *= NamedDmgMult
+	}
+	if g.Event == "cursed" {
+		base *= CursedDmgMult
 	}
 	dmg := int(math.Round(base * Difficulties[g.Settings.Difficulty].DmgMult * DepthDmgMult(g.Depth)))
 	if m.Elite {
@@ -77,7 +80,7 @@ func (g *Game) rangedAct(m *Monster, tgt *Hero) bool {
 			m.NextAtk = g.Now + def.AtkTicks
 			m.Facing = dirIndex(tgt.X-m.X, tgt.Y-m.Y, m.Facing)
 			g.emit(Event{K: "shot", Actor: m.ID, X: m.X, Y: m.Y, TX: tgt.X, TY: tgt.Y, FX: string(rune(m.Kind))})
-			g.damageHero(tgt, g.monsterDmg(m, float64(def.Dmg)), m.ID)
+			g.damageHero(tgt, g.monsterDmg(m, float64(def.Dmg)), m.ID, shotName(m))
 		}
 		return true // hold position while in range
 	}
@@ -149,7 +152,7 @@ func (g *Game) breathe(m *Monster) {
 	dmg := g.monsterDmg(m, float64(m.Def().Dmg)*1.5)
 	for _, h := range g.Heroes {
 		if !h.Dead && inCone(m, tx, ty, h.X, h.Y) && g.Level.LineClear(m.X, m.Y, h.X, h.Y) {
-			g.damageHero(h, dmg, m.ID)
+			g.damageHero(h, dmg, m.ID, "fire breath")
 		}
 	}
 }
@@ -226,4 +229,12 @@ func (g *Game) Revealed(m *Monster) bool {
 		}
 	}
 	return false
+}
+
+// shotName is what a ranged monster shoots ("shot" for one without a name of its own).
+func shotName(m *Monster) string {
+	if n, ok := shotNames[m.Kind]; ok {
+		return n
+	}
+	return "shot"
 }

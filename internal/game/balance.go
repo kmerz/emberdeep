@@ -32,7 +32,7 @@ const (
 	AggroRange     = 18.0
 	PathSearch     = 2500 // cells a monster's path search may look at (enough for ~24 cells across open ground)
 	LeashRange     = 34.0
-	ClearedReturn  = 6 * TickHz
+	ClearedReturn  = 20 * TickHz
 	IronWallThreat = 60
 	GoldBase       = 6
 )
@@ -330,6 +330,7 @@ var MonDefs = map[byte]MonDef{
 	'I':     {Name: "Incubus", HP: 60, Dmg: 9, MoveTicks: 4, AtkTicks: 14, XP: 30, Role: "drainer"},                                // drains resource, blinks away
 	'D':     {Name: "The Ember Dragon", HP: 520, Dmg: 22, MoveTicks: 7, AtkTicks: 18, XP: 400, Role: "dragon", Range: BreathRange}, // breathes fire
 	KegKind: {Name: "Powder Keg", HP: 1, Dmg: 0, MoveTicks: 99, AtkTicks: 99, XP: 0, Role: "keg"},                                  // explodes when hit (world.go)
+	'T':     {Name: "Treasure Goblin", HP: 70, Dmg: 0, MoveTicks: 3, AtkTicks: 99, XP: 40, Role: "goblin"},                         // a floor event: runs, never fights
 	'o':     {Name: "Blob", HP: 44, Dmg: 6, MoveTicks: 8, AtkTicks: 14, XP: 10, Role: "splitter"},                                  // splits when killed
 }
 

@@ -209,6 +209,9 @@ export class Sfx {
       case 'charm': this.play('charm', mine ? 1 : k); break;
       case 'drain': if (mine) this.play('drain'); break;
       case 'summon': this.play('summon', k); break;
+      case 'goblin': this.play('charge'); break;
+      case 'escape': this.play('blink'); break;
+      case 'stir': this.play('rumble'); break;
       case 'split': this.play('squelch', k); break;
       case 'shot': this.play('zap', k * 0.5); break;
       case 'blink': this.play('blink', k); break;

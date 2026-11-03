@@ -179,7 +179,7 @@ func (g *Game) tickTraps() {
 			}
 			t.Seen, t.ReadyAt = true, g.Now+TrapRearm
 			g.emit(Event{K: "trap", Target: h.ID, X: t.X, Y: t.Y})
-			g.damageHero(h, int(math.Round(TrapDmg*DepthDmgMult(g.Depth)*Difficulties[g.Settings.Difficulty].DmgMult)), 0)
+			g.damageHero(h, int(math.Round(TrapDmg*DepthDmgMult(g.Depth)*Difficulties[g.Settings.Difficulty].DmgMult)), 0, "a spike trap")
 		} else if m := g.monByID[id]; m != nil && m.Def().Role != "keg" && !m.Disguised {
 			t.ReadyAt = g.Now + TrapRearm
 			if g.IsVisible(t.X, t.Y) {
@@ -232,7 +232,7 @@ func (g *Game) kegBlast(p pending) {
 	hd := int(math.Round(KegHeroDmg * DepthDmgMult(g.Depth) * Difficulties[g.Settings.Difficulty].DmgMult))
 	for _, h := range g.Heroes {
 		if !h.Dead && dist(p.x, p.y, h.X, h.Y) <= KegRadius {
-			g.damageHero(h, hd, 0)
+			g.damageHero(h, hd, 0, "a powder keg")
 		}
 	}
 	g.addFire(p.x, p.y, KegFireTicks, FireDmg)

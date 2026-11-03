@@ -28,10 +28,10 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [x] [M] Shrines: haste, fury, blood, fortune, or a gamble (Shrine of Chance)
 
 ## 3c. Run feel
-- [ ] [M] Floor events: 1 in 4 floors gets something special (a treasure goblin, "the dead stir", a cursed floor with double gold)
-- [ ] [M] Run summary: per-hero stats at the end (damage, kills, revives, times downed) and a funny title each
+- [x] [M] Floor events: 1 in 4 floors gets something special (a treasure goblin, "the dead stir", a cursed floor with double gold)
+- [x] [M] Run summary: per-hero stats at the end (damage, kills, revives, times downed) and a funny title each
 - [ ] [S] Hall of Fame: the best runs on the landing page
-- [ ] [S] Death recap: "Downed by an Imp's firebolt, 34 dmg"
+- [x] [S] Death recap: "Downed by an Imp's firebolt, 34 dmg"
 - [ ] [S] Pause menu for gamepads (so a pad can `/save`)
 - [ ] [M] Pressure plates and secret walls
 

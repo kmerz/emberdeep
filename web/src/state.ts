@@ -1,9 +1,15 @@
-import type { Ent, GameEvent, LevelMsg, LobbyMsg, Me, Objectives, PartyEntry, ServerMsg, Snap, ClassId, QuestInfo } from './proto';
+import type { Ent, GameEvent, HeroSummary, LevelMsg, LobbyMsg, Me, Objectives, PartyEntry, ServerMsg, Snap, ClassId, QuestInfo } from './proto';
 import { CLS, MC, SKILL_BY_ID } from './classes';
 import { DIM, GOLD, PINK, RGB, TX } from './term/fb';
 import { palette } from './render/themes';
 import { VALUE, itemInfo, rarityCol, RARITY } from './items';
 import { Remain, bleedFor, remainsFor, remainsOk } from './render/remains';
+
+/** How long a Treasure Goblin runs before it escapes (game.GoblinEscape). */
+export const GOBLIN_MS = 30000;
+/** The color of each floor event in the log and on the HUD. */
+export const EVENT_COL: Record<string, RGB> = { goblin: [255, 212, 92], stir: [150, 196, 106], cursed: [200, 110, 255] };
+const WHITE: RGB = [240, 236, 255];
 
 const MINT_LOG: RGB = [126, 240, 178];
 const GOD: RGB = [255, 200, 90];
@@ -74,7 +80,12 @@ export class GameState {
   ackSeq = 0;
   log: LogLine[] = [];
   pings: PingMark[] = [];
+  /** the Treasure Goblin on this floor: hiding until it sees the party, then running until goblinUntil (ms) */
+  goblin: 'hiding' | 'running' | 'caught' | 'escaped' = 'hiding';
+  goblinUntil = 0;
   overlay: 'wipe' | 'cleared' | null = null;
+  /** the run summary that came with the overlay */
+  summary: HeroSummary[] = [];
   levelAt = 0; // when the current level arrived (for the depth banner)
   quests: QuestInfo[] = []; // the party's sidequests
   lobby: LobbyMsg | null = null;
@@ -231,6 +242,10 @@ export class GameState {
         case 'kill':
           if (e.fx === 'K') this.pushLog([['The Tallow King', PINK, 1], [' falls to ', DIM], [an || 'the party', ac]], now);
           else if (e.fx === 'M') this.pushLog([['The mimic', PINK, 1], [' falls and spills its treasure', DIM]], now);
+          else if (e.fx === 'T') {
+            this.goblin = 'caught';
+            this.pushLog([[an || 'The party', ac], [' catches the ', DIM], ['Treasure Goblin', GOLD, 1], [': its hoard spills out!', DIM]], now);
+          }
           else if (you && e.fx !== 'B') this.pushLog([['You slay the ', DIM], [e.text || 'monster', MC[e.fx ?? ''] ?? TX, 1]], now);
           break;
         case 'pickup':
@@ -249,8 +264,20 @@ export class GameState {
         case 'raredrop': if (you) this.pushLog([['A ' + (RARITY[e.amount ?? 2] ?? 'rare') + ' find: ', rarityCol(e.amount), 1], [e.text || '', TX]], now); break;
         case 'chest': this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' open a ' : ' opens a ', DIM], ['chest', GOLD, 1]], now); break;
         case 'summon':
+          if (e.fx === 'stir') break; // the wave is told once ('stir')
           this.pushLog(e.fx === 'Q' ? [['The Ant Queen', [255, 170, 60]], [' lays a ', DIM], [e.text || 'soldier', TX]]
             : [['A Bone Caller', [180, 120, 255]], [' raises a ', DIM], [e.text || 'minion', TX]], now);
+          break;
+        case 'goblin':
+          this.goblin = 'running'; this.goblinUntil = now + GOBLIN_MS;
+          this.pushLog([['A Treasure Goblin', GOLD, 1], [' spots you and runs! Catch it within ', DIM], [GOBLIN_MS / 1000 + ' s', WHITE, 1]], now);
+          break;
+        case 'escape':
+          this.goblin = 'escaped';
+          this.pushLog([['The Treasure Goblin', GOLD, 1], [' slips away, and its hoard with it.', DIM]], now);
+          break;
+        case 'stir':
+          this.pushLog([['The dead stir: ', EVENT_COL.stir, 1], [(e.amount ?? 1) + ' claw their way up', DIM]], now);
           break;
         case 'breath': this.pushLog([['The Ember Dragon', [255, 60, 30], 1], [' draws a deep breath…', DIM]], now); break;
         case 'charm': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is charmed by the ', DIM], ['Succubus', [255, 110, 200], 1]], now); break;
@@ -304,7 +331,12 @@ export class GameState {
           break;
         }
         case 'drop': if (e.fx) { const it = itemInfo(e.fx); this.pushLog([[you ? 'You' : an, you ? TX : ac], [you ? ' drop ' : ' drops ', DIM], [e.text || (e.amount || 1) + '× ' + it.name, it.col]], now); } break;
-        case 'down': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is DOWN!', PINK, 1]], now); break;
+        case 'down': { // the death recap: what did it, and how hard
+          const segs: LogSeg[] = [[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' is DOWN!', PINK, 1]];
+          if (e.text) segs.push([' · ' + e.text, TX], [e.amount ? ' · ' + e.amount + ' dmg' : '', DIM]);
+          this.pushLog(segs, now);
+          break;
+        }
         case 'revive': this.pushLog([[an, ac], [' revives ', DIM], [this.nameOf(e.target || 0), this.colOf(e.target || 0)]], now); break;
         case 'dead': this.pushLog([[this.nameOf(e.target || 0), this.colOf(e.target || 0)], [' has fallen', PINK]], now); break;
         case 'levelup':
@@ -360,6 +392,8 @@ export class GameState {
           this.pushLog([['You enter the ', DIM], [palette(m.theme).name, TX], [' · Depth ' + String(m.depth).padStart(2, '0'), DIM]], now);
           if (m.dark) this.pushLog([['It is pitch black. Your lantern burns oil while you are here: ', DIM], ['keep an eye on it', [255, 170, 70]], ['.', DIM]], now);
         }
+        if (m.eventText) this.pushLog([['◆ ', EVENT_COL[m.event ?? ''] ?? GOLD, 1], [m.eventText, EVENT_COL[m.event ?? ''] ?? GOLD]], now);
+        this.goblin = 'hiding'; this.goblinUntil = 0;
         this.level = m; this.tiles.fill(0); this.vis.fill(0);
         this.recs = []; this.latest = null; this.pings = []; this.overlay = null; this.lastTarget = 0;
         this.remains.clear();
@@ -398,7 +432,7 @@ export class GameState {
         this.onPing(p);
         break;
       }
-      case 'overlay': this.overlay = m.kind; break;
+      case 'overlay': this.overlay = m.kind; this.summary = m.summary ?? []; break;
       case 'quests': this.quests = m.list; break;
       case 'error': this.errors.push(m.msg); break;
     }

@@ -117,6 +117,12 @@ Saves untouched for 30 days are deleted.
 - Shrines (`¥`): from floor 2, most floors have one. Walk into it once for the whole party: Haste (faster steps),
   Fury (+30% damage) or Blood (+12% life steal) for 45 s; Fortune (gold on this floor counts double); or Chance
   (a rare for everyone, a full heal, or an ambush). Then it goes dark.
+- Floor events: about one floor in four (never floor 1, a boss floor or the last one) has something special, told
+  when you arrive and shown under the objectives. A **Treasure Goblin** (`T`) hides far from the stairs; once it sees
+  the party it runs and never fights, and escapes after 30 s. Caught, it spills a big pile of gold and a rare for
+  everyone. On a floor where **the dead stir**, zombies and skeletons claw their way up near the party every 25 s
+  (no loot, a little XP). A **cursed** floor doubles the gold but monsters hit 25% harder. The event comes from the
+  run seed, so a retry or a return trip finds the same one (`internal/game/events.go`).
 - Vaults: from floor 2, one dead-end room may be locked (`▓`). An elite on the floor carries the key (or it lies
   in a far room); walk into the door with it. The vault chest holds extra gold, items, a Silver Ring and a rare piece of gear each.
   Keys only fit their own floor.
@@ -164,7 +170,11 @@ Saves untouched for 30 days are deleted.
 - Descend by having every living, connected hero on or next to `>` for 3 s. A run is 10 floors deep (`MaxDepth`);
   level, XP, gold and potions carry over, and dead or downed heroes stand up on the next floor at 50% HP. Enemies get
   tougher with depth, and a boss guards every 5th floor. The stairs on floor 10 end the run ("DEPTH CLEARED") and
-  the room returns to the lobby with a new seed.
+  the room returns to the lobby with a new seed, after 20 s or when the host presses `ENTER`.
+- The wipe and cleared screens show the run so far for every hero: kills, damage dealt and taken, times downed,
+  revives, potions, gold, best hit and what downed them last, with a title each ("the Butcher", "the Lifeline",
+  "the Floor Inspector", ...). The stats survive a retry and a save (`internal/game/stats.go`). The log also
+  says what downed a hero: "vela is DOWN! · an Imp's firebolt · 34 dmg".
 - Floors come in four themes, each with its own look, light and monster mix: Cathedral of Ash (1-2), Flooded
   Crypt (3-5), Fungal Caverns (6-8, cave-shaped rooms, glowing fungus) and Ember Depths (9-10). The bands live in
   `ThemeBands` in `balance.go`; the client palettes in `web/src/render/themes.ts`.

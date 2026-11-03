@@ -162,6 +162,10 @@ type Game struct {
 
 	KingKilled  bool
 	Kills       int
+	Stats       map[string]*RunStats // per hero (by player name), for the run summary (stats.go)
+	Event       string               // the floor event (events.go), "" = none
+	eventRng    *RNG
+	nextStir    int
 	StairsAt    int // heroes currently at the stairs
 	StairsNeed  int
 	stairsSince int // tick when the full-party window started, -1 when not running
@@ -326,6 +330,7 @@ func (g *Game) setupFloor(depth int, lvl *Level, seed uint32) {
 	}
 	g.Vault = nil
 	g.setupWorld()
+	g.setupEvent(depth, memo)
 	g.questsOnFloor()
 	g.setupStory(memo)
 	g.restoreExplored(memo)
@@ -762,6 +767,7 @@ func (g *Game) applyUse(h *Hero, in Intent) error {
 			heal := int(float64(h.HPMax) * def.Amount)
 			h.HP = min(h.HPMax, h.HP+heal)
 			g.emit(Event{K: "potion", Actor: h.ID, X: h.X, Y: h.Y, Amount: heal})
+			g.stats(h).Potions++
 		} else {
 			n := int(float64(h.ResMax) * def.Amount)
 			h.gainRes(n)
@@ -847,7 +853,9 @@ func (g *Game) pickup(h *Hero) {
 			if g.memo().Fortune {
 				it.Amount *= FortuneMult
 			}
+			it.Amount *= g.eventGoldMult()
 			g.splitGold(h, it.Amount)
+			g.stats(h).Gold += it.Amount
 			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: it.Amount, FX: "gold", Text: "gold"})
 			continue
 		}
@@ -933,6 +941,6 @@ func (g *Game) Teleport(id, x, y int) bool {
 // Hurt applies raw damage to a hero as if a monster had hit it (tests, tools).
 func (g *Game) Hurt(id, dmg int) {
 	if h := g.heroByID[id]; h != nil {
-		g.damageHero(h, dmg, monIDBase)
+		g.damageHero(h, dmg, monIDBase, "")
 	}
 }

@@ -3,7 +3,7 @@ package game
 import "testing"
 
 func downHeroNow(g *Game, h *Hero) {
-	g.damageHero(h, h.HP+1000, monIDBase+1)
+	g.damageHero(h, h.HP+1000, monIDBase+1, "")
 }
 
 func TestHeroDownedNotDead(t *testing.T) {
@@ -173,7 +173,7 @@ func TestDisconnectedHeroIsInvulnerableAndIdle(t *testing.T) {
 	if err := g.Apply(1, Intent{Kind: IntMove, Dir: 2}); err == nil {
 		t.Fatal("a disconnected hero is idle")
 	}
-	g.damageHero(a, 50, m.ID)
+	g.damageHero(a, 50, m.ID, "")
 	if a.HP != a.HPMax {
 		t.Fatal("damage must be ignored")
 	}
@@ -252,7 +252,7 @@ func TestThreatWindow(t *testing.T) {
 		t.Fatal("threat expires after 5 s")
 	}
 	g.addThreat(m, b.ID, 30)
-	g.damageHero(b, 1000, m.ID) // b goes down: never targeted
+	g.damageHero(b, 1000, m.ID, "") // b goes down: never targeted
 	if tg := g.pickTarget(m); tg != a {
 		t.Fatal("downed heroes are never targeted")
 	}

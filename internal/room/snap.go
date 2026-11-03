@@ -86,7 +86,7 @@ func LevelMsg(g *game.Game) []byte {
 	}
 	return mustJSON(proto.Level{T: "level", W: l.W, H: l.H, Seed: SeedString(g.Seed), Torches: tor, Up: up,
 		Stairs: [2]int{l.Stairs.X, l.Stairs.Y}, Start: [2]int{l.Start.X, l.Start.Y}, Depth: g.Depth, MaxDepth: game.MaxDepth,
-		Theme: l.Theme.ID, Glows: glows, Dark: l.Theme.Dark, Village: g.InVillage})
+		Theme: l.Theme.ID, Glows: glows, Dark: l.Theme.Dark, Village: g.InVillage, Event: g.Event, EventTxt: game.FloorEvents[g.Event]})
 }
 
 func ExploreMsg(tiles []game.TileUpdate) []byte {

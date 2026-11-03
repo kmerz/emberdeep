@@ -1,8 +1,8 @@
 // HUD: a port of design/Main.dc.html lines 285-396 driven by real state.
-import { Fb, RGB, DIM, TX, WH, PINK, GOLD, MINT, PAN, W, mul, mix, ramp, c01 } from '../term/fb';
-import { GameState, LW, LH, clock } from '../state';
+import { Fb, RGB, Seg, DIM, TX, WH, PINK, GOLD, MINT, PAN, W, mul, mix, ramp, c01 } from '../term/fb';
+import { GameState, LW, LH, clock, EVENT_COL } from '../state';
 import { CLS, SKILL_BY_ID } from '../classes';
-import type { Ent, PartyEntry } from '../proto';
+import type { Ent, HeroSummary, PartyEntry } from '../proto';
 import type { Cam } from './fx';
 import { VW, VH } from './map';
 import { palette } from './themes';
@@ -175,6 +175,22 @@ export function objectives(fb: Fb, st: GameState) {
   }
   fb.txt(115, 43, 'PARTY LOOT', DIM, null, 1);
   fb.segs(115, 44, [[String(o.gold), GOLD, null, 1], [' gold  ·  ', DIM], [String(o.kills), TX, null, 1], [' slain', DIM]]);
+  const ev = eventNote(st, performance.now());
+  if (ev) fb.segs(115, 45, ev);
+}
+
+/** One line about the floor event for the HUD (null = none): what it is, and how the goblin chase goes. */
+export function eventNote(st: GameState, now: number): Seg[] | null {
+  const ev = st.level?.event ?? '', col = EVENT_COL[ev] ?? GOLD;
+  if (ev === 'goblin') {
+    const g = st.goblin;
+    const left = Math.max(0, Math.ceil((st.goblinUntil - now) / 1000));
+    return [['$ ', col, null, 1], ['Treasure Goblin ', TX], g === 'running' ? [left + 's to catch it', PINK, null, 1]
+      : g === 'caught' ? ['caught!', MINT, null, 1] : g === 'escaped' ? ['escaped', DIM] : ['hiding somewhere', DIM]];
+  }
+  if (ev === 'stir') return [['☠ ', col, null, 1], ['The dead stir', TX]];
+  if (ev === 'cursed') return [['✠ ', col, null, 1], ['Cursed: ', TX], ['gold ×2', GOLD], [', monsters hit harder', DIM]];
+  return null;
 }
 
 export function logPanel(fb: Fb, st: GameState, now: number) {
@@ -316,26 +332,65 @@ export function depthBanner(fb: Fb, st: GameState, now: number, vw = VW) {
   fb.txt(Math.floor((vw - name.length) / 2), 10, shown, mul(WH, fade), null, 1);
   const tagA = c01((age - 1000) / 600) * fade;
   if (tagA > 0) fb.txt(Math.floor((vw - pal.tagline.length) / 2), 12, pal.tagline, mul(DIM, 0.4 + 0.8 * tagA), null, 0);
+  const evName = EVENT_NAME[st.level.event ?? ''];
+  const evA = c01((age - 1500) / 600) * fade;
+  if (evName && evA > 0) fb.txt(Math.floor((vw - evName.length) / 2), 14, evName, mul(EVENT_COL[st.level.event!] ?? GOLD, evA), null, 1);
 }
 
 const BANNER_MS = 4500;
+/** The floor event's line on the depth card. */
+const EVENT_NAME: Record<string, string> = { goblin: '◆ A TREASURE GOBLIN LURKS ◆', stir: '◆ THE DEAD STIR ◆', cursed: '◆ CURSED FLOOR · DOUBLE GOLD ◆' };
 
-export const OVERLAY_BOX = { x: 50, y: 17, w: 60, h: 11 };
+export const OVERLAY_BOX = { x: 6, y: 8, w: 100, h: 20 };
 
+/** Big numbers fit the summary columns: 12345 → 12.3k. */
+export function short(n: number): string {
+  return n >= 10000 ? (n / 1000).toFixed(1) + 'k' : String(n);
+}
+
+/** The columns of the summary table: header, x offset in the box, and the value. */
+const SUMMARY_COLS: [string, number, (h: HeroSummary) => number][] = [
+  ['LV', 40, (h) => h.lvl], ['KILLS', 45, (h) => h.kills], ['DAMAGE', 52, (h) => h.dmg], ['TAKEN', 60, (h) => h.taken],
+  ['DOWNS', 67, (h) => h.downs], ['REVIVES', 74, (h) => h.revives], ['POTIONS', 83, (h) => h.potions], ['GOLD', 92, (h) => h.gold],
+];
+
+/** The wipe and cleared screens: what happened, every hero's run with a title, and what comes next. */
 export function overlayBox(fb: Fb, kind: 'wipe' | 'cleared', st: GameState, now: number) {
   const { x, y, w, h } = OVERLAY_BOX;
   const wipe = kind === 'wipe';
-  fb.box(x, y, w, h, wipe ? 'PARTY WIPED' : 'DEPTH CLEARED', wipe ? PINK : MINT);
+  fb.box(x, y, w, h, wipe ? 'PARTY WIPED · THE RUN SO FAR' : 'DEPTH CLEARED · THE RUN', wipe ? PINK : MINT);
+  const mid = (row: number, s: string, fg: RGB, b = 0) => fb.txt(x + Math.floor((w - s.length) / 2), row, s, fg, PAN, b);
   const blink = Math.floor(now / 500) % 2 === 0;
   if (wipe) {
-    fb.ctxt(y + 3, 'Every hero has fallen.', TX, PAN, 1);
-    fb.ctxt(y + 5, 'Depth ' + (st.level?.depth ?? 1) + ' can be retried, with everyone as they arrived.', DIM, PAN);
-    fb.ctxt(y + 7, st.isHost ? 'Press ENTER to restart' : 'Waiting for the host to restart…', blink ? PINK : mul(PINK, 0.6), PAN, 1);
+    mid(y + 2, 'Every hero has fallen.', TX, 1);
+    mid(y + 3, 'Depth ' + (st.level?.depth ?? 1) + ' can be retried, with everyone as they arrived.', DIM);
   } else {
-    fb.ctxt(y + 3, 'Depth ' + (st.level?.depth ?? 10) + ' cleared — the party reached the bottom.', TX, PAN, 1);
-    fb.ctxt(y + 5, 'Gold collected: ' + (st.obj?.gold ?? 0) + ' · slain: ' + (st.obj?.kills ?? 0), GOLD, PAN);
-    fb.ctxt(y + 7, 'Returning to the lobby…', blink ? MINT : mul(MINT, 0.6), PAN, 1);
+    mid(y + 2, 'Depth ' + (st.level?.depth ?? 10) + ' cleared — the party reached the bottom.', TX, 1);
+    mid(y + 3, 'Gold collected: ' + (st.obj?.gold ?? 0) + ' · slain: ' + (st.obj?.kills ?? 0), GOLD);
   }
+  const rows = st.summary.slice(0, 4);
+  if (rows.length) {
+    fb.txt(x + 3, y + 5, 'HERO', DIM, null, 1);
+    for (const [head, cx] of SUMMARY_COLS) fb.txt(x + cx, y + 5, head, DIM, null, 1);
+    rows.forEach((r, i) => {
+      const ry = y + 7 + i * 2, c = CLS[r.cls], you = r.id === st.youId;
+      if (you) fb.fill(x + 1, ry, w - 2, 1, [24, 21, 36]);
+      fb.put(x + 3, ry, '@', c?.col ?? TX, null, 1);
+      fb.segs(x + 5, ry, [[r.name, WH, null, 1], [' ' + r.title, GOLD]]);
+      for (const [head, cx, val] of SUMMARY_COLS) {
+        const v = short(val(r));
+        fb.txt(x + cx + head.length - v.length, ry, v, val(r) ? TX : DIM, null, 0);
+      }
+      const note: [string, RGB][] = [['best hit ' + r.bestHit, DIM]];
+      if (r.lastDowned) note.push([' · last downed by ', DIM], [r.lastDowned.slice(0, 50), [255, 150, 160]]);
+      else note.push([' · never downed', MINT]);
+      fb.segs(x + 5, ry + 1, note);
+    });
+  }
+  const host = st.isHost;
+  const next = wipe ? (host ? 'Press ENTER to restart the floor' : 'Waiting for the host to restart…')
+    : host ? 'Press ENTER to return to the lobby' : 'Returning to the lobby…';
+  mid(y + h - 2, next, blink ? (wipe ? PINK : MINT) : mul(wipe ? PINK : MINT, 0.6), 1);
   void ramp; void c01;
 }
 
@@ -377,6 +432,9 @@ export function compactHud(fb: Fb, st: GameState, cols: number, rows: number, ta
     const name = (target.name || '').slice(0, 16);
     fb.txt(x, 1, name, target.el ? [255, 120, 160] : TX, null, 1); x += name.length + 1;
     fb.bar(x, 1, 10, (target.hp ?? 0) / Math.max(1, target.hpMax ?? 1), [255, 150, 90], [50, 24, 20]); x += 12;
+  } else if (st.goblin === 'running' && st.level?.event === 'goblin') {
+    const ev = eventNote(st, now)!;
+    x = fb.segs(x, 1, ev) + 2;
   } else if (st.obj) {
     const o = st.obj, need = o.stairsNeed;
     const t = o.stairsLeft > 0 ? ' ' + Math.ceil(o.stairsLeft / 20) + 's' : '';

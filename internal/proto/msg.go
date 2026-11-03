@@ -118,10 +118,12 @@ type Level struct {
 	Start    [2]int   `json:"start"`
 	Depth    int      `json:"depth"`
 	MaxDepth int      `json:"maxDepth"`
-	Theme    string   `json:"theme"`             // palette id on the client
-	Glows    [][2]int `json:"glows"`             // decor tiles that give off light
-	Dark     bool     `json:"dark,omitempty"`    // pitch black: only lit cells are visible
-	Village  bool     `json:"village,omitempty"` // the gnome village
+	Theme    string   `json:"theme"`               // palette id on the client
+	Glows    [][2]int `json:"glows"`               // decor tiles that give off light
+	Dark     bool     `json:"dark,omitempty"`      // pitch black: only lit cells are visible
+	Village  bool     `json:"village,omitempty"`   // the gnome village
+	Event    string   `json:"event,omitempty"`     // the floor event (game.FloorEvents), "" = none
+	EventTxt string   `json:"eventText,omitempty"` // what to tell the party about it
 }
 
 // Explore carries newly explored tiles. It is delivered as an event (never dropped).
@@ -317,8 +319,9 @@ type Hb struct {
 }
 
 type Overlay struct {
-	T    string `json:"t"`
-	Kind string `json:"kind"` // wipe | cleared
+	T       string             `json:"t"`
+	Kind    string             `json:"kind"`              // wipe | cleared
+	Summary []game.HeroSummary `json:"summary,omitempty"` // every hero's run so far, with a title each
 }
 
 type Error struct {

@@ -198,7 +198,7 @@ func (g *Game) areaDamage(h *Hero, cx, cy int, radius float64, dmg int) {
 	if g.Settings.FriendlyFire {
 		for _, o := range g.Heroes {
 			if o != h && !o.Dead && o.Connected && dist(cx, cy, o.X, o.Y) <= radius {
-				g.damageHero(o, max(1, dmg/2), h.ID)
+				g.damageHero(o, max(1, dmg/2), h.ID, "")
 			}
 		}
 	}

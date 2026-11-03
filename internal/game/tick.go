@@ -13,6 +13,7 @@ func (g *Game) Tick() []Event {
 		g.tickFires()
 		g.tickTraps()
 		g.tickCharm()
+		g.tickStir()
 		for _, h := range g.Heroes {
 			g.tickHero(h)
 			g.tickReviver(h)

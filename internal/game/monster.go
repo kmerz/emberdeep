@@ -9,6 +9,8 @@ type ThreatEntry struct {
 }
 
 type Monster struct {
+	EscapeAt  int  // a Treasure Goblin vanishes at this tick (0 = it has not seen the party yet)
+	Risen     bool // raised by the "dead stir" floor event
 	ID        int
 	Kind      byte
 	X, Y      int
@@ -71,6 +73,11 @@ func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 	}
 	if a != nil {
 		a.leech(min(dmg, m.HP))
+		if m.Def().Role != "keg" {
+			s := g.stats(a)
+			s.Dmg += min(dmg, m.HP)
+			s.BestHit = max(s.BestHit, dmg)
+		}
 	}
 	m.HP -= dmg
 	m.Awake = true
@@ -95,7 +102,8 @@ func (g *Game) damageMonster(m *Monster, dmg int, actor int, crit bool) {
 	}
 }
 
-func (g *Game) killMonster(m *Monster, killer int) {
+// removeMon takes a monster off the floor (no loot, no XP).
+func (g *Game) removeMon(m *Monster) {
 	m.HP = 0
 	if g.occ[m.Y*LW+m.X] == int32(m.ID) {
 		g.occ[m.Y*LW+m.X] = 0
@@ -107,6 +115,10 @@ func (g *Game) killMonster(m *Monster, killer int) {
 			break
 		}
 	}
+}
+
+func (g *Game) killMonster(m *Monster, killer int) {
+	g.removeMon(m)
 	def := m.Def()
 	if def.Role == "keg" { // not a kill: it blows up
 		g.breakKeg(m, killer)
@@ -119,10 +131,16 @@ func (g *Game) killMonster(m *Monster, killer int) {
 		g.memo().Opened = append(g.memo().Opened, m.ChestSpot-1)
 	}
 	g.Kills++
+	if h := g.heroByID[killer]; h != nil {
+		g.stats(h).Kills++
+	}
 	g.questKill(m)
 	g.trialKill()
 	if m.HasKey {
 		g.dropKey(m)
+	}
+	if def.Role == "goblin" {
+		g.goblinLoot(m)
 	}
 	if m.Named != "" { // a named monster guards a little treasure
 		g.chestLoot(m.X, m.Y)
@@ -306,11 +324,15 @@ func (g *Game) revealMimic(m *Monster, h *Hero) {
 	dmg := int(math.Round(float64(m.Def().Dmg) * MimicBite * Difficulties[g.Settings.Difficulty].DmgMult * DepthDmgMult(g.Depth)))
 	m.Facing = dirIndex(h.X-m.X, h.Y-m.Y, m.Facing)
 	m.NextAtk = g.Now + m.Def().AtkTicks
-	g.damageHero(h, dmg, m.ID)
+	g.damageHero(h, dmg, m.ID, "bite")
 }
 
 func (g *Game) monsterAI(m *Monster) {
 	if m.Disguised || m.Def().Role == "keg" {
+		return
+	}
+	if m.EscapeAt > 0 && g.Now >= m.EscapeAt { // a Treasure Goblin's time is up
+		g.goblinEscaped(m)
 		return
 	}
 	if m.Neutral { // busy carrying food: an aimless step now and then
@@ -355,6 +377,9 @@ func (g *Game) monsterAI(m *Monster) {
 		return
 	}
 	switch m.Def().Role {
+	case "goblin":
+		g.goblinAct(m, tgt)
+		return
 	case "ranged":
 		if g.rangedAct(m, tgt) {
 			return
@@ -389,7 +414,7 @@ func (g *Game) monsterAI(m *Monster) {
 			dmg := g.monsterDmg(m, float64(def.Dmg))
 			dx, dy := tgt.X-m.X, tgt.Y-m.Y
 			m.Facing = dirIndex(dx, dy, m.Facing)
-			g.damageHero(tgt, dmg, m.ID)
+			g.damageHero(tgt, dmg, m.ID, "")
 			if def.Role == "drainer" {
 				g.drainBite(m, tgt)
 			}

@@ -7,11 +7,15 @@ import (
 )
 
 // clearMons removes every monster so tests can wait at the stairs undisturbed.
+// clearMons empties the floor of monsters, and stops its event from bringing new ones (the dead stir).
 func clearMons(g *Game) {
 	for _, m := range g.Mons {
 		g.occ[m.Y*LW+m.X] = 0
 	}
 	g.Mons, g.monByID = nil, map[int]*Monster{}
+	if g.Event == "stir" {
+		g.Event = ""
+	}
 }
 
 // takeStairs puts every hero next to the stairs and ticks until the window completes.

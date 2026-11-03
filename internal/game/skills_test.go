@@ -98,12 +98,12 @@ func TestIronWallAbsorbsAndGeneratesThreat(t *testing.T) {
 		t.Fatalf("iron wall must draw threat, target=%v", tg)
 	}
 	hp := w.HP
-	g.damageHero(w, 20, m.ID)
+	g.damageHero(w, 20, m.ID, "")
 	if w.HP != hp || w.WallAbsorb != 40 {
 		t.Fatalf("damage should be absorbed: hp %d->%d absorb %d", hp, w.HP, w.WallAbsorb)
 	}
 	g.Now += Sec(6) // wall expires
-	g.damageHero(w, 20, m.ID)
+	g.damageHero(w, 20, m.ID, "")
 	if w.HP != hp-20 {
 		t.Fatalf("absorb must expire after 5 s, hp=%d", w.HP)
 	}
@@ -256,7 +256,7 @@ func TestBellReducesPartyDamage(t *testing.T) {
 	if err := cast(g, mk, 2, 40, 25); err != nil {
 		t.Fatal(err)
 	}
-	dmg := func(h *Hero) int { before := h.HP; g.damageHero(h, 100, monIDBase+1); return before - h.HP }
+	dmg := func(h *Hero) int { before := h.HP; g.damageHero(h, 100, monIDBase+1, ""); return before - h.HP }
 	if d := dmg(ally); d != 70 {
 		t.Fatalf("ally in range should take 70, took %d", d)
 	}

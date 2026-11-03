@@ -120,7 +120,7 @@ export class GameScreen implements Screen {
   padContext(): PadContext {
     if (this.ui.chatActive) return 'chat';
     if (this.invOpen || this.treeOpen || this.shopOpen || this.boardOpen || this.journalOpen || this.loreOpen) return 'panel';
-    if (this.app.st.overlay === 'wipe') return 'overlay';
+    if (this.app.st.overlay) return 'overlay';
     return 'world';
   }
 
@@ -134,7 +134,8 @@ export class GameScreen implements Screen {
       else if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && this.ui.chatText.length < 120) { this.ui.chatText += ev.key; ev.preventDefault(); }
       return;
     }
-    if (st.overlay === 'wipe' && ev.key === 'Enter') { if (st.isHost) net.send({ t: 'start' }); ev.preventDefault(); return; }
+    // the summary screens: the host restarts the floor (wipe) or goes back to the lobby (cleared)
+    if (st.overlay && ev.key === 'Enter') { if (st.isHost) net.send({ t: 'start' }); ev.preventDefault(); return; }
     const k = ev.key.toLowerCase();
     if (this.loreOpen) { // reading: Esc or Enter closes; walking away closes it too
       this.loreOpen = null;
@@ -268,7 +269,7 @@ export class GameScreen implements Screen {
 
   touchButtons(): TouchBtn[] {
     const st = this.app.st, m = st.me, ctx = this.padContext();
-    if (ctx === 'overlay') return st.overlay === 'wipe' && st.isHost ? [{ key: 'Enter', label: 'RESTART', area: 'ok' }] : [];
+    if (ctx === 'overlay') return st.isHost ? [{ key: 'Enter', label: st.overlay === 'wipe' ? 'RESTART' : 'LOBBY', area: 'ok' }] : [];
     if (ctx === 'panel') {
       const b: TouchBtn[] = [{ key: 'Enter', label: 'OK', area: 'ok' }, { key: 'Escape', label: 'BACK', area: 'back' }];
       const side = (key: string, label: string, sub?: string, off?: boolean) => b.push({ key, label, sub, off, area: 'side' });

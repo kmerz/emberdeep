@@ -17,7 +17,7 @@ import { displayEnts } from '../src/render/interp';
 import { Predictor, MOVE_MS } from '../src/render/predict';
 import type { Ent, Snap } from '../src/proto';
 import { Fx, streakLabel } from '../src/render/fx';
-import { depthBanner, hotbar, pickTarget, compactHud } from '../src/render/hud';
+import { depthBanner, hotbar, pickTarget, compactHud, overlayBox, OVERLAY_BOX, short, eventNote } from '../src/render/hud';
 import { Fb } from '../src/term/fb';
 import { VW, VH } from '../src/render/map';
 import { GamepadInput, keyLabel, lastInput, padLabel, type PadLike, type PadContext } from '../src/gamepad';
@@ -470,6 +470,56 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   eq(shopAt(st, 62, 8), { kind: 'row', side: 1, sel: 0 }, 'shop: the one thing to sell');
   eq(shopAt(st, 62, 9), null, 'shop: below the sell list');
   eq(shopAt(st, 40, 8 + SHOP.length), null, 'shop: past the goods, no gear on offer');
+}
+
+// --- the run summary on the wipe and cleared screens, and the death recap in the log
+{
+  const st = new GameState();
+  st.youId = 1;
+  st.handle({ t: 'overlay', kind: 'cleared', summary: [
+    { id: 1, name: 'vela', cls: 'rogue', lvl: 9, title: 'the Butcher', dmg: 23456, kills: 140, taken: 900, downs: 2, revives: 1, potions: 7, gold: 520, bestHit: 88, lastDowned: "an Imp's firebolt" },
+    { id: 2, name: 'bo', cls: 'monk', lvl: 8, title: 'the Lifeline', dmg: 9000, kills: 60, taken: 1200, downs: 0, revives: 4, potions: 2, gold: 100, bestHit: 40 },
+  ] }, 1000);
+  eq(st.overlay, 'cleared', 'the overlay arrives');
+  eq(st.summary.length, 2, 'with the summary');
+  const fb = new Fb(160, 48, [0, 0, 0]);
+  overlayBox(fb, 'cleared', st, 1000);
+  const b = OVERLAY_BOX;
+  const row = (y: number) => Array.from({ length: 160 }, (_, x) => fb.ch[y * 160 + x]).join('');
+  eq(row(b.y + 7).includes('vela the Butcher') && row(b.y + 7).includes('23.5k') && row(b.y + 7).includes('140'), true, 'summary: a hero with title and numbers');
+  eq(row(b.y + 8).includes("last downed by an Imp's firebolt"), true, 'summary: what downed them last');
+  eq(row(b.y + 10).includes('never downed'), true, 'summary: a hero who never went down');
+  for (let y = b.y; y < b.y + b.h; y++) eq(row(y).slice(0, b.x).trim() + row(y).slice(b.x + b.w).trim(), '', 'summary stays in its box (row ' + y + ')');
+  eq([short(999), short(10000), short(123456)], ['999', '10.0k', '123.5k'], 'big numbers are shortened');
+  st.party = [{ id: 1, name: 'vela', cls: 'rogue', lvl: 1, hp: 0, hpMax: 10, res: 0, resMax: 100, connected: true }];
+  st.handle({ t: 'events', tick: 5, list: [{ k: 'down', target: 1, x: 0, y: 0, text: 'a spike trap', amount: 12 }] }, 2000);
+  const last = st.log[st.log.length - 1].segs.map((g) => g[0]).join('');
+  eq(last, 'vela is DOWN! · a spike trap · 12 dmg', 'the log says what downed a hero');
+}
+
+// --- floor events: told on arrival, the goblin chase on the HUD, the dead stir in the log
+{
+  const st = new GameState();
+  st.youId = 1;
+  const lvl = { t: 'level' as const, w: 176, h: 62, seed: 'x', torches: [], stairs: [1, 1] as [number, number], start: [2, 2] as [number, number],
+    depth: 3, maxDepth: 10, theme: 'crypt', glows: [], event: 'goblin', eventText: 'A Treasure Goblin is somewhere on this floor.' };
+  st.handle(lvl, 1000);
+  const text = (l: { segs: [string, unknown, unknown?][] }) => l.segs.map((g) => g[0]).join('');
+  eq(st.log.some((l) => text(l).includes('A Treasure Goblin is somewhere')), true, 'the event is told on arrival');
+  eq(eventNote(st, 1000)!.map((g) => g[0]).join(''), '$ Treasure Goblin hiding somewhere', 'the goblin hides until it sees you');
+  st.handle({ t: 'events', tick: 1, list: [{ k: 'goblin', target: 9, x: 0, y: 0 }] }, 2000);
+  eq(eventNote(st, 12000)!.map((g) => g[0]).join(''), '$ Treasure Goblin 20s to catch it', 'then the chase is on');
+  st.handle({ t: 'events', tick: 2, list: [{ k: 'escape', target: 9, x: 0, y: 0 }] }, 3000);
+  eq(st.goblin, 'escaped', 'it can get away');
+  st.handle({ ...lvl, event: 'stir', eventText: 'The dead stir.' }, 4000);
+  eq(st.goblin, 'hiding', 'a new floor forgets the old goblin');
+  const n = st.log.length;
+  st.handle({ t: 'events', tick: 3, list: [{ k: 'summon', target: 50, x: 0, y: 0, fx: 'stir', text: 'Zombie' }, { k: 'summon', target: 51, x: 0, y: 0, fx: 'stir', text: 'Skeleton' },
+    { k: 'stir', target: 1, x: 0, y: 0, amount: 2 }] }, 5000);
+  eq(st.log.length - n, 1, 'a wave of the dead is one log line');
+  eq(text(st.log[st.log.length - 1]), 'The dead stir: 2 claw their way up', 'and it says how many');
+  st.handle({ ...lvl, event: undefined, eventText: undefined }, 6000);
+  eq(eventNote(st, 6000), null, 'no event, no line');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }
