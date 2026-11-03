@@ -2,10 +2,10 @@
 import { Fb, DIM, TX, WH, GOLD, PINK } from '../term/fb';
 import { keyLabel } from '../gamepad';
 
-export const MENU_BOX = { x: 58, y: 13, w: 44, h: 14 };
+export const MENU_BOX = { x: 58, y: 12, w: 44, h: 16 };
 const ROW_Y = 3;
 
-export type MenuId = 'resume' | 'journal' | 'sound' | 'save' | 'leave';
+export type MenuId = 'resume' | 'journal' | 'sound' | 'controls' | 'save' | 'leave';
 export interface MenuRow { id: MenuId; label: string; note?: string; off?: boolean }
 
 const SOUND_NAME: Record<string, string> = { all: 'music and sound', sfx: 'sound only', off: 'off' };
@@ -16,6 +16,7 @@ export function menuRows(host: boolean, sound: string, confirm: boolean): MenuRo
     { id: 'resume', label: 'Resume' },
     { id: 'journal', label: 'Journal', note: '(' + keyLabel('world', 'j', 'J') + ')' },
     { id: 'sound', label: 'Sound: ' + (SOUND_NAME[sound] ?? sound) },
+    { id: 'controls', label: 'Controls', note: 'keyboard and gamepad' },
     host ? { id: 'save', label: 'Save and return to the lobby' } : { id: 'save', label: 'Save', note: 'the host saves', off: true },
     { id: 'leave', label: confirm ? 'Leave? Press again to confirm' : 'Leave the game' },
   ];

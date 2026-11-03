@@ -10,6 +10,8 @@ export interface Screen {
   render(fb: Fb, now: number): void;
   onKey?(ev: KeyboardEvent): void;
   onKeyUp?(ev: KeyboardEvent): void;
+  /** Translate a real key press (rebound keys); null = the key does nothing here. */
+  mapKey?(ev: KeyboardEvent): KeyboardEvent | null;
   onMouseDown?(ev: MouseEvent, cell: [number, number]): void;
   onMouseMove?(ev: MouseEvent, cell: [number, number]): void;
   onEnter?(): void;

@@ -31,7 +31,9 @@ pages). The text lives in `web/src/story.ts`.
 | `I` | open the rucksack (arrows pick a slot, `U` or `ENTER` use or wear, `X` drop, `4`/`5` put on that key, `I`/`Esc` close). The two rows on top are your worn weapon and trinket: `ENTER` there takes it off |
 | hold `E` | revive an adjacent downed ally (3 s) |
 | `ENTER` | chat (`ENTER` sends, `Esc` cancels; `/p text` party chat, `/save` save and go back to the lobby (host), `/leave` or `/quit` leave the game, `/help`) |
-| `Esc` | the game menu: resume, journal, sound, save and go back to the lobby (host), leave (press twice). The game keeps running behind it |
+| `G` | ping where you aim (the enemy in front of you, or ahead) |
+| `TAB` | in the rucksack, skill tree or journal: flip to the next one (`SHIFT+TAB` back). In the world: the map in the zoomed view |
+| `Esc` | the game menu: resume, journal, sound, controls (rebind keys and buttons), save and go back to the lobby (host), leave (press twice). The game keeps running behind it |
 | Alt+click or middle click | ping the map (4 s) |
 | `M` | music and sound → sound only → off (remembered in this browser). Every floor has its own generated music: the theme sets the mood, deeper floors play faster, and drums come in when enemies are near |
 | lobby: `ENTER` `C` `I` | ready, change class, copy invite link (host: `F` friendly fire, `D` difficulty, `B` add bot, `X` remove bot, `N` twice: drop the save for a new run) |
@@ -53,10 +55,29 @@ the stairs lets you reset it for free.
 
 All numbers live in `internal/game/balance.go`.
 
-With a gamepad, every on-screen hint shows pad buttons instead of keys (as soon as you press a button):
-skills `X` `Y` `RB`, items `B` and `A`, potion `LB`, hold `LT` to revive, `SELECT` rucksack, `R3` skill tree, `L3`
-journal, `START` the game menu (resume, journal, sound, save and return to the lobby for the host, leave), so a pad
-never needs a keyboard. The game keeps running behind the menu; `Esc` opens it from the keyboard and `☰` on touch. In panels, `LB` `LT` `RT` put a skill on key 1 2 3 and `Y` puts an item on `B` (again: `A`).
+With a gamepad (Diablo-style: fighting stays on the face buttons, and the right stick aims):
+
+| Button | In the world | In panels |
+|---|---|---|
+| left stick / d-pad | move | choose |
+| right stick | aim: skills and throws go at the enemy in that direction, or that way | |
+| `A` | skill 1; hold it next to a downed ally to revive them | confirm |
+| `X` `Y` | skills 2 and 3 | `X` drop / reset the tree, `Y` put on a key |
+| `B` | ping where you aim | back |
+| `LB` | potion | previous tab |
+| `RB` `RT` | items on keys 4 and 5 | `RB` next tab |
+| `LT` | map (zoomed view) | |
+| `SELECT` | rucksack; `LB`/`RB` flip to the skill tree and journal | close |
+| `START` | menu | close |
+
+Without the right stick (and without a mouse cursor), skills aim at the closest enemy in the direction you face,
+and keep to the one you last hit while it is still in front of you. A highlighted cell shows what they will hit.
+On-screen hints show pad buttons as soon as you press one.
+
+**Rebinding:** `Esc` (or `START`) → Controls lists every action with two keyboard keys and a gamepad button.
+Pick a cell, press `ENTER` (or `A`), then the new key or button; a key that belonged to another action swaps
+with it. `DEL` or `X` clears a cell, and two rows reset the keyboard or the gamepad to the defaults. The menu
+itself always stays on `Esc` and `START`. Bindings are kept in this browser (`web/src/bindings.ts`).
 
 ### Phones and tablets
 

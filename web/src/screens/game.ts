@@ -1,5 +1,5 @@
 import type { App, Screen } from '../app';
-import { Fb, RGB, W, H, DIM, PINK, WH, TX, mix } from '../term/fb';
+import { Fb, RGB, Seg, W, H, DIM, PINK, WH, TX, GOLD, mix } from '../term/fb';
 import { LW, LH, BARK_MS } from '../state';
 import { Fx, streakLabel } from '../render/fx';
 import { sfx } from '../audio';
@@ -18,7 +18,9 @@ import { itemInfo, packCap, SHOP } from '../items';
 import { UiState, statusBar, partyPanel, pickTarget, targetPanel, minimap, objectives, logPanel, hotbar, commandLine, overlayBox, depthBanner, compactHud, OVERLAY_BOX } from '../render/hud';
 import { CLS, SKILL_BY_ID } from '../classes';
 import type { Ent, GameEvent } from '../proto';
-import { keyLabel, lastInput, fakeKey, type PadContext } from '../gamepad';
+import { keyLabel, lastInput, fakeKey, padAim, type PadContext, type GamepadInput } from '../gamepad';
+import { ACTIONS, BTN, translateKey, withKey, bindKey, bindPad, unbindKey, resetKeyboard, resetPad } from '../bindings';
+import { controlsPanel, controlsAt, cellEditable, CONTROLS_BOX, CONTROL_ROWS, type Capture } from '../render/controls';
 import { FULL, type Rect } from '../term/canvas';
 import { layout, COMPACT_ROWS } from '../mobile';
 import type { TouchBtn } from '../touch';
@@ -54,6 +56,48 @@ const C_MAP_ROWS = COMPACT_ROWS - 1;
 const MAP_RECT: Rect = { x: 113, y: 26, w: 47, h: 21 };
 const AIM_MS = 4000;
 const pad1 = (r: { x: number; y: number; w: number; h: number }): Rect => ({ x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 });
+const CAPTURE_MS = 8000;
+/** The rucksack, skill tree and journal are tabs of one another (LB / RB on a pad, TAB / SHIFT+TAB). */
+const TABS = ['bag', 'tree', 'journal'] as const;
+
+/** A screen direction (x right, y down; a cell is twice as tall as wide) as a unit vector, or null. */
+function unit(d: [number, number]): [number, number] | null {
+  const l = Math.hypot(d[0], d[1]);
+  return l > 1e-6 ? [d[0] / l, d[1] / l] : null;
+}
+
+/** The monster to aim at in direction `dir` (screen space): the one last hit if it is still inside the cone,
+ *  else the closest inside it (enemies straight ahead win over ones at the cone's edge). Kegs never. */
+export function coneTarget(ents: Ent[], px: number, py: number, dir: [number, number], last: number, maxD = 18, cosMin = 0.7): Ent | null {
+  const u = unit(dir);
+  if (!u) return null;
+  let best: Ent | null = null, bs = Infinity;
+  for (const e of ents) {
+    if (e.k !== 'm' || e.g === 'B' || e.dead) continue;
+    const vx = e.x - px, vy = (e.y - py) * 2, d = Math.hypot(vx, vy);
+    if (d === 0 || d > maxD) continue;
+    const c = (vx * u[0] + vy * u[1]) / d;
+    if (c < cosMin) continue;
+    if (e.id === last) return e;
+    const score = d * (2 - c);
+    if (score < bs) { bs = score; best = e; }
+  }
+  return best;
+}
+
+/** The cell `r` columns away in screen direction `dir` (half as many rows, since cells are tall). */
+export function aheadCell(px: number, py: number, dir: [number, number], r: number): [number, number] {
+  const u = unit(dir) ?? [1, 0];
+  return [px + Math.round(u[0] * r), py + Math.round((u[1] * r) / 2)];
+}
+
+/** The 8-way step closest to a screen direction. */
+export function step8(dir: [number, number]): [number, number] {
+  const u = unit(dir) ?? [1, 0];
+  const a = Math.atan2(u[1] / 2, u[0]); // back to cell space for the angle
+  const o = Math.round(a / (Math.PI / 4));
+  return [Math.round(Math.cos(o * Math.PI / 4)), Math.round(Math.sin(o * Math.PI / 4))];
+}
 
 export class GameScreen implements Screen {
   fx = new Fx();
@@ -81,6 +125,14 @@ export class GameScreen implements Screen {
   private menuOpen = false;
   private menuSel = 0;
   private menuConfirm = false;
+  private controlsOpen = false;
+  private ctrlRow = 0;
+  private ctrlCol = 0;
+  private capture: Capture | null = null;
+  /** the gamepad (for rebinding a button); set by main */
+  padInput: GamepadInput | null = null;
+  /** the key that started a revive hold (E, or the pad's skill 1 button next to a downed ally) */
+  private reviveKey = 'e';
   private forgeSel = 0;
   private loreOpen: { page: number; text: string } | null = null; // an inscription being read
   private boardSel = 0;
@@ -103,7 +155,8 @@ export class GameScreen implements Screen {
     this.held.clear();
     this.invOpen = false;
     this.treeOpen = false;
-    this.shopOpen = this.forgeOpen = this.menuOpen = false;
+    this.shopOpen = this.forgeOpen = this.menuOpen = this.controlsOpen = false;
+    this.capture = null;
     this.boardOpen = this.journalOpen = false;
     st.onSnap = () => this.pred.onSnap();
     this.fx.onStreak = (actor, n) => {
@@ -127,7 +180,7 @@ export class GameScreen implements Screen {
   /** Gamepad button map to use: panels and the wipe overlay get menu-style buttons; chat gets none. */
   padContext(): PadContext {
     if (this.ui.chatActive) return 'chat';
-    if (this.menuOpen || this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || this.loreOpen) return 'panel';
+    if (this.menuOpen || this.controlsOpen || this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || this.loreOpen) return 'panel';
     if (this.app.st.overlay) return 'overlay';
     return 'world';
   }
@@ -143,6 +196,8 @@ export class GameScreen implements Screen {
       return;
     }
     // the summary screens: the host restarts the floor (wipe) or goes back to the lobby (cleared)
+    if (this.controlsOpen && this.capture) { this.captureKey(ev); ev.preventDefault(); return; }
+    if (this.controlsOpen && this.controlsKey(ev, ev.key.toLowerCase())) { ev.preventDefault(); return; }
     if (this.menuOpen && this.menuKey(ev, ev.key.toLowerCase())) { ev.preventDefault(); return; }
     if (st.overlay && ev.key === 'Enter') { if (st.isHost) net.send({ t: 'start' }); ev.preventDefault(); return; }
     const k = ev.key.toLowerCase();
@@ -165,10 +220,12 @@ export class GameScreen implements Screen {
     if (ev.key === 'Tab' && !ev.repeat) { this.mapOpen = !this.mapOpen; ev.preventDefault(); return; }
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k)) { this.held.add(k); ev.preventDefault(); return; }
     if (ev.repeat) return;
-    if (k === '1' || k === '2' || k === '3') { this.cast(parseInt(k) - 1); ev.preventDefault(); }
+    if (k === '1' && lastInput.pad && this.startRevive('1')) { ev.preventDefault(); } // the pad's A next to a downed ally
+    else if (k === '1' || k === '2' || k === '3') { this.cast(parseInt(k) - 1); ev.preventDefault(); }
+    else if (k === 'g') { this.pingAim(); ev.preventDefault(); }
     else if (k === '4' || k === '5') { this.useItemKey(ITEM_KEYS.indexOf(k)); ev.preventDefault(); }
     else if (k === 'q') { net.send({ t: 'potion', seq: this.pred.nextSeq() }); ev.preventDefault(); }
-    else if (k === 'e') { this.startRevive(); ev.preventDefault(); }
+    else if (k === 'e') { this.startRevive('e'); ev.preventDefault(); }
     else if (k === 'm') {
       const mode = sfx.cycleSound();
       st.pushLog([[mode === 'all' ? 'Music and sound on' : mode === 'sfx' ? 'Music off, sound on' : 'Sound off', TX], ['  (M: music+sound → sound → off)', DIM]]);
@@ -176,10 +233,18 @@ export class GameScreen implements Screen {
     }
   }
 
+  /** Rebound keys: a real key press becomes the game key of its action (bindings.ts). */
+  mapKey(ev: KeyboardEvent): KeyboardEvent | null {
+    if (this.ui.chatActive || this.capture || (this.app.st.overlay && ev.key === 'Enter')) return ev;
+    const k = translateKey(ev.key, this.panelOpen());
+    if (k === null) return null;
+    return k === ev.key ? ev : withKey(ev, k);
+  }
+
   onKeyUp(ev: KeyboardEvent) {
     const k = ev.key.toLowerCase();
     this.held.delete(k);
-    if (k === 'e' && this.reviving) {
+    if (k === this.reviveKey && this.reviving) {
       this.app.net.send({ t: 'revive', target: this.reviving, hold: false, seq: this.pred.nextSeq() });
       this.reviving = 0;
     }
@@ -239,6 +304,13 @@ export class GameScreen implements Screen {
       const i = treeSelAt(cx, cy);
       return i >= 0 && pick(this.treeSel, i, (v) => { this.treeSel = v; });
     }
+    if (this.controlsOpen) {
+      const h = controlsAt(cx, cy);
+      if (!h || this.capture) return !!h;
+      if (h.row === this.ctrlRow && h.col === this.ctrlCol) this.onKey(fakeKey('Enter'));
+      else { this.ctrlRow = h.row; this.ctrlCol = h.col; }
+      return true;
+    }
     if (this.menuOpen) {
       const i = menuAt(cx, cy, this.menu().length);
       return i >= 0 && pick(this.menuSel, i, (v) => { this.menuSel = v; this.menuConfirm = false; });
@@ -262,12 +334,13 @@ export class GameScreen implements Screen {
   }
 
   private panelOpen(): boolean {
-    return this.menuOpen || this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || !!this.loreOpen;
+    return this.menuOpen || this.controlsOpen || this.invOpen || this.treeOpen || this.shopOpen || this.forgeOpen || this.boardOpen || this.journalOpen || !!this.loreOpen;
   }
 
   /** The box of the panel that is open (for the zoomed view), or null. */
   private panelRect(): Rect | null {
     if (this.menuOpen) return pad1(MENU_BOX);
+    if (this.controlsOpen) return pad1(CONTROLS_BOX);
     if (this.loreOpen) return pad1(LORE_BOX);
     if (this.invOpen) return pad1(INV);
     if (this.treeOpen) return pad1(TREE);
@@ -280,6 +353,7 @@ export class GameScreen implements Screen {
   view(compact: boolean): Rect {
     if (!compact) return FULL;
     if (this.menuOpen) return pad1(MENU_BOX);
+    if (this.controlsOpen) return pad1(CONTROLS_BOX);
     if (this.app.st.overlay) return pad1(OVERLAY_BOX);
     const p = this.panelRect();
     if (p) return p;
@@ -329,7 +403,23 @@ export class GameScreen implements Screen {
     return b;
   }
 
-  private closePanels() { this.menuOpen = this.invOpen = this.treeOpen = this.shopOpen = this.forgeOpen = this.boardOpen = this.journalOpen = false; this.loreOpen = null; }
+  /** Under the rucksack, skill tree or journal: the tabs, and the keys that flip them. */
+  private tabStrip(fb: Fb) {
+    const r = this.invOpen ? INV : this.treeOpen ? TREE : this.journalOpen ? QUEST_BOX : null;
+    if (!r) return;
+    const cur = this.invOpen ? 0 : this.treeOpen ? 1 : 2;
+    const [l, rr] = lastInput.pad ? ['LB', 'RB'] : ['⇧TAB', 'TAB'];
+    const segs: Seg[] = [[' ' + l + ' ◂ ', DIM]];
+    ['RUCKSACK', 'SKILLS', 'JOURNAL'].forEach((n, i) => {
+      if (i) segs.push([' · ', DIM]);
+      segs.push([n, i === cur ? GOLD : DIM, null, i === cur ? 1 : 0]);
+    });
+    segs.push([' ▸ ' + rr + ' ', DIM]);
+    const len = segs.reduce((a, g) => a + g[0].length, 0);
+    fb.segs(r.x + r.w - len - 2, r.y + r.h - 1, segs);
+  }
+
+  private closePanels() { this.capture = null; this.padInput?.stopCapture(); this.controlsOpen = this.menuOpen = this.invOpen = this.treeOpen = this.shopOpen = this.forgeOpen = this.boardOpen = this.journalOpen = false; this.loreOpen = null; }
 
   /** Keys for a quest list (the notice board, or Grimble's QUESTS tab). */
   private questKey(ev: KeyboardEvent, k: string, giver: 'board' | 'grimble'): boolean {
@@ -353,6 +443,8 @@ export class GameScreen implements Screen {
   private journalKey(ev: KeyboardEvent, k: string): boolean {
     const n = Math.max(1, journalQuests(this.app.st).length);
     if (k === 'j' || ev.key === 'Escape') { if (!ev.repeat) this.journalOpen = false; return true; }
+    const td = this.tabDir(ev, k);
+    if (td) { if (!ev.repeat) this.switchTab(td); return true; }
     if (k === 'arrowup') { this.journalSel = (this.journalSel + n - 1) % n; return true; }
     if (k === 'arrowdown') { this.journalSel = (this.journalSel + 1) % n; return true; }
     return false;
@@ -362,7 +454,10 @@ export class GameScreen implements Screen {
   private shopKey(ev: KeyboardEvent, k: string): boolean {
     const st = this.app.st, net = this.app.net;
     if (ev.key === 'Escape') { this.shopOpen = false; return true; }
-    if (ev.key === 'Tab') { this.shopSide = ((this.shopSide + 1) % 3) as 0 | 1 | 2; this.shopSel = 0; return true; }
+    if (ev.key === 'Tab' || ev.key === 'PrevTab') {
+      const d = ev.key === 'PrevTab' || ev.shiftKey ? 2 : 1;
+      this.shopSide = ((this.shopSide + d) % 3) as 0 | 1 | 2; this.shopSel = 0; return true;
+    }
     const n = this.shopSide === 0 ? buyCount(st) : Math.min(12, sellSlots(st).length);
     if (k === 'arrowup') { this.shopSel = (this.shopSel + n - 1) % Math.max(1, n); return true; }
     if (k === 'arrowdown') { this.shopSel = (this.shopSel + 1) % Math.max(1, n); return true; }
@@ -397,6 +492,7 @@ export class GameScreen implements Screen {
       case 'resume': this.menuOpen = false; break;
       case 'journal': this.closePanels(); this.journalOpen = true; this.journalSel = 0; break;
       case 'sound': sfx.cycleSound(); break;
+      case 'controls': this.menuOpen = false; this.controlsOpen = true; this.ctrlRow = 0; this.ctrlCol = 0; break;
       case 'save': this.menuOpen = false; this.app.net.send({ t: 'save' }); break;
       case 'leave':
         if (!this.menuConfirm) { this.menuConfirm = true; break; }
@@ -405,6 +501,67 @@ export class GameScreen implements Screen {
         break;
     }
     return true;
+  }
+
+  /** Keys while CONTROLS is open (not capturing). Returns true: it takes every key. */
+  private controlsKey(ev: KeyboardEvent, k: string): boolean {
+    const n = CONTROL_ROWS, acts = ACTIONS.length;
+    const fixCol = () => { if (this.ctrlRow >= acts) this.ctrlCol = 0; };
+    if (ev.key === 'Escape') { if (!ev.repeat) { this.controlsOpen = false; this.menuOpen = true; } return true; }
+    if (k === 'arrowup') { this.ctrlRow = (this.ctrlRow + n - 1) % n; fixCol(); return true; }
+    if (k === 'arrowdown') { this.ctrlRow = (this.ctrlRow + 1) % n; fixCol(); return true; }
+    if (k === 'arrowleft') { this.ctrlCol = Math.max(0, this.ctrlCol - 1); fixCol(); return true; }
+    if (k === 'arrowright') { this.ctrlCol = Math.min(2, this.ctrlCol + 1); fixCol(); return true; }
+    if (ev.repeat) return true;
+    const st = this.app.st, a = ACTIONS[this.ctrlRow];
+    if (ev.key === 'Enter' || k === 'u' || k === ' ') {
+      if (this.ctrlRow === acts) { resetKeyboard(); st.pushLog([['Keyboard controls are back to the defaults', DIM]]); return true; }
+      if (this.ctrlRow === acts + 1) { resetPad(); st.pushLog([['Gamepad controls are back to the defaults', DIM]]); return true; }
+      if (!a || !cellEditable(this.ctrlRow, this.ctrlCol)) return true;
+      const until = performance.now() + CAPTURE_MS;
+      if (this.ctrlCol < 2) { this.capture = { kind: 'kb', row: this.ctrlRow, slot: this.ctrlCol, until }; return true; }
+      this.capture = { kind: 'pad', row: this.ctrlRow, slot: 0, until };
+      this.padInput?.startCapture((btn) => {
+        if (btn !== BTN.START) bindPad(a.id, btn);
+        this.capture = null;
+      });
+      return true;
+    }
+    if ((k === 'delete' || k === 'backspace' || k === 'x') && a && cellEditable(this.ctrlRow, this.ctrlCol)) {
+      if (this.ctrlCol < 2) unbindKey(a.id, this.ctrlCol); else bindPad(a.id, null);
+    }
+    return true;
+  }
+
+  /** The key pressed while CONTROLS waits for a new key (or for a pad button: then only ESC counts). */
+  private captureKey(ev: KeyboardEvent) {
+    const c = this.capture;
+    if (!c || ev.repeat) return;
+    const k = ev.key.toLowerCase(), a = ACTIONS[c.row];
+    if (k === 'escape') { this.capture = null; this.padInput?.stopCapture(); return; }
+    if (c.kind !== 'kb' || !a) return;
+    if (['shift', 'control', 'alt', 'meta', 'altgraph', 'capslock', 'dead', 'unidentified'].includes(k)) return; // wait for a real key
+    if (k === 'backspace') unbindKey(a.id, c.slot);
+    else bindKey(a.id, c.slot, k);
+    this.capture = null;
+  }
+
+  /** Switch between the rucksack, skill tree and journal (d: +1 next, -1 previous). */
+  private switchTab(d: number) {
+    const cur = this.invOpen ? 0 : this.treeOpen ? 1 : this.journalOpen ? 2 : 0;
+    const next = TABS[(cur + d + TABS.length) % TABS.length];
+    this.closePanels();
+    this.held.clear();
+    if (next === 'bag') this.invOpen = true;
+    else if (next === 'tree') this.treeOpen = true;
+    else { this.journalOpen = true; this.journalSel = 0; }
+  }
+
+  /** A tab key in a panel: +1, -1, or 0 when it is not one. */
+  private tabDir(ev: KeyboardEvent, k: string): number {
+    if (k === 'prevtab') return -1;
+    if (k === 'tab') return ev.shiftKey ? -1 : 1;
+    return 0;
   }
 
   /** Keys while Bramwick's forge is open. Returns true when the key was used by the panel. */
@@ -429,6 +586,8 @@ export class GameScreen implements Screen {
   private treeKey(ev: KeyboardEvent, k: string): boolean {
     const net = this.app.net, me = this.app.st.me;
     if (k === 't' || ev.key === 'Escape') { if (!ev.repeat) this.treeOpen = false; return true; }
+    const td = this.tabDir(ev, k);
+    if (td) { if (!ev.repeat) this.switchTab(td); return true; }
     if (k === 'arrowleft' || k === 'arrowright') { this.treeSel = this.treeSel ^ 1; return true; } // the other skill of the tier
     if (k === 'arrowup') { this.treeSel = (this.treeSel + 4) % 6; return true; }
     if (k === 'arrowdown') { this.treeSel = (this.treeSel + 2) % 6; return true; }
@@ -437,7 +596,12 @@ export class GameScreen implements Screen {
     if (!id) return false;
     if (ev.key === 'Enter' || k === 'u') { net.send({ t: 'learn', skill: id, seq: this.pred.nextSeq() }); return true; }
     if (k === '1' || k === '2' || k === '3') { net.send({ t: 'bind', slot: parseInt(k) - 1, skill: id, seq: this.pred.nextSeq() }); return true; }
-    if (k === 'r' && me?.respec) { net.send({ t: 'respec', seq: this.pred.nextSeq() }); return true; }
+    if ((k === 'r' || k === 'x') && me?.respec) { net.send({ t: 'respec', seq: this.pred.nextSeq() }); return true; }
+    if (k === 'y') { // the pad's Y: put the skill on key 1, or move it on to the next key
+      const at = (me?.binds ?? []).indexOf(id);
+      net.send({ t: 'bind', slot: at < 0 ? 0 : (at + 1) % 3, skill: id, seq: this.pred.nextSeq() });
+      return true;
+    }
     return false;
   }
 
@@ -445,6 +609,8 @@ export class GameScreen implements Screen {
   private invKey(ev: KeyboardEvent, k: string): boolean {
     const cols = INV.cols, n = packCap(this.app.st.me);
     if (k === 'i' || ev.key === 'Escape') { if (!ev.repeat) this.invOpen = false; return true; }
+    const td = this.tabDir(ev, k);
+    if (td) { if (!ev.repeat) this.switchTab(td); return true; }
     if (this.invSel < 0) { // the worn weapon / trinket rows
       if (k === 'arrowup' || k === 'arrowdown') {
         const up = k === 'arrowup';
@@ -455,7 +621,7 @@ export class GameScreen implements Screen {
       if (k === 'arrowleft' || k === 'arrowright') return true;
       if (ev.repeat) return false;
       if (k === 'u' || ev.key === 'Enter') { this.app.net.send({ t: 'unequip', slot: this.invSel === WORN_WEAPON ? 0 : 1, seq: this.pred.nextSeq() }); return true; }
-      return k === 'x' || k === 'r' || k === '4' || k === '5';
+      return k === 'x' || k === 'r' || k === 'y' || k === '4' || k === '5';
     }
     if (k === 'arrowleft') { this.invSel = (this.invSel + n - 1) % n; return true; }
     if (k === 'arrowright') { this.invSel = (this.invSel + 1) % n; return true; }
@@ -465,7 +631,7 @@ export class GameScreen implements Screen {
     if (k === 'u' || ev.key === 'Enter') { this.useItem(this.invSel); return true; }
     if (k === 'x') { this.app.net.send({ t: 'drop', slot: this.invSel, seq: this.pred.nextSeq() }); return true; }
     if (k === '4' || k === '5') { this.bindItem(this.invSel, ITEM_KEYS.indexOf(k)); return true; }
-    if (k === 'r') { this.bindItem(this.invSel); return true; } // the pad's Y button in panels
+    if (k === 'r' || k === 'y') { this.bindItem(this.invSel); return true; } // y: the pad's Y button in panels
     return false;
   }
 
@@ -504,13 +670,9 @@ export class GameScreen implements Screen {
     const it = itemInfo(s.item);
     if (!it.usable) { st.pushLog([[it.name, it.col], [' cannot be used', DIM]]); return; }
     let tx = 0, ty = 0;
-    if (it.thrown) { // aim like a targeted skill: the mouse cursor, else the nearest monster, else ahead
+    if (it.thrown) { // aim like a targeted skill
       const px = this.pred.ready ? this.pred.x : me.x, py = this.pred.ready ? this.pred.y : me.y;
-      const w = this.cellToWorld(this.mouse);
-      const near = w ? null : this.nearestMonster(px, py);
-      if (w) [tx, ty] = w;
-      else if (near) { tx = near.x; ty = near.y; }
-      else { const d = DIRS[this.pred.face]; tx = px + d[0] * 4; ty = py + d[1] * 4; }
+      [tx, ty] = this.aimPoint(px, py);
     }
     this.app.net.send({ t: 'use', slot, x: tx, y: ty, seq: this.pred.nextSeq() });
   }
@@ -531,9 +693,9 @@ export class GameScreen implements Screen {
       }
       else if (cmd === '/help') {
         st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/save', [214, 208, 234]], [' save + back to the lobby (host) · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['Esc', [214, 208, 234]], [' menu · ', DIM], ['/help', [214, 208, 234]], [' · emberdeep v' + VERSION, DIM]]);
-        st.pushLog([['keys: WASD move · 1-3 skills · 4 5 items · Q potion · hold E revive · Alt+click ping · M music / sound / off', DIM]]);
+        st.pushLog([['keys: WASD move · 1-3 skills · 4 5 items · Q potion · hold E revive · G or Alt+click ping · M music / sound / off · Esc menu (rebind keys in Controls)', DIM]]);
         st.pushLog([['in the skill tree (T) press 1, 2 or 3 on a skill to put it on that key; in the rucksack (I) press 4 or 5, or right-click an item', DIM]]);
-        st.pushLog([['gamepad: stick move · X/Y/RB or RT skills · B A items · LB potion · hold LT revive · Select pack · Start menu (save, leave) · L3 journal · R3 skills · in panels A ok, B back, Y item key', DIM]]);
+        st.pushLog([['gamepad: left stick move · right stick aim · A X Y skills (hold A by a downed ally: revive) · LB potion · RB RT items · B ping · LT map · Select rucksack/skills/journal (LB RB flip) · Start menu · in panels A ok, B back, Y put on a key · rebind in Menu → Controls', DIM]]);
         return;
       } else { st.pushLog([['unknown command ' + cmd + ' (try /help)', PINK]]); return; }
       if (!text) return;
@@ -560,15 +722,9 @@ export class GameScreen implements Screen {
     const meta = SKILL_BY_ID[st.me?.binds?.[slot] ?? '']?.meta;
     if (!meta) { st.pushLog([['Key ' + (slot + 1) + ' is empty: open the skill tree with ', DIM], ['T', WH, 1]]); return; }
     const px = this.pred.ready ? this.pred.x : me.x, py = this.pred.ready ? this.pred.y : me.y;
-    let tx: number, ty: number;
     const w = this.cellToWorld(this.mouse);
-    if (w) { [tx, ty] = w; }
-    else {
-      const near = this.nearestMonster(px, py);
-      if (near) { tx = near.x; ty = near.y; }
-      else { const d = DIRS[this.pred.face]; tx = px + d[0] * 4; ty = py + d[1] * 4; }
-    }
-    if (!meta.targeted && w === null) { const d = DIRS[this.pred.face]; tx = px + d[0]; ty = py + d[1]; }
+    let [tx, ty] = this.aimPoint(px, py);
+    if (!meta.targeted && w === null) { const d = step8(this.aimDir()); tx = px + d[0]; ty = py + d[1]; }
     if (!meta.targeted) {
       const rec = st.recs[st.recs.length - 1];
       const adj = (rec?.ents ?? []).filter((e) => e.k === 'm' && e.g !== 'B' && Math.max(Math.abs(e.x - px), Math.abs(e.y - py)) === 1);
@@ -604,12 +760,51 @@ export class GameScreen implements Screen {
     return best;
   }
 
-  private startRevive() {
+  /** Start holding a revive on a downed ally next to us (key: the key that holds it). False if there is none. */
+  private startRevive(key: string): boolean {
     const rec = this.app.st.recs[this.app.st.recs.length - 1];
-    if (!rec) return;
+    if (!rec) return false;
     const px = this.pred.x, py = this.pred.y;
-    const t = rec.ents.find((e) => e.k === 'h' && e.id !== this.app.st.youId && e.downed && Math.max(Math.abs(e.x - px), Math.abs(e.y - py)) <= 1);
-    if (t) { this.reviving = t.id; this.app.net.send({ t: 'revive', target: t.id, hold: true, seq: this.pred.nextSeq() }); this.lastRevSend = performance.now(); }
+    const t = rec.ents.find((e) => e.k === 'h' && e.id !== this.app.st.youId && e.downed && !e.dead && Math.max(Math.abs(e.x - px), Math.abs(e.y - py)) <= 1);
+    if (!t) return false;
+    this.reviving = t.id; this.reviveKey = key;
+    this.app.net.send({ t: 'revive', target: t.id, hold: true, seq: this.pred.nextSeq() });
+    this.lastRevSend = performance.now();
+    return true;
+  }
+
+  /** Where we aim without a mouse cursor: the right stick while it is pushed, else the way we face. */
+  private aimDir(): [number, number] {
+    if (padAim.on) return [padAim.x, padAim.y];
+    const d = DIRS[this.pred.face];
+    return [d[0], d[1] * 2];
+  }
+
+  /** The enemy we would aim at without a mouse cursor (see coneTarget), or null. */
+  private aimTarget(px: number, py: number): Ent | null {
+    const rec = this.app.st.recs[this.app.st.recs.length - 1];
+    return coneTarget(rec?.ents ?? [], px, py, this.aimDir(), this.app.st.lastTarget);
+  }
+
+  /** Where a targeted skill, a throw or a ping goes: the mouse cursor (or a tap), else the enemy in the aim
+   *  cone, else straight along the right stick, else the nearest enemy, else a few steps ahead. */
+  private aimPoint(px: number, py: number): [number, number] {
+    const w = this.cellToWorld(this.mouse);
+    if (w) return w;
+    const t = this.aimTarget(px, py);
+    if (t) return [t.x, t.y];
+    if (padAim.on) return aheadCell(px, py, this.aimDir(), 8);
+    const near = this.nearestMonster(px, py);
+    if (near) return [near.x, near.y];
+    return aheadCell(px, py, this.aimDir(), 8);
+  }
+
+  private pingAim() {
+    const me = this.youEnt();
+    if (!me) return;
+    const px = this.pred.ready ? this.pred.x : me.x, py = this.pred.ready ? this.pred.y : me.y;
+    const [x, y] = this.aimPoint(px, py);
+    this.app.net.send({ t: 'ping', cell: [Math.max(0, Math.min(LW - 1, x)), Math.max(0, Math.min(LH - 1, y))] });
   }
 
   private pumpMovement(now: number) {
@@ -733,6 +928,11 @@ export class GameScreen implements Screen {
     if (this.aimUntil) { // where a tap aimed
       const [ax, ay] = this.mouse, i = ay * W + ax;
       if (ax >= 0 && ay >= 0 && ax < VW && ay <= VH) fb.setBg(i, mix(fb.getBg(i), PINK, 0.45 + 0.15 * Math.sin(t * 8)));
+    } else if (lastInput.pad && yp && !this.panelOpen()) { // playing with a pad: mark what the skills would hit
+      const tg = this.aimTarget(yp.x, yp.y);
+      const [wx, wy] = tg ? [tg.x, tg.y] : padAim.on ? aheadCell(yp.x, yp.y, this.aimDir(), 8) : [-1, -1];
+      const ax = wx - this.cam.x, ay = wy - this.cam.y + 1, i = ay * W + ax;
+      if (wx >= 0 && ax >= 0 && ay >= 1 && ax < VW && ay <= VH) fb.setBg(i, mix(fb.getBg(i), tg ? PINK : [150, 140, 200], tg ? 0.5 : 0.3));
     }
     statusBar(fb, st);
     partyPanel(fb, st);
@@ -763,11 +963,16 @@ export class GameScreen implements Screen {
       else questBoardPanel(fb, st, 'board', this.boardSel);
     }
     if (this.journalOpen) journalPanel(fb, st, this.journalSel);
+    this.tabStrip(fb);
     if (this.loreOpen) lorePanel(fb, this.loreOpen.page, this.loreOpen.text);
     if (compact && !this.mapOpen && !this.panelRect() && !st.overlay) compactHud(fb, st, cols, COMPACT_ROWS, target, this.ui, now);
     depthBanner(fb, st, now, cols);
     if (st.overlay) overlayBox(fb, st.overlay, st, now);
     if (this.menuOpen) menuPanel(fb, this.menu(), this.menuSel); // over the wipe screen too: leaving from there is fine
+    if (this.controlsOpen) {
+      if (this.capture && now > this.capture.until) { this.capture = null; this.padInput?.stopCapture(); }
+      controlsPanel(fb, this.ctrlRow, this.ctrlCol, this.capture, now);
+    }
     void H; void SKILL_BY_ID;
   }
 }

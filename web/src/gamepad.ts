@@ -5,8 +5,10 @@
  *
  * Standard-mapping pads only (Xbox / PlayStation / Switch Pro in browsers).
  * No button opens chat: a pad can't type, so A only acts as Enter in panels,
- * menus and the wipe overlay (see GameScreen.padContext).
+ * menus and the wipe overlay (see GameScreen.padContext). The world buttons
+ * come from the player's bindings (bindings.ts); the right stick aims (padAim).
  */
+import { BTN, BTN_NAMES, padWorldMap, kbLabel } from './bindings';
 
 export type PadContext = 'world' | 'panel' | 'overlay' | 'menu' | 'lobby' | 'chat';
 
@@ -22,42 +24,43 @@ export interface PadLike {
   axes: ReadonlyArray<number>;
 }
 
-// standard-mapping button indices
-const A = 0, B = 1, X = 2, Y = 3, LB = 4, RB = 5, LT = 6, RT = 7, SELECT = 8, START = 9, L3 = 10, R3 = 11;
+const { A, B, X, Y, LB, RB, START, SELECT } = BTN;
 const DPAD: Array<[number, string]> = [[12, 'ArrowUp'], [13, 'ArrowDown'], [14, 'ArrowLeft'], [15, 'ArrowRight']];
 
 type BtnMap = Partial<Record<number, string>>;
 
-// START opens the game menu (Esc) in the world and closes a panel; L3 is the journal
-const COMMON: BtnMap = { [SELECT]: 'i', [START]: 'Escape', [L3]: 'j', [R3]: 't' };
-
-const MAPS: Record<PadContext, BtnMap> = {
+const MAPS: Record<Exclude<PadContext, 'world'>, BtnMap> = {
   chat: {},
-  // A is item key 5, never Enter: Enter in the world would open chat
-  world: { ...COMMON, [X]: '1', [Y]: '2', [RB]: '3', [RT]: '1', [LB]: 'q', [LT]: 'e', [B]: '4', [A]: '5' },
-  panel: { ...COMMON, [A]: 'Enter', [B]: 'Escape', [X]: 'x', [Y]: 'r', [RB]: 'Tab', [LB]: '1', [LT]: '2', [RT]: '3' },
-  overlay: { [A]: 'Enter' },
+  // LB / RB flip tabs (rucksack · skill tree · journal, or a shop's sides); Y puts the selection on a key
+  panel: { [A]: 'Enter', [B]: 'Escape', [X]: 'x', [Y]: 'y', [LB]: 'PrevTab', [RB]: 'Tab', [START]: 'Escape', [SELECT]: 'Escape' },
+  overlay: { [A]: 'Enter', [START]: 'Escape' },
   menu: { [A]: 'Enter', [B]: 'Escape' },
   // A = ready/start, LT = change class, host: X friendly fire, Y difficulty, RB add bot, LB remove bot,
   // B: new run (press twice; only with a save). 'q' would leave the lobby, so no button sends it
-  lobby: { [A]: 'Enter', [LT]: 'c', [X]: 'f', [Y]: 'd', [RB]: 'b', [LB]: 'x', [B]: 'n' },
+  lobby: { [A]: 'Enter', [BTN.LT]: 'c', [X]: 'f', [Y]: 'd', [RB]: 'b', [LB]: 'x', [B]: 'n' },
 };
 
-const BTN_NAMES: Record<number, string> = { [A]: 'A', [B]: 'B', [X]: 'X', [Y]: 'Y', [LB]: 'LB', [RB]: 'RB', [LT]: 'LT', [RT]: 'RT', [SELECT]: 'SEL', [START]: 'START', [L3]: 'L3', [R3]: 'R3' };
+/** The buttons of a context (the world's come from the bindings). */
+export function padMap(ctx: PadContext): BtnMap { return ctx === 'world' ? padWorldMap() : MAPS[ctx]; }
 
 /** Which input the player used last. While it is the pad, on-screen hints name pad buttons instead of keys. */
 export const lastInput = { pad: false };
 
 /** The pad button that sends this key in this context ('' if none; the lowest button index wins). */
 export function padLabel(ctx: PadContext, key: string): string {
-  for (const [b, k] of Object.entries(MAPS[ctx])) if (k === key) return BTN_NAMES[Number(b)] ?? '';
+  for (const [b, k] of Object.entries(padMap(ctx))) if (k === key) return BTN_NAMES[Number(b)] ?? '';
   return '';
 }
 
 /** The label for a key in a hint: its pad button while playing with a pad, else `shown` (default: the key). */
-export function keyLabel(ctx: PadContext, key: string, shown = key.toUpperCase()): string {
-  return lastInput.pad ? padLabel(ctx, key) || shown : shown;
+export function keyLabel(ctx: PadContext, key: string, shown?: string): string {
+  if (lastInput.pad) return padLabel(ctx, key) || shown || key.toUpperCase();
+  return shown ?? ((ctx === 'world' && kbLabel(key)) || key.toUpperCase());
 }
+
+/** The right stick: where the player aims (screen direction, y down), while it is pushed. */
+export const padAim = { on: false, x: 0, y: 0 };
+export const AIM_DEADZONE = 0.4;
 
 export const DEADZONE = 0.35;
 export const MENU_REPEAT_MS = 150;
@@ -72,6 +75,14 @@ export class GamepadInput {
   private latched = new Set<number>();
   private dirs = new Set<string>();
   private lastRepeat = new Map<string, number>();
+  /** Set while rebinding: the next button pressed goes here instead of to the screen. */
+  private capture: ((btn: number) => void) | null = null;
+  private latchNow = false;
+
+  /** Rebinding: the next button pressed (not one already held) goes to cb instead of to the screen. */
+  startCapture(cb: (btn: number) => void) { this.capture = cb; this.latchNow = true; }
+  stopCapture() { this.capture = null; }
+  get capturing(): boolean { return this.capture !== null; }
 
   constructor(private getPads: () => ArrayLike<PadLike | null> = () => (navigator.getGamepads ? navigator.getGamepads() : [])) {}
 
@@ -88,13 +99,31 @@ export class GamepadInput {
 
   poll(now: number, ctx: PadContext, sink: PadSink) {
     const pad = this.firstPad();
-    if (!pad) { this.releaseAll(sink); this.latched.clear(); this.ctx = ctx; return; }
+    if (!pad) { this.releaseAll(sink); this.latched.clear(); this.ctx = ctx; padAim.on = false; return; }
 
     if (ctx !== this.ctx) {
       this.releaseAll(sink);
       this.latched.clear();
       pad.buttons.forEach((b, i) => { if (b.pressed) this.latched.add(i); });
       this.ctx = ctx;
+    }
+    // ---- right stick: aim ----
+    const rx = pad.axes[2] ?? 0, ry = pad.axes[3] ?? 0;
+    padAim.on = Math.hypot(rx, ry) > AIM_DEADZONE;
+    if (padAim.on) { padAim.x = rx; padAim.y = ry; }
+
+    if (this.latchNow) { pad.buttons.forEach((b, i) => { if (b.pressed) this.latched.add(i); }); this.latchNow = false; }
+    if (this.capture) { // rebinding: report the first new press, nothing else
+      pad.buttons.forEach((b, i) => {
+        if (i >= 12 && i <= 15) return;
+        if (!b.pressed) { this.latched.delete(i); return; }
+        if (this.latched.has(i) || !this.capture) return;
+        this.latched.add(i);
+        const cb = this.capture;
+        this.capture = null;
+        cb(i);
+      });
+      return;
     }
     if (ctx === 'chat') return;
 
@@ -129,7 +158,7 @@ export class GamepadInput {
     }
 
     // ---- buttons: edge-triggered ----
-    const map = MAPS[ctx];
+    const map = padMap(ctx);
     pad.buttons.forEach((b, i) => {
       if (i >= 12 && i <= 15) return; // d-pad handled above
       const was = this.btnKey.get(i);

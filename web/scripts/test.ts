@@ -22,7 +22,10 @@ import { Fx, streakLabel } from '../src/render/fx';
 import { depthBanner, hotbar, pickTarget, compactHud, overlayBox, OVERLAY_BOX, short, eventNote } from '../src/render/hud';
 import { Fb } from '../src/term/fb';
 import { VW, VH } from '../src/render/map';
-import { GamepadInput, keyLabel, lastInput, padLabel, type PadLike, type PadContext } from '../src/gamepad';
+import { GamepadInput, keyLabel, lastInput, padLabel, padAim, type PadLike, type PadContext } from '../src/gamepad';
+import { translateKey, bindKey, bindPad, binds, setBinds, defaults, padWorldMap, kbLabel, BTN } from '../src/bindings';
+import { coneTarget, step8, aheadCell } from '../src/screens/game';
+import { controlsAt, cellEditable, CONTROLS_BOX } from '../src/render/controls';
 
 let failed = 0;
 function eq(a: unknown, b: unknown, msg: string) {
@@ -171,22 +174,26 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   eq(step(120, 'world'), ['u:ArrowUp', 'u:ArrowRight'], 'releasing the stick releases the keys');
 
   cur = mk([2]);
-  eq(step(150, 'world'), ['d:1'], 'X casts skill 1 in the world');
+  eq(step(150, 'world'), ['d:2'], 'X casts skill 2 in the world');
   eq(step(180, 'world'), [], 'a held button does not repeat');
   cur = mk();
-  eq(step(210, 'world'), ['u:1'], 'releasing the button sends keyup');
+  eq(step(210, 'world'), ['u:2'], 'releasing the button sends keyup');
   cur = mk([0]);
-  eq(step(240, 'world'), ['d:5'], 'A uses item key 5 in the world (never Enter: that would open chat)');
+  eq(step(240, 'world'), ['d:1'], 'A is skill 1 (never Enter: that would open chat)');
   cur = mk();
   step(250, 'world');
   cur = mk([6]);
-  eq(step(270, 'world'), ['d:e'], 'LT starts a revive');
+  eq(step(270, 'world'), ['d:Tab'], 'LT shows the map');
   cur = mk();
-  eq(step(300, 'world'), ['u:e'], 'releasing LT ends the revive hold');
+  eq(step(300, 'world'), ['u:Tab'], 'and lets go');
   cur = mk([1]);
-  eq(step(310, 'world'), ['d:4'], 'B uses the item on key 4 in the world');
+  eq(step(310, 'world'), ['d:g'], 'B pings');
   cur = mk();
-  eq(step(320, 'world'), ['u:4'], 'releasing B sends keyup');
+  eq(step(320, 'world'), ['u:g'], 'releasing B sends keyup');
+  cur = mk([5]);
+  eq(step(321, 'world'), ['d:4'], 'RB uses the item on key 4');
+  cur = mk();
+  step(322, 'world');
 
   eq(step(330, 'panel'), [], 'switching context emits nothing by itself');
   cur = mk([0]);
@@ -343,13 +350,13 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   const st = new GameState();
   st.pushLog([['x'.repeat(LOG_W + 5), [1, 1, 1]]]);
   eq(st.log.length, 2, 'an unbreakable word is cut hard');
-  eq(padLabel('world', 'e'), 'LT', 'revive is LT on the pad');
-  eq(padLabel('world', '1'), 'X', 'skill 1 is X');
-  eq(padLabel('panel', '1'), 'LB', 'in panels LB puts a skill on key 1');
+  eq(padLabel('world', 'q'), 'LB', 'the potion is LB on the pad');
+  eq(padLabel('world', '1'), 'A', 'skill 1 is A');
+  eq(padLabel('panel', 'Tab'), 'RB', 'in panels RB flips to the next tab');
   lastInput.pad = false;
   eq(keyLabel('world', 'e'), 'E', 'keyboard hints show the key');
   lastInput.pad = true;
-  eq(keyLabel('world', 'e'), 'LT', 'pad hints show the button');
+  eq(keyLabel('world', 'q'), 'LB', 'pad hints show the button');
   eq(keyLabel('world', 'm'), 'M', 'a key with no button falls back to the key');
   lastInput.pad = false;
 }
@@ -565,14 +572,78 @@ const snap = (tick: number, ents: Ent[], ack = 0): Snap => ({
   eq(padLabel('world', 'Escape'), 'START', 'START opens the menu');
   eq(padLabel('world', 'j'), 'L3', 'the journal moved to L3');
   const host = menuRows(true, 'all', false), guest = menuRows(false, 'off', true);
-  eq(host.map((r) => r.id).join(','), 'resume,journal,sound,save,leave', 'menu rows in order');
-  eq(!!host[3].off, false, 'the host can save');
-  eq(!!guest[3].off, true, 'a guest cannot');
+  eq(host.map((r) => r.id).join(','), 'resume,journal,sound,controls,save,leave', 'menu rows in order');
+  eq(!!host[4].off, false, 'the host can save');
+  eq(!!guest[4].off, true, 'a guest cannot');
   eq(guest[2].label, 'Sound: off', 'the sound row says the mode');
-  eq(guest[4].label.startsWith('Leave?'), true, 'leaving asks again');
-  eq(menuAt(MENU_BOX.x + 6, MENU_BOX.y + 3, 5), 0, 'tap the first row');
-  eq(menuAt(MENU_BOX.x + 6, MENU_BOX.y + 11, 5), 4, 'tap the last row');
-  eq(menuAt(MENU_BOX.x + 6, MENU_BOX.y + 4, 5), -1, 'between rows is nothing');
+  eq(guest[5].label.startsWith('Leave?'), true, 'leaving asks again');
+  eq(menuAt(MENU_BOX.x + 6, MENU_BOX.y + 3, 6), 0, 'tap the first row');
+  eq(menuAt(MENU_BOX.x + 6, MENU_BOX.y + 13, 6), 5, 'tap the last row');
+  eq(menuAt(MENU_BOX.x + 6, MENU_BOX.y + 4, 6), -1, 'between rows is nothing');
+}
+
+{ // rebinding keys and buttons
+  setBinds(defaults(), false);
+  eq(translateKey('w'), 'ArrowUp', 'W walks up');
+  eq(translateKey('W'), 'ArrowUp', 'with caps lock too');
+  eq(translateKey('F5'), 'F5', 'keys the game never uses pass through');
+  bindKey('potion', 0, 'f');
+  eq(translateKey('f'), 'q', 'F is now the potion');
+  eq(translateKey('q'), null, 'and Q does nothing');
+  eq(kbLabel('q'), 'F', 'hints show the new key');
+  bindKey('skill1', 0, 'f');
+  eq(binds.kb.skill1.join(), 'f', 'skill 1 takes F');
+  eq(binds.kb.potion.join(), '1', '...and the potion gets skill 1\'s old key (a swap)');
+  bindKey('up', 1, 'i');
+  eq(binds.kb.up.join(), 'w,i', 'the second key of an action');
+  eq(binds.kb.bag.join(), 'arrowup', 'the rucksack gets the arrow it lost');
+  eq(translateKey('ArrowUp', true), 'i', 'in a panel, panel toggles translate (here: the rucksack on ↑)...');
+  eq(translateKey('i', true), 'i', '...other bindings do not');
+  eq(translateKey('x', true), 'x', '...a panel\'s own letters stay as they are');
+  bindKey('menu', 0, 'p');
+  eq(binds.kb.menu.join(), 'escape', 'the menu stays on ESC');
+  bindPad('potion', BTN.A);
+  eq(padWorldMap()[BTN.A], 'q', 'A drinks a potion now');
+  eq(padWorldMap()[BTN.LB], '1', '...and LB is skill 1 (a swap)');
+  bindPad('skill2', BTN.START);
+  eq(padWorldMap()[BTN.START], 'Escape', 'START stays the menu');
+  setBinds(defaults(), false);
+  eq(cellEditable(0, 2), false, 'moving has no pad button (the stick)');
+  eq(cellEditable(4, 2), true, 'skill 1 has one');
+  eq(controlsAt(CONTROLS_BOX.x + 5, CONTROLS_BOX.y + 4)?.row, 0, 'tap the first action');
+  eq(controlsAt(CONTROLS_BOX.x + 66, CONTROLS_BOX.y + 8)?.col, 2, 'tap a pad cell');
+}
+
+{ // aiming with the right stick, or the way you face
+  const m = (id: number, x: number, y: number) => ({ id, k: 'm', g: 'z', x, y } as unknown as Ent);
+  const ents = [m(1, 15, 10), m(2, 10, 14), m(3, 12, 10)];
+  eq(coneTarget(ents, 10, 10, [1, 0], 0)?.id, 3, 'the closest enemy to the right');
+  eq(coneTarget(ents, 10, 10, [1, 0], 1)?.id, 1, 'the one last hit while it is in the cone');
+  eq(coneTarget(ents, 10, 10, [0, 1], 0)?.id, 2, 'down');
+  eq(coneTarget(ents, 10, 10, [-1, 0], 0), null, 'nothing to the left');
+  eq(coneTarget([{ ...m(4, 11, 10), g: 'B' } as Ent], 10, 10, [1, 0], 0), null, 'never a powder keg');
+  eq(step8([1, 0]), [1, 0], 'right is one step right');
+  eq(step8([1, 2]), [1, 1], 'a screen diagonal is a cell diagonal');
+  eq(step8([0, -1]), [0, -1], 'up');
+  eq(aheadCell(10, 10, [0, 1], 8), [10, 14], 'eight columns down is four rows');
+  // the pad: the right stick aims, and rebinding catches the next new press
+  let cur: PadLike = { connected: true, axes: [0, 0, 0.9, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
+  const gp = new GamepadInput(() => [cur]);
+  const sink = { down: () => {}, up: () => {} };
+  gp.poll(0, 'world', sink);
+  eq(padAim.on && padAim.x > 0.8, true, 'the right stick aims');
+  const press = (i: number[]) => { cur = { ...cur, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, (_, j) => ({ pressed: i.includes(j) })) }; };
+  press([0]);
+  gp.poll(10, 'panel', sink);
+  let got = -1;
+  gp.startCapture((b) => { got = b; });
+  gp.poll(20, 'panel', sink);
+  eq(got, -1, 'the button still held from opening the capture does not count');
+  press([0, 3]);
+  gp.poll(30, 'panel', sink);
+  eq(got, 3, 'the next new press is caught (Y)');
+  eq(gp.capturing, false, 'and capture ends');
+  eq(padAim.on, false, 'a stick at rest does not aim');
 }
 
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }

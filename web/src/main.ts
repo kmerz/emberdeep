@@ -128,9 +128,15 @@ window.addEventListener('keydown', (e) => {
   if (kbd.isKbd(e.target)) return; // typing into a field: the hidden input reports the text itself
   lastInput.pad = false;
   setTouch(false); // a real keyboard: hide the touch controls until the next touch
-  current.onKey?.(e);
+  const k = current.mapKey ? current.mapKey(e) : e;
+  if (k) current.onKey?.(k);
+  else if (e.key === 'Tab') e.preventDefault(); // an unbound Tab must not move the focus
 });
-window.addEventListener('keyup', (e) => { if (!kbd.isKbd(e.target)) current.onKeyUp?.(e); });
+window.addEventListener('keyup', (e) => {
+  if (kbd.isKbd(e.target)) return;
+  const k = current.mapKey ? current.mapKey(e) : e;
+  if (k) current.onKeyUp?.(k);
+});
 
 // canvas: pointer events cover mouse and touch alike
 let press: { id: number; x: number; y: number; timer: number } | null = null;
@@ -176,6 +182,7 @@ const canFullscreen = typeof (fsEl.requestFullscreen as unknown) === 'function' 
 const FS_BTN: TouchBtn = { key: 'fullscreen', label: '⛶', area: 'top', tap: toggleFullscreen };
 
 const pad = new GamepadInput();
+game.padInput = pad;
 const padSink = {
   down: (key: string, repeat: boolean) => {
     // playing with the pad: forget the mouse cursor, so skills and thrown items aim at the nearest enemy
