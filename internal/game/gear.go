@@ -314,6 +314,9 @@ func (g *Game) critRoll(h *Hero) bool {
 // leech heals the hero by its life steal share of damage dealt.
 func (h *Hero) leech(dmg int) {
 	l := h.GearStat("leech")
+	if h.shrineOn == "blood" {
+		l += BloodLeech
+	}
 	if l <= 0 || h.Downed || h.Dead {
 		return
 	}

@@ -7,6 +7,9 @@ func (h *Hero) dmgScale(base int) int {
 	if b == 0 {
 		b = 1
 	}
+	if h.shrineOn == "fury" {
+		b *= 1 + FuryPct/100.0
+	}
 	return int(math.Round(float64(base) * (1 + 0.1*float64(h.Lvl-1)) * b * (1 + float64(h.GearStat("dmg"))/100)))
 }
 

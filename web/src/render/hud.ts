@@ -42,6 +42,9 @@ function statusSegs(p: PartyEntry): [string, RGB, (RGB | null)?, number?][] {
     else if (s.k === 'cry') out.push(['! War Cry', [255, 138, 61]], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'hidden') out.push(['░ Hidden', [199, 146, 255]], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'poison') out.push(['~ Poison', [126, 240, 178]], [' ×' + s.t, DIM], ['   ', DIM]);
+    else if (s.k === 'haste') out.push(['» Haste', [140, 230, 255]], [' ' + s.t + 's', DIM], ['   ', DIM]);
+    else if (s.k === 'fury') out.push(['‼ Fury', [255, 90, 60]], [' ' + s.t + 's', DIM], ['   ', DIM]);
+    else if (s.k === 'blood') out.push(['♥ Blood', [220, 40, 70]], [' ' + s.t + 's', DIM], ['   ', DIM]);
     else if (s.k === 'charmed') out.push(['♥ Charmed', [255, 110, 200]], [' ' + s.t + 's', DIM], ['   ', DIM]);
   }
   if (!out.length) out.push(['◇ steady', DIM]);

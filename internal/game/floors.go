@@ -18,6 +18,8 @@ type floorMemo struct {
 	Explored    []byte // one bit per cell
 	Vault       bool   // the vault door is open
 	VaultLooted bool   // the vault chest is open
+	Shrine      bool   // the shrine has been used
+	Fortune     bool   // a Shrine of Fortune was used: gold counts double
 }
 
 func has(list []int, i int) bool {
@@ -31,7 +33,7 @@ func has(list []int, i int) bool {
 
 func (m *floorMemo) clone() *floorMemo {
 	return &floorMemo{Dead: append([]int(nil), m.Dead...), Opened: append([]int(nil), m.Opened...),
-		Gold: append([]int(nil), m.Gold...), Explored: append([]byte(nil), m.Explored...), Vault: m.Vault, VaultLooted: m.VaultLooted}
+		Gold: append([]int(nil), m.Gold...), Explored: append([]byte(nil), m.Explored...), Vault: m.Vault, VaultLooted: m.VaultLooted, Shrine: m.Shrine, Fortune: m.Fortune}
 }
 
 // memoKey: floors by depth; the gnome village is 0.

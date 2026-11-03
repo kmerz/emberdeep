@@ -640,6 +640,9 @@ func (g *Game) applyMove(h *Hero, in Intent) error {
 
 func (g *Game) spendStep(h *Hero) {
 	cost := MoveTicks
+	if h.shrineOn == "haste" {
+		cost = HasteMoveTicks
+	}
 	if g.Now < h.SlowUntil {
 		cost = MoveTicks * 2
 	}
@@ -841,6 +844,9 @@ func (g *Game) pickup(h *Hero) {
 			}
 			g.Items = append(g.Items[:i], g.Items[i+1:]...)
 			i--
+			if g.memo().Fortune {
+				it.Amount *= FortuneMult
+			}
 			g.splitGold(h, it.Amount)
 			g.emit(Event{K: "pickup", Actor: h.ID, X: h.X, Y: h.Y, Amount: it.Amount, FX: "gold", Text: "gold"})
 			continue

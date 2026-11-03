@@ -241,6 +241,7 @@ export class GameState {
             this.pushLog([['You pick up ', DIM], [(e.amount || 1) > 1 ? e.amount + '× ' + it.name : it.name, it.col, 1], ...(v ? [[' · Grimble pays ' + v + ' gold', GOLD] as LogSeg] : [])], now);
           }
           break;
+        case 'shrine': if (e.text) this.pushLog([[you ? 'You' : an, you ? TX : ac], [' touch' + (you ? ' ' : 'es ') + 'a shrine. ', DIM], [e.text, [210, 160, 255], 1]], now); break;
         case 'packfull': if (you) this.pushLog([['Your rucksack is full', PINK]], now); break;
         case 'gearpick': if (you) this.pushLog([['You pick up ', DIM], [e.text || 'gear', rarityCol(e.amount), 1], ['  (I: rucksack)', DIM]], now); break;
         case 'equip': if (you) this.pushLog([['You now wear ', DIM], [e.text || 'gear', rarityCol(e.amount), 1]], now); break;

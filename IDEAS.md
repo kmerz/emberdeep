@@ -25,7 +25,7 @@ potions `!`. Multi-floor runs and an inventory come first because most other ide
 - [x] [M] Grimble sells a few rolled pieces per visit (answers "what do the gnomes trade?")
 - [x] [S] Unique items: one hand-made trinket per boss (regen, thorns + endless lantern, slayer)
 - [ ] [S] More uniques: rare world drops on deep floors, and one weapon per class
-- [ ] [M] Shrines: a random short buff (haste, life steal, more gold) or a gamble
+- [x] [M] Shrines: haste, fury, blood, fortune, or a gamble (Shrine of Chance)
 
 ## 3c. Run feel
 - [ ] [M] Floor events: 1 in 4 floors gets something special (a treasure goblin, "the dead stir", a cursed floor with double gold)

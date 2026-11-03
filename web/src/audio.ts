@@ -195,6 +195,7 @@ export class Sfx {
       case 'potion': case 'use': if (mine) this.play(e.fx === 'torch' ? 'whoosh' : e.fx === 'lightorb' ? 'chime' : 'gulp'); break;
       case 'pickup': case 'gearpick': if (mine) this.play(e.fx === 'gold' ? 'coin' : 'pick'); break;
       case 'equip': case 'unequip': if (e.actor === me) this.play('equip'); break;
+      case 'shrine': this.play(e.fx === 'chance' ? 'charge' : e.fx ? 'bell' : 'click', mine ? 1 : 0.7); break;
       case 'raredrop': if (e.actor === me) this.play('beam'); break;
       case 'trade': if (mine) this.play('coin'); break;
       case 'chest': this.play('chest', k); break;

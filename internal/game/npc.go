@@ -23,6 +23,8 @@ type Npc struct {
 	Following int    // hero id it follows (0 = still waiting to be found)
 	Altar     bool   // an altar of the Four: pray to finish a god's trial
 	Lore      int    // an inscription: 1 + its page in Lore (0 = not one)
+	Shrine    string // a shrine's kind (shrine.go; "" = not one)
+	Used      bool   // a shrine that has gone dark
 }
 
 type NpcSpawn struct {
@@ -161,6 +163,9 @@ func (g *Game) bumpNpc(h *Hero, x, y int) bool {
 	switch {
 	case n.Altar:
 		g.pray(h, n)
+		return true
+	case n.Shrine != "":
+		g.useShrine(h, n)
 		return true
 	case n.Lore > 0:
 		g.emit(Event{K: "lore", Actor: h.ID, Target: n.ID, X: n.X, Y: n.Y, Amount: n.Lore - 1, Text: Lore[n.Lore-1]})

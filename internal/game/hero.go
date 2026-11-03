@@ -11,18 +11,21 @@ type Hero struct {
 	X, Y   int
 	Facing int
 
-	HP, HPMax  int
-	Res        int
-	ResMax     int
-	resAcc     float64
-	Gold       int
-	Pack       [PackSlots]Stack
-	PackCap    int // usable slots (StartPackCap, more with the Gnome Satchel)
-	packFullAt int // last tick a "rucksack full" message was sent
-	Weapon     *Gear
-	Trinket    *Gear
-	leechAcc   float64
-	regenAcc   int // regen gear: HP owed, in 1/TickHz steps
+	HP, HPMax   int
+	Res         int
+	ResMax      int
+	resAcc      float64
+	Gold        int
+	Pack        [PackSlots]Stack
+	PackCap     int // usable slots (StartPackCap, more with the Gnome Satchel)
+	packFullAt  int // last tick a "rucksack full" message was sent
+	Weapon      *Gear
+	Trinket     *Gear
+	leechAcc    float64
+	regenAcc    int    // regen gear: HP owed, in 1/TickHz steps
+	Shrine      string // the shrine blessing the hero is under (shrine.go)
+	ShrineUntil int
+	shrineOn    string // Shrine while it lasts, else "" (kept by tickHero)
 
 	CDReady [TreeSize]int // per skill, so moving a skill to another key doesn't reset it
 	Ranks   [TreeSize]int // 0 = not learned
@@ -217,6 +220,7 @@ func (h *Hero) freshOnFloor() {
 	h.CDReady = [TreeSize]int{}
 	h.CryUntil, h.HiddenUntil, h.PoisonCharges = 0, 0, 0
 	h.CharmUntil = 0
+	h.Shrine, h.ShrineUntil, h.shrineOn = "", 0, "" // a blessing stays on its floor
 	h.PotionReady = 0
 	h.fovValid = false
 }

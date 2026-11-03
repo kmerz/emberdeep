@@ -43,6 +43,9 @@ func (g *Game) tickHero(h *Hero) {
 		return
 	}
 	h.regenHP()
+	if g.Now >= h.ShrineUntil {
+		h.shrineOn = ""
+	}
 	if g.LanternLit(h) && h.GearStat("lantern") == 0 {
 		h.Oil--
 		if h.Oil == OilWarn {

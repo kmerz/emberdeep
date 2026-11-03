@@ -29,6 +29,9 @@ func SeedString(seed uint32) string { return fmt.Sprintf("%04X-%02X", seed>>8&0x
 
 func heroStatuses(g *game.Game, h *game.Hero) []proto.Status {
 	var st []proto.Status
+	if h.Shrine != "" && g.Now < h.ShrineUntil {
+		st = append(st, proto.Status{K: h.Shrine, T: ceilSec(h.ShrineUntil - g.Now)}) // haste, fury or blood
+	}
 	if g.Now < h.WallUntil {
 		st = append(st, proto.Status{K: "wall", T: ceilSec(h.WallUntil - g.Now)})
 	}
@@ -155,6 +158,11 @@ func BuildShared(g *game.Game) []byte {
 			gl := "g"
 			if n.Altar {
 				gl = "A" // an altar of the Four
+			} else if n.Shrine != "" {
+				gl = "S" // a shrine ("s" once it is dark)
+				if n.Used {
+					gl = "s"
+				}
 			} else if n.Lore > 0 {
 				gl = "i" // an inscription
 			}

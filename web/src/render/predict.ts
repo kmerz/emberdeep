@@ -4,6 +4,7 @@ import { GameState } from '../state';
 const SOLID = new Set(['#', 'T', 'O', '|', '_', 'P', 'L', ' '].map((c) => c.charCodeAt(0)));
 export const DIRS: [number, number][] = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
 export const MOVE_MS = 160; // a little slower than the server's 150 ms step so we never trip its speed check
+export const HASTE_MOVE_MS = 110; // under a Shrine of Haste the server allows a step every 100 ms
 
 interface Pending { seq: number; dir: number }
 
@@ -52,8 +53,9 @@ export class Predictor {
 
   /** Try to move; returns the message to send, or null if not allowed yet. */
   move(dir: number, now: number): object | null {
-    if (!this.ready || now - this.lastSend < MOVE_MS) return null;
+    if (!this.ready) return null;
     const me = this.st.recs[this.st.recs.length - 1]?.ents.find((e) => e.k === 'h' && e.id === this.st.youId);
+    if (now - this.lastSend < (me?.st?.some((s) => s.k === 'haste') ? HASTE_MOVE_MS : MOVE_MS)) return null;
     if (me?.st?.some((s) => s.k === 'charmed')) return null; // the server won't let a charmed hero move
     this.lastSend = now;
     const seq = ++this.seq;

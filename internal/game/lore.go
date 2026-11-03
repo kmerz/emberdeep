@@ -175,6 +175,10 @@ func (g *Game) setupStory(memo *floorMemo) {
 	if g.InVillage || g.Depth >= 2 {
 		g.placeNpcIn(&Npc{Name: AltarName, Altar: true}, rooms, 1)
 	}
+	if !g.InVillage && g.Depth >= 2 && rng.Chance(ShrineChance) {
+		def := ShrineOrder[rng.Intn(len(ShrineOrder))]
+		g.placeNpcIn(&Npc{Name: def.Name, Shrine: def.ID, Used: memo.Shrine}, rooms, 2)
+	}
 	_ = l
 }
 

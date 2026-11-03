@@ -98,6 +98,9 @@ Saves untouched for 30 days are deleted.
   slay 10 / 18 / 26 foes, then pray at an altar (`Ω`, one on every floor below the first and in the village).
   XP earned meanwhile is kept, so the blessing grants every level it held back, and heals you. Bots pray from
   wherever they are. Players who join a run late skip the trials below their level.
+- Shrines (`¥`): from floor 2, most floors have one. Walk into it once for the whole party: Haste (faster steps),
+  Fury (+30% damage) or Blood (+12% life steal) for 45 s; Fortune (gold on this floor counts double); or Chance
+  (a rare for everyone, a full heal, or an ambush). Then it goes dark.
 - Vaults: from floor 2, one dead-end room may be locked (`▓`). An elite on the floor carries the key (or it lies
   in a far room); walk into the door with it. The vault chest holds extra gold, items, a Silver Ring and a rare piece of gear each.
   Keys only fit their own floor.
