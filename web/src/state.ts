@@ -3,6 +3,7 @@ import { CLS, MC, SKILL_BY_ID } from './classes';
 import { DIM, GOLD, PINK, RGB, TX } from './term/fb';
 import { palette } from './render/themes';
 import { VALUE, itemInfo, rarityCol, RARITY } from './items';
+import { dlog } from './debug';
 import { Remain, bleedFor, remainsFor, remainsOk } from './render/remains';
 
 /** How long a Treasure Goblin runs before it escapes (game.GoblinEscape). */
@@ -110,6 +111,7 @@ export class GameState {
     this.vis.fill(0);
     this.recs = [];
     this.latest = null;
+    this.latestAt = 0;
     this.party = [];
     this.me = null;
     this.obj = null;
@@ -389,7 +391,7 @@ export class GameState {
       case 'lobby':
         this.lobby = m;
         this.isHost = m.players.some((p) => p.id === this.youId && p.host);
-        { const me = m.players.find((p) => p.id === this.youId); if (me && me.pingMs >= 0) this.pingMs = me.pingMs; }
+        { const me = m.players.find((p) => p.id === this.youId); if (me && me.pingMs >= 0) { if (me.pingMs >= 250 && this.pingMs < 250) dlog('net', 'ping ' + me.pingMs + ' ms'); this.pingMs = me.pingMs; } }
         break;
       case 'phase':
         this.phase = m.phase;
@@ -404,7 +406,7 @@ export class GameState {
         if (m.eventText) this.pushLog([['◆ ', EVENT_COL[m.event ?? ''] ?? GOLD, 1], [m.eventText, EVENT_COL[m.event ?? ''] ?? GOLD]], now);
         this.goblin = 'hiding'; this.goblinUntil = 0;
         this.level = m; this.tiles.fill(0); this.vis.fill(0);
-        this.recs = []; this.latest = null; this.pings = []; this.overlay = null; this.lastTarget = 0;
+        this.recs = []; this.latest = null; this.latestAt = 0; this.pings = []; this.overlay = null; this.lastTarget = 0;
         this.remains.clear();
         this.barks.clear();
         this.levelAt = now;

@@ -219,6 +219,26 @@ Saves untouched for 30 days are deleted.
 - A disconnected hero stays for 60 s; reconnecting with the same browser (token in `localStorage`) resumes it.
   Rooms that stay empty for 5 minutes are closed.
 
+### When it lags, stutters or stays silent
+
+- `F9` (or `/debug` in chat) shows live numbers: frames, snapshots per second and the longest gap between them,
+  snap-backs of your hero, input per second, the socket, input numbers, held keys and the sound state.
+- The client keeps a log of the last 600 lines in the browser, the page before a reload included. `/log` in chat
+  saves it as a file; in the browser console `emberdeep.log()` prints it and `emberdeep.download()` saves it. Open
+  the page with `?debug` to also see each line in the console as it happens.
+- It writes a line by itself for a frame over 200 ms, a gap of 400 ms between snapshots, a hero that snapped back,
+  a ping over 250 ms, socket opens and closes, and the sound starting, being blocked or switched off. In the game
+  there is a stats line every 10 s.
+- In the game an amber line says when no update came for 0.6 s, and the ping in the top bar turns amber (over
+  120 ms) or red (over 250 ms). A connection that sends nothing for 8 s is dropped and resumed.
+- While the line is stalled, moves are held back instead of piling up and arriving all at once later. A reconnect
+  attempt that gets no answer in 6 s is given up and tried again. Back without a working session (or under the
+  same name as your hero that is waiting for you), you take that hero over instead of joining twice.
+- In the game the page asks the browser to keep the screen on (gamepad input does not stop a screensaver). Browsers
+  only allow that on https or localhost: over plain http from another computer the screensaver can still start.
+- The server logs joins, resumed sessions (with the hero's last input number), disconnects, game starts, returns
+  to the lobby and players who send too fast.
+
 ## Server flags and environment
 
 | Flag / env | Meaning |

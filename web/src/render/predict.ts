@@ -1,4 +1,5 @@
 import { GameState } from '../state';
+import { dlog, dbg } from '../debug';
 
 // mirrors Solid in internal/game/dungeon.go: walls, torches, pillars, furniture and locked vault doors
 const SOLID = new Set(['#', 'T', 'O', '|', '_', 'P', 'L', ' '].map((c) => c.charCodeAt(0)));
@@ -36,10 +37,24 @@ export class Predictor {
     if (!rec) return;
     const me = rec.ents.find((e) => e.k === 'h' && e.id === this.st.youId);
     if (!me) return;
+    // The server remembers the highest number it has seen from this hero. After a page reload (back into a
+    // running game) our count starts at 0 again: every new move would then look acknowledged already, be
+    // dropped from `pending`, and the hero would snap back on every snapshot. So continue from the server's.
+    if (this.st.ackSeq > this.seq) {
+      dlog('predict', `input numbers behind the server (${this.seq} < ${this.st.ackSeq}): catching up`);
+      this.seq = this.st.ackSeq;
+      this.pending = [];
+    }
+    const was = this.ready ? [this.x, this.y] : null;
     this.x = me.x; this.y = me.y; this.face = me.face;
     this.pending = this.pending.filter((p) => p.seq > this.st.ackSeq);
     if (me.downed || me.dead) this.pending = [];
     for (const p of this.pending) this.apply(p.dir);
+    // where we showed ourselves differs from where the server (plus our unacked moves) puts us: a visible snap back
+    if (was && (was[0] !== this.x || was[1] !== this.y)) {
+      dbg.cur.corrections++;
+      if (Math.max(Math.abs(was[0] - this.x), Math.abs(was[1] - this.y)) > 1) dlog('predict', `snapped back from ${was} to ${this.x},${this.y} (pending ${this.pending.length})`);
+    }
     this.ready = true;
   }
 

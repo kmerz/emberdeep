@@ -25,6 +25,7 @@ import { FULL, type Rect } from '../term/canvas';
 import { layout, COMPACT_ROWS } from '../mobile';
 import type { TouchBtn } from '../touch';
 import * as kbd from '../kbd';
+import { dlog, dbg, downloadLog } from '../debug';
 
 /** The two item keys (4 and 5) and where this browser remembers what is on them. */
 export const ITEM_KEYS = ['4', '5'];
@@ -99,6 +100,9 @@ export function step8(dir: [number, number]): [number, number] {
   return [Math.round(Math.cos(o * Math.PI / 4)), Math.round(Math.sin(o * Math.PI / 4))];
 }
 
+/** no snapshot for this long: stop sending moves */
+const MOVE_STALL_MS = 400;
+
 export class GameScreen implements Screen {
   fx = new Fx();
   pred: Predictor;
@@ -150,6 +154,9 @@ export class GameScreen implements Screen {
 
   onEnter() {
     const st = this.app.st;
+    dlog('game', 'entering the game · sound ' + sfx.describe() + ' · input seq ' + this.pred.seq);
+    if (sfx.mode !== 'off' && sfx.blocked) st.pushLog([['No sound yet', PINK], [' · the browser starts it after a click or a key press on the page', DIM]]);
+    if (sfx.mode !== 'all') st.pushLog([[sfx.mode === 'off' ? 'Sound is off' : 'Music is off', PINK], [' · press ' + (keyLabel('world', 'm') || 'M') + ' or use the menu to turn it on', DIM]]);
     this.fx.clear();
     this.pred.reset();
     this.held.clear();
@@ -236,7 +243,9 @@ export class GameScreen implements Screen {
   /** Rebound keys: a real key press becomes the game key of its action (bindings.ts). */
   mapKey(ev: KeyboardEvent): KeyboardEvent | null {
     if (this.ui.chatActive || this.capture || (this.app.st.overlay && ev.key === 'Enter')) return ev;
-    const k = translateKey(ev.key, this.panelOpen());
+    // a key let go is always translated the world's way: it was pressed as a world key (W → ArrowUp) even if a
+    // panel opened meanwhile (walking into the merchant), and must be released as that key or the hero keeps walking
+    const k = translateKey(ev.key, ev.type !== 'keyup' && this.panelOpen());
     if (k === null) return null;
     return k === ev.key ? ev : withKey(ev, k);
   }
@@ -692,12 +701,14 @@ export class GameScreen implements Screen {
         return;
       }
       else if (cmd === '/help') {
-        st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/save', [214, 208, 234]], [' save + back to the lobby (host) · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['Esc', [214, 208, 234]], [' menu · ', DIM], ['/help', [214, 208, 234]], [' · emberdeep v' + VERSION, DIM]]);
+        st.pushLog([['commands: ', DIM], ['/p text', [214, 208, 234]], [' party chat · ', DIM], ['/save', [214, 208, 234]], [' save + back to the lobby (host) · ', DIM], ['/leave', [214, 208, 234]], [' leave the game · ', DIM], ['/debug', [214, 208, 234]], [' live numbers (F9) · ', DIM], ['/log', [214, 208, 234]], [' save the debug log · ', DIM], ['Esc', [214, 208, 234]], [' menu · ', DIM], ['/help', [214, 208, 234]], [' · emberdeep v' + VERSION, DIM]]);
         st.pushLog([['keys: WASD move · 1-3 skills · 4 5 items · Q potion · hold E revive · G or Alt+click ping · M music / sound / off · Esc menu (rebind keys in Controls)', DIM]]);
         st.pushLog([['in the skill tree (T) press 1, 2 or 3 on a skill to put it on that key; in the rucksack (I) press 4 or 5, or right-click an item', DIM]]);
         st.pushLog([['gamepad: left stick move · right stick aim · A X Y skills (hold A by a downed ally: revive) · LB potion · RB RT items · B ping · LT map · Select rucksack/skills/journal (LB RB flip) · Start menu · in panels A ok, B back, Y put on a key · rebind in Menu → Controls', DIM]]);
         return;
-      } else { st.pushLog([['unknown command ' + cmd + ' (try /help)', PINK]]); return; }
+      } else if (cmd === '/debug') { dbg.overlay = !dbg.overlay; return; }
+      else if (cmd === '/log') { downloadLog(); st.pushLog([['the debug log was saved as a file (Downloads)', DIM]]); return; }
+      else { st.pushLog([['unknown command ' + cmd + ' (try /help)', PINK]]); return; }
       if (!text) return;
     }
     this.app.net.send({ t: 'chat', text });
@@ -809,6 +820,10 @@ export class GameScreen implements Screen {
 
   private pumpMovement(now: number) {
     if (this.ui.chatActive || !this.pred.ready || this.held.size === 0) return;
+    // the line is stalled: moves sent now would wait in the socket and all arrive at once later (the hero
+    // walks on by itself). Hold them until updates come again
+    const st = this.app.st;
+    if (now - st.latestAt > MOVE_STALL_MS || (this.app.net.ws?.bufferedAmount ?? 0) > 0) return;
     const h = this.held;
     let dx = 0, dy = 0;
     if (h.has('arrowleft') || h.has('a')) dx -= 1;

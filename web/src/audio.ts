@@ -2,6 +2,7 @@
 // generated music (music.ts), plus a few random ambient noises (drips in the crypt, crackles in the ember depths).
 import type { GameEvent } from './proto';
 import { Music } from './music';
+import { dlog } from './debug';
 
 const SOUND_KEY = 'emberdeep:sound';
 const OLD_MUTE_KEY = 'emberdeep:muted';
@@ -38,13 +39,16 @@ export class Sfx {
   /** Browsers only allow audio after a user gesture: call this from key and mouse handlers. */
   unlock() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
+      // 'interrupted' is Safari's word for suspended (a call, another app took the audio)
+      if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') this.ctx.resume().catch((e) => dlog('sound', 'resume failed: ' + (e as Error).message));
       return;
     }
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return;
-    try { this.ctx = new AC(); } catch { return; }
+    if (!AC) { dlog('sound', 'no WebAudio in this browser'); return; }
+    try { this.ctx = new AC(); } catch (e) { dlog('sound', 'could not start audio: ' + (e as Error).message); return; }
     const c = this.ctx;
+    dlog('sound', `audio started (${c.state}, mode ${this.mode})`);
+    c.addEventListener('statechange', () => dlog('sound', 'audio ' + c.state));
     this.master = c.createGain();
     this.master.gain.value = this.muted ? 0 : 0.45;
     this.master.connect(c.destination);
@@ -63,10 +67,17 @@ export class Sfx {
   cycleSound(): SoundMode {
     this.mode = SOUND_MODES[(SOUND_MODES.indexOf(this.mode) + 1) % SOUND_MODES.length];
     try { localStorage.setItem(SOUND_KEY, this.mode); } catch { /* private window */ }
+    dlog('sound', 'mode → ' + this.mode);
     if (this.ctx && this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.45, this.ctx.currentTime, 0.05);
     this.music?.setVolume(this.mode === 'all' ? MUSIC_VOL : 0);
     return this.mode;
   }
+
+  /** The browser has not let us start the sound yet (no click or key press on this page so far). */
+  get blocked(): boolean { return !this.ctx || this.ctx.state !== 'running'; }
+
+  /** For the debug log: the mode and whether the browser lets us play. */
+  describe(): string { return this.mode + ' · ' + (this.ctx ? this.ctx.state : 'not started (no click or key yet)'); }
 
   // ---- building blocks ----
 

@@ -34,6 +34,7 @@ type Config struct {
 	Clock           func() time.Time
 	Stats           *TickStats
 	Seed            int64 // 0 = random room codes / seeds
+	Quiet           bool  // no room log lines (tests, load tests)
 }
 
 func (c *Config) defaults() {
@@ -258,10 +259,16 @@ func (h *Hub) serveWS(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		ok, kick := c.allow(now)
 		if kick {
+			if !h.cfg.Quiet {
+				log.Printf("room %s: player %d kicked: over the input limit for 5 s (%d messages dropped)", rm.Code(), c.PlayerID, c.Dropped)
+			}
 			c.Kick("rate limit exceeded")
 			return
 		}
 		if !ok {
+			if !h.cfg.Quiet && (c.Dropped == 1 || c.Dropped%50 == 0) {
+				log.Printf("room %s: player %d sends too fast: %d messages dropped so far", rm.Code(), c.PlayerID, c.Dropped)
+			}
 			continue
 		}
 		var m proto.ClientMsg

@@ -23,7 +23,7 @@ export function statusBar(fb: Fb, st: GameState) {
   const right: [string, RGB, RGB | null, number?][] = [
     [' ● ' + n + '/4 in party ', MINT, [22, 21, 34], 1],
     [' ' + clock(st.tick) + ' ', [196, 186, 230], [32, 28, 50]],
-    [' ' + st.pingMs + ' ms ', [196, 186, 230], [44, 36, 68]],
+    [' ' + st.pingMs + ' ms ', st.pingMs < 120 ? [196, 186, 230] : [22, 6, 20], st.pingMs < 120 ? [44, 36, 68] : st.pingMs < 250 ? [255, 176, 70] : PINK, st.pingMs < 120 ? 0 : 1],
     [' 24-bit ', [8, 20, 28], [95, 215, 255], 1],
   ];
   fb.segs(W - right.reduce((a, r) => a + r[0].length, 0), 0, right);

@@ -1,6 +1,6 @@
 import { Net } from './net';
 import { GameState } from './state';
-import { Fb, W, H, PINK, WH } from './term/fb';
+import { Fb, W, H, PINK, WH, AMB } from './term/fb';
 import { TermCanvas, FULL } from './term/canvas';
 import type { App, Screen } from './app';
 import { GameScreen } from './screens/game';
@@ -12,6 +12,34 @@ import { sfx } from './audio';
 import { layout, updateLayout, setTouch } from './mobile';
 import { TouchControls, type TouchBtn } from './touch';
 import * as kbd from './kbd';
+import { dlog, dbg, frameTick, snapTick, resetSnapClock, overlayLines } from './debug';
+
+window.addEventListener('error', (e) => dlog('error', `${e.message} at ${e.filename?.split('/').pop()}:${e.lineno}`));
+window.addEventListener('unhandledrejection', (e) => dlog('error', 'unhandled: ' + String((e.reason as Error)?.message ?? e.reason)));
+document.addEventListener('visibilitychange', () => {
+  dlog('page', 'tab ' + document.visibilityState);
+  if (document.visibilityState === 'visible') keepAwake(currentName === 'game'); // the browser let go of it while hidden
+});
+
+// Gamepad input does not count as activity for the screensaver: while in the game, ask the browser to keep the
+// screen on. Only on https (or localhost); elsewhere the browser has no wake lock and the log says so.
+interface WakeLock { release(): Promise<void>; addEventListener(t: 'release', f: () => void): void }
+let wake: WakeLock | null = null;
+let wakeWanted = false;
+function keepAwake(on: boolean) {
+  wakeWanted = on;
+  if (!on) { const w = wake; wake = null; w?.release().catch(() => {}); return; }
+  if (wake) return;
+  const wl = (navigator as unknown as { wakeLock?: { request(t: 'screen'): Promise<WakeLock> } }).wakeLock;
+  if (!wl) { dlog('page', 'no screen wake lock here (needs https or localhost): the screensaver may start while playing with a gamepad'); return; }
+  wl.request('screen').then((w) => {
+    if (!wakeWanted) { w.release().catch(() => {}); return; }
+    wake = w;
+    dlog('page', 'keeping the screen on');
+    w.addEventListener('release', () => { if (wake === w) wake = null; });
+  }).catch((e) => dlog('page', 'screen wake lock refused: ' + (e as Error).message));
+}
+window.addEventListener('gamepadconnected', (e) => dlog('input', 'gamepad connected: ' + e.gamepad.id));
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
 const term = new TermCanvas(canvas);
@@ -32,6 +60,9 @@ const app: App = {
   net, st, term,
   setScreen(name) {
     if (name === currentName) return;
+    dlog('screen', `${currentName || '-'} → ${name}`);
+    dbg.inGame = name === 'game';
+    resetSnapClock();
     if (name === 'landing' && (currentName === 'lobby' || currentName === 'game') && session) {
       // the player chose to leave the room: tell the server so it frees the slot now (no reconnect hold)
       leaving = true; session = null; net.send({ t: 'leave' }); net.close(); st.reset();
@@ -41,6 +72,7 @@ const app: App = {
     currentName = name;
     current = screens[name];
     current.onEnter?.();
+    keepAwake(name === 'game');
   },
   toast() {},
 };
@@ -77,14 +109,19 @@ landing.onSubmit = async (mode, code, name, cls) => {
 
 net.onMsg = (m) => {
   if (m.t === 'hb') { net.send({ t: 'hbAck', n: m.n }); return; }
-  if (m.t === 'error') fatal = m.msg;
+  if (m.t === 'snap') snapTick(performance.now());
+  else if (m.t === 'welcome') dlog('net', `welcome: player ${m.you} in ${m.code}${m.isHost ? ' (host)' : ''}`);
+  else if (m.t === 'phase') dlog('net', 'phase ' + m.phase);
+  else if (m.t === 'level') dlog('net', `level: ${m.village ? 'village' : 'depth ' + m.depth} (${m.theme})`);
+  else if (m.t === 'overlay') dlog('net', 'overlay ' + m.kind);
+  if (m.t === 'error') { fatal = m.msg; dlog('net', 'server error: ' + m.msg); }
   st.handle(m, performance.now());
   if (m.t === 'welcome' && session) {
     store.set(`emberdeep:${m.code}:token`, m.token);
     reconnectUntil = 0;
     if (location.pathname !== '/r/' + m.code) history.replaceState(null, '', '/r/' + m.code);
     if (currentName === 'landing') app.setScreen('lobby');
-  } else if (m.t === 'phase') {
+  } else if (m.t === 'phase' && session) { // no session: we left; a late answer must not pull us back in
     app.setScreen(m.phase === 'game' ? 'game' : 'lobby');
   }
 };
@@ -92,12 +129,14 @@ net.onMsg = (m) => {
 net.onClose = () => {
   if (!session || leaving) return;
   if (fatal) { toLanding(fatal); return; }
+  dlog('net', 'connection dropped: reconnecting');
   // connection dropped: try to resume with our session token for up to 60 s
   if (!reconnectUntil) reconnectUntil = performance.now() + 60000;
   tryReconnect();
 };
 
 function toLanding(msg: string) {
+  dlog('net', 'back to the start page: ' + msg);
   session = null;
   reconnectUntil = 0;
   st.reset();
@@ -126,6 +165,8 @@ window.addEventListener('pointerdown', (e) => {
 window.addEventListener('pointerup', () => kbd.flush(), { capture: true });
 window.addEventListener('keydown', (e) => {
   if (kbd.isKbd(e.target)) return; // typing into a field: the hidden input reports the text itself
+  if (e.key === 'F9') { dbg.overlay = !dbg.overlay; e.preventDefault(); return; }
+  if (!e.repeat) dbg.cur.keys++;
   lastInput.pad = false;
   setTouch(false); // a real keyboard: hide the touch controls until the next touch
   const k = current.mapKey ? current.mapKey(e) : e;
@@ -164,7 +205,7 @@ window.addEventListener('resize', updateLayout);
 window.addEventListener('orientationchange', updateLayout);
 
 const touch = new TouchControls({
-  down: (key: string, repeat: boolean) => { lastInput.pad = false; current.onKey?.(fakeKey(key, repeat)); },
+  down: (key: string, repeat: boolean) => { if (!repeat) dbg.cur.touch++; lastInput.pad = false; current.onKey?.(fakeKey(key, repeat)); },
   up: (key: string) => current.onKeyUp?.(fakeKey(key)),
 });
 
@@ -187,16 +228,23 @@ const padSink = {
   down: (key: string, repeat: boolean) => {
     // playing with the pad: forget the mouse cursor, so skills and thrown items aim at the nearest enemy
     game.mouse = [-1, -1];
+    if (!repeat) { dbg.cur.pad++; sfx.unlock(); } // some browsers count a pad button as a gesture that may start sound
     lastInput.pad = true;
     current.onKey?.(fakeKey(key, repeat));
   },
   up: (key: string) => current.onKeyUp?.(fakeKey(key)),
 };
-window.addEventListener('gamepaddisconnected', () => pad.releaseAll(padSink));
+window.addEventListener('gamepaddisconnected', () => { dlog('input', 'gamepad disconnected'); pad.releaseAll(padSink); });
+
+/** no snapshot for this long in the game: show that the connection is struggling */
+const STALL_MS = 600;
+/** nothing at all for this long (heartbeats come every 2 s): treat the connection as dead and reconnect */
+const SILENT_MS = 8000;
 
 let last = 0;
 function frame(now: number) {
   requestAnimationFrame(frame);
+  frameTick(now);
   if (now - last < 30) return;
   last = now;
   const ctx = current.padContext?.() ?? 'menu';
@@ -209,13 +257,42 @@ function frame(now: number) {
     const btns = current.touchButtons?.() ?? [];
     touch.update(now, ctx, canFullscreen && ctx !== 'panel' ? [...btns, FS_BTN] : btns, current.touchStick?.() ?? false);
   }
+  // the server sends 20 snapshots a second in the game and a heartbeat every 2 s: silence means a bad connection.
+  // Say so at once (the browser may take a minute to notice a dead socket), and give up on a silent one
+  if (net.open && session && !reconnectUntil) {
+    const quiet = now - net.lastMsgAt;
+    if (quiet > SILENT_MS) net.drop(`nothing from the server for ${Math.round(quiet / 1000)} s`);
+    else if (currentName === 'game' && st.latestAt && now - st.latestAt > STALL_MS) {
+      const msg = ` connection unstable — no update for ${((now - st.latestAt) / 1000).toFixed(1)} s `;
+      const v = term.view;
+      fb.txt(v.x + Math.max(0, Math.floor((v.w - msg.length) / 2)), v.y + 2, msg, [22, 6, 20], AMB, 1);
+    }
+  }
   if (reconnectUntil) {
     const left = Math.max(0, Math.ceil((reconnectUntil - now) / 1000));
     const msg = ` connection lost — reconnecting (${left}s) `;
     const v = term.view; // keep it inside the part of the grid that is shown
     fb.txt(v.x + Math.max(0, Math.floor((v.w - msg.length) / 2)), v.y + Math.floor(v.h / 2), msg, WH, PINK, 1);
   }
+  fillDebugInfo(); // also goes into the log's stats lines
+  if (dbg.overlay) drawDebug();
   term.draw(fb);
+}
+
+function fillDebugInfo() {
+  const i = dbg.info;
+  i.screen = currentName;
+  i.socket = net.ws ? ['connecting', 'open', 'closing', 'closed'][net.ws.readyState] : 'none';
+  i.seq = `${game.pred.seq} acked ${st.ackSeq} pending ${game.pred.pending.length}`;
+  i.held = [...game.held].join(' ') || '-';
+  i.pad = pad.active ? 'active' : '-';
+  i.sound = sfx.describe();
+}
+
+/** F9: live numbers in the top left corner of what is shown. */
+function drawDebug() {
+  const v = term.view;
+  overlayLines().forEach((l, n) => fb.txt(v.x + 1, v.y + 1 + n, (' ' + l + ' ').slice(0, v.w - 2), WH, [20, 18, 30]));
 }
 requestAnimationFrame(frame);
 void H;

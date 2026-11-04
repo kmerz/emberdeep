@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"sort"
 	"strings"
@@ -310,24 +311,47 @@ func (r *Room) handleJoin(j joinReq) {
 	if h.Token != "" {
 		for _, p := range r.players {
 			if p.Token == h.Token && !p.Bot {
-				if p.Conn != nil && p.Conn != j.conn {
-					p.Conn.Kick("session resumed elsewhere")
-				}
-				p.Conn = j.conn
-				p.DisconnectedAt = time.Time{}
-				j.conn.PlayerID = p.ID
-				if r.g != nil {
-					r.g.SetConnected(p.ID, true)
-				}
-				r.emptySince = time.Time{}
-				r.assignHostIfNone()
-				r.syncConn(p)
-				r.broadcastLobby()
-				j.reply <- joinResp{res: JoinResult{PlayerID: p.ID, Token: p.Token, IsHost: p.Host}}
+				r.resume(j, p, "resumed their session")
 				return
 			}
 		}
 	}
+	// back without a working token (it was lost, or the browser kept another room's) under the name of a player
+	// who is gone: take that player over instead of joining a second time next to them. Saved heroes go by name
+	// too, so this gives nothing away a save does not already.
+	if name, ok := SanitizeName(h.Name); ok {
+		for _, p := range r.players {
+			if !p.Bot && p.Conn == nil && strings.EqualFold(p.Name, name) {
+				r.resume(j, p, "came back under the same name")
+				return
+			}
+		}
+	}
+	r.joinNew(j)
+}
+
+// resume gives player p the joining connection: their hero, slot and host role carry on.
+func (r *Room) resume(j joinReq, p *Player, how string) {
+	if p.Conn != nil && p.Conn != j.conn {
+		p.Conn.Kick("session resumed elsewhere")
+	}
+	r.logf("%s %s (%s)%s", p.Name, how, r.where(), r.seqNote(p))
+	p.Conn = j.conn
+	p.DisconnectedAt = time.Time{}
+	j.conn.PlayerID = p.ID
+	if r.g != nil {
+		r.g.SetConnected(p.ID, true)
+	}
+	r.emptySince = time.Time{}
+	r.assignHostIfNone()
+	r.syncConn(p)
+	r.broadcastLobby()
+	j.reply <- joinResp{res: JoinResult{PlayerID: p.ID, Token: p.Token, IsHost: p.Host}}
+}
+
+// joinNew adds a new player (in the lobby, or next to the party when a run is going).
+func (r *Room) joinNew(j joinReq) {
+	h := j.hello
 	name, ok := SanitizeName(h.Name)
 	if !ok {
 		j.reply <- joinResp{err: ErrBadName}
@@ -352,6 +376,7 @@ func (r *Room) handleJoin(j joinReq) {
 		}
 	}
 	r.nextPID++
+	r.logf("%s joined as %s (%s)", name, cls, r.where())
 	p := &Player{ID: r.nextPID, Name: name, Cls: cls, Token: newToken(), Conn: j.conn, PingMs: -1, hbSent: map[int]time.Time{}}
 	j.conn.PlayerID = p.ID
 	r.players = append(r.players, p)
@@ -401,6 +426,7 @@ func (r *Room) handleLeave(c *Conn) {
 	}
 	p.Conn = nil
 	p.PingMs = -1
+	r.logf("%s disconnected (%s)", p.Name, r.where())
 	if r.g == nil {
 		r.removePlayer(p)
 	} else {
@@ -420,6 +446,7 @@ func (r *Room) handleLeave(c *Conn) {
 // quit removes a player who left on purpose (/leave): the hero leaves the world at once instead of
 // waiting out the reconnect window, and the slot is free for someone else.
 func (r *Room) quit(p *Player) {
+	r.logf("%s left the game", p.Name)
 	r.removePlayer(p)
 	if r.g != nil {
 		r.sendAll(mustJSON(proto.Events{T: "events", Tick: r.g.Now, List: []game.Event{{K: "msg", Text: p.Name + " left the dungeon"}}}))
@@ -469,6 +496,9 @@ func (r *Room) handleMsg(in inMsg) {
 	switch m.T {
 	case proto.CReady:
 		if r.g != nil {
+			// only a client that shows the lobby sends this: it missed that the run is going. Send it again
+			r.logf("%s is in the lobby while the run is going: sending the game again", p.Name)
+			r.syncConn(p)
 			return
 		}
 		p.Ready = !p.Ready
@@ -600,6 +630,7 @@ func (r *Room) startGame() {
 	}
 	r.persist()
 	r.g.Tick()
+	r.logf("game started (%s, %d players)", r.where(), len(r.players))
 	r.sendAll(mustJSON(proto.Phase{T: "phase", Phase: "game"}))
 	r.sendLevel()
 	r.broadcastLobby()
@@ -638,6 +669,7 @@ func (r *Room) onHb(now time.Time) {
 func (r *Room) checkTimeouts(now time.Time) {
 	for _, p := range append([]*Player(nil), r.players...) {
 		if !p.Bot && p.Conn == nil && !p.DisconnectedAt.IsZero() && now.Sub(p.DisconnectedAt) >= r.cfg.ReconnectWindow {
+			r.logf("%s did not come back within %s: removed", p.Name, r.cfg.ReconnectWindow)
 			r.removePlayer(p)
 			r.broadcastLobby()
 		}
@@ -647,6 +679,7 @@ func (r *Room) checkTimeouts(now time.Time) {
 			r.emptySince = now
 		}
 		if now.Sub(r.emptySince) >= r.cfg.EmptyTimeout {
+			r.logf("empty for %s: closing", r.cfg.EmptyTimeout)
 			r.closed = true
 		}
 	} else {
@@ -723,6 +756,7 @@ func (r *Room) recordFame() {
 
 // endRun returns the room to the lobby (a new seed for the next descent).
 func (r *Room) endRun() {
+	r.logf("back to the lobby (%s)", r.where())
 	if r.g.Phase == game.PhaseCleared { // the run is won: nothing to continue
 		r.saved = nil
 		deleteSave(r.cfg.SaveDir, r.code)
@@ -739,6 +773,39 @@ func (r *Room) endRun() {
 	}
 	r.sendAll(mustJSON(proto.Phase{T: "phase", Phase: "lobby"}))
 	r.broadcastLobby()
+}
+
+// logf writes a line to the server log, tagged with the room code.
+func (r *Room) logf(format string, args ...any) {
+	if r.cfg.Quiet {
+		return
+	}
+	log.Printf("room %s: "+format, append([]any{r.code}, args...)...)
+}
+
+// where says where the room is, for the log: in the lobby (with or without a save) or on which floor.
+func (r *Room) where() string {
+	if r.g == nil {
+		if r.saved != nil {
+			return fmt.Sprintf("lobby, save at depth %d", r.saved.Depth)
+		}
+		return "lobby"
+	}
+	if r.g.InVillage {
+		return "village"
+	}
+	return fmt.Sprintf("depth %d", r.g.Depth)
+}
+
+// seqNote is the hero's last input number, for the log: a client that reloaded starts counting from 0 again.
+func (r *Room) seqNote(p *Player) string {
+	if r.g == nil {
+		return ""
+	}
+	if h := r.g.Hero(p.ID); h != nil {
+		return fmt.Sprintf(", last input #%d", h.LastSeq)
+	}
+	return ""
 }
 
 // savedHero is the player's hero in the saved game, if there is one of the class they picked.

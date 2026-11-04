@@ -56,7 +56,7 @@ export class LobbyScreen implements Screen {
     const st = this.app.st, lob = st.lobby;
     const me = lob?.players.find((p) => p.id === st.youId);
     const b: TouchBtn[] = [
-      { key: 'Enter', label: me?.ready ? (st.isHost ? 'START' : 'UNREADY') : 'READY', area: 'bot' },
+      { key: 'Enter', label: lob?.inGame ? 'JOIN' : me?.ready ? (st.isHost ? 'START' : 'UNREADY') : 'READY', area: 'bot' },
       { key: 'c', label: 'CLASS', area: 'bot' },
       { key: 'i', label: 'INVITE', area: 'bot', tap: () => this.invite() },
     ];
@@ -89,7 +89,8 @@ export class LobbyScreen implements Screen {
     const k = ev.key.toLowerCase();
     if (ev.repeat) return;
     if (ev.key === 'Enter') {
-      if (me?.ready && st.isHost) net.send({ t: 'start' });
+      if (lob?.inGame) net.send({ t: 'ready' }); // the server answers with the game
+      else if (me?.ready && st.isHost) net.send({ t: 'start' });
       else net.send({ t: 'ready' });
       ev.preventDefault();
     } else if (k === 'c' && me) {
@@ -158,14 +159,15 @@ export class LobbyScreen implements Screen {
       fb.txt(41, 30, hint.slice(0, 79), DIM);
     }
     const waiting = players.filter((p) => !p.ready && !p.bot).map((p) => p.name);
-    if (waiting.length) {
+    if (lob?.inGame) fb.txt(41, 31, 'a run is in progress — press ' + keyLabel('lobby', 'Enter', 'ENTER') + ' to join it', AMB, null, 1);
+    else if (waiting.length) {
       fb.txt(41, 31, 'waiting for ', DIM);
       let x = 53;
       waiting.forEach((n, i) => { fb.txt(x, 31, n, [255, 212, 92], null, 1); x += n.length; if (i < waiting.length - 1) { fb.txt(x, 31, ', ', DIM); x += 2; } });
       fb.txt(x, 31, ' — the descent starts when everyone is ready', DIM);
     } else fb.txt(41, 31, 'everyone is ready — descending…', MINT, null, 1);
     const me = players.find((p) => p.id === st.youId);
-    const enterLabel = me?.ready ? (st.isHost ? 'start now' : 'unready') : 'ready up';
+    const enterLabel = lob?.inGame ? 'join the run' : me?.ready ? (st.isHost ? 'start now' : 'unready') : 'ready up';
     const keys: [string, string][] = [['ENTER', enterLabel], ['C', 'change class'], ['I', 'copy invite link']];
     if (st.isHost) keys.push(['F', 'friendly fire'], ['D', 'difficulty'], ['B', 'add bot'], ['X', 'remove bot']);
     if (st.isHost && sv) keys.push(['N', 'new run']);

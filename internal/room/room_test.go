@@ -1097,3 +1097,56 @@ func TestBotsSeeTheNoticeBoard(t *testing.T) {
 		t.Error("the bot's view has no notice board in it")
 	})
 }
+
+// Back after a drop without the session token (the browser lost it): the same name takes the waiting hero over
+// instead of joining a second time next to them.
+func TestSameNameTakesOverADisconnectedHero(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, ra := join(t, r, "kmerz", "warrior")
+	b, _ := join(t, r, "nyx", "rogue")
+	r.Submit(a, proto.ClientMsg{T: "start"})
+	waitFor(t, "start", func() bool { return hasType(b, "level") })
+	r.Leave(a)
+	waitFor(t, "disconnect processed", func() bool {
+		gone := false
+		r.Inspect(func(g *game.Game, _ int) { gone = !g.Hero(ra.PlayerID).Connected })
+		return gone
+	})
+	a2 := NewTestConn()
+	res, err := r.Join(a2, proto.ClientMsg{T: "hello", Name: "KMERZ", Cls: "monk", Token: "stale"})
+	if err != nil || res.PlayerID != ra.PlayerID {
+		t.Fatalf("the same name should take the hero over: %+v %v", res, err)
+	}
+	r.Inspect(func(g *game.Game, players int) {
+		if hh := g.Hero(ra.PlayerID); hh == nil || !hh.Connected || players != 2 {
+			t.Errorf("one kmerz, back in control (hero %+v, players %d)", hh, players)
+		}
+	})
+	// someone else under a name that is still connected joins as a new player
+	c, rc := join(t, r, "nyx", "monk")
+	if rc.PlayerID == ra.PlayerID {
+		t.Fatal("a connected player must not be taken over")
+	}
+	_ = c
+}
+
+// A client that shows the lobby while the run is going (it missed the phase change) gets the game again when
+// it readies up.
+func TestReadyDuringTheRunResendsTheGame(t *testing.T) {
+	h := fastHub(t, nil)
+	r, _ := h.Create()
+	a, _ := join(t, r, "kmerz", "warrior")
+	startRun(t, r, a)
+	drain(a)
+	r.Submit(a, proto.ClientMsg{T: "ready"})
+	waitFor(t, "the game sent again", func() bool {
+		types, raws := drain(a)
+		for i, ty := range types {
+			if ty == "phase" && strings.Contains(string(raws[i]), `"game"`) {
+				return true
+			}
+		}
+		return false
+	})
+}
