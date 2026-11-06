@@ -10,3 +10,6 @@ internal/web/dist/*
 so.sh
 /bin
 /saves
+
+# project spec, kept private
+PROMPT.md

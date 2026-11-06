@@ -285,3 +285,7 @@ Stop the container normally (`docker stop` sends SIGTERM) so running games are s
 The server speaks plain HTTP. Put it behind a TLS reverse proxy so the websocket runs over `wss`; see
 `Caddyfile.example` (`play.example.com { reverse_proxy emberdeep:8080 }`: Caddy gets the certificate and
 forwards the upgrade). Set `PUBLIC_URL` to the public origin so invite links and the Origin check match.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
